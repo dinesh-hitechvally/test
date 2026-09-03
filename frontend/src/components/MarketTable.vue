@@ -1,0 +1,211 @@
+<script setup>
+import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
+import { formatPrice } from '../utils/format'
+
+const props = defineProps({
+  stocks: { type: Array, required: true },
+  defaultSort: { type: Object, default: () => ({ key: 'symbol', dir: 'asc' }) },
+  showTurnoverVolume: { type: Boolean, default: false },
+})
+
+const search = ref('')
+const sectorFilter = ref('')
+const signalFilter = ref('')
+const sortKey = ref(props.defaultSort.key)
+const sortDir = ref(props.defaultSort.dir)
+const page = ref(1)
+const pageSize = 50
+
+watch(
+  () => props.defaultSort,
+  (val) => {
+    sortKey.value = val.key
+    sortDir.value = val.dir
+    page.value = 1
+  }
+)
+
+const sectors = computed(() => {
+  const set = new Set(props.stocks.map((s) => s.sector || 'Other'))
+  return Array.from(set).sort()
+})
+
+function sectorOf(stock) {
+  return stock.sector || 'Other'
+}
+
+function sortValue(stock, key) {
+  if (key === 'last_close') return stock.latest_price?.close_price ?? -Infinity
+  if (key === 'change_pct') return stock.change_pct ?? -Infinity
+  if (key === 'turnover') return Number(stock.latest_price?.turnover ?? -Infinity)
+  if (key === 'volume') return Number(stock.latest_price?.volume ?? -Infinity)
+  if (key === 'signal') return stock.latest_signal?.signal ?? ''
+  if (key === 'sector') return sectorOf(stock)
+  return stock[key] ?? ''
+}
+
+const filtered = computed(() => {
+  let list = props.stocks
+
+  if (search.value.trim()) {
+    const term = search.value.trim().toLowerCase()
+    list = list.filter((s) => s.symbol.toLowerCase().includes(term) || (s.company_name || '').toLowerCase().includes(term))
+  }
+  if (sectorFilter.value) {
+    list = list.filter((s) => sectorOf(s) === sectorFilter.value)
+  }
+  if (signalFilter.value) {
+    list = list.filter((s) => s.latest_signal?.signal === signalFilter.value)
+  }
+
+  return [...list].sort((a, b) => {
+    const av = sortValue(a, sortKey.value)
+    const bv = sortValue(b, sortKey.value)
+    if (av < bv) return sortDir.value === 'asc' ? -1 : 1
+    if (av > bv) return sortDir.value === 'asc' ? 1 : -1
+    return 0
+  })
+})
+
+const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize)))
+
+const paged = computed(() => {
+  const start = (page.value - 1) * pageSize
+  return filtered.value.slice(start, start + pageSize)
+})
+
+function toggleSort(key) {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortKey.value = key
+    sortDir.value = 'asc'
+  }
+}
+
+function sortIndicator(key) {
+  if (sortKey.value !== key) return ''
+  return sortDir.value === 'asc' ? '▲' : '▼'
+}
+
+function resetToFirstPage() {
+  page.value = 1
+}
+
+function changeTone(pct) {
+  if (pct === null || pct === undefined) return ''
+  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
+}
+
+function formatInt(value) {
+  if (value === null || value === undefined) return '—'
+  return Number(value).toLocaleString()
+}
+</script>
+
+<template>
+  <div>
+    <div class="filter-bar">
+      <input v-model="search" class="input" style="max-width: 280px" placeholder="Search symbol or company…" @input="resetToFirstPage" />
+      <select v-model="sectorFilter" class="input" style="max-width: 200px" @change="resetToFirstPage">
+        <option value="">All sectors</option>
+        <option v-for="s in sectors" :key="s" :value="s">{{ s }}</option>
+      </select>
+      <select v-model="signalFilter" class="input" style="max-width: 180px" @change="resetToFirstPage">
+        <option value="">All signals</option>
+        <option value="strong_buy">Strong Buy</option>
+        <option value="buy">Buy</option>
+        <option value="hold">Hold</option>
+        <option value="sell">Sell</option>
+        <option value="strong_sell">Strong Sell</option>
+      </select>
+      <span class="muted result-count">{{ filtered.length }} stocks</span>
+    </div>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+          <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
+          <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
+          <th class="sortable" @click="toggleSort('last_close')">Last Close {{ sortIndicator('last_close') }}</th>
+          <th class="sortable" @click="toggleSort('change_pct')">% Change {{ sortIndicator('change_pct') }}</th>
+          <th v-if="showTurnoverVolume" class="sortable" @click="toggleSort('turnover')">Turnover {{ sortIndicator('turnover') }}</th>
+          <th v-if="showTurnoverVolume" class="sortable" @click="toggleSort('volume')">Volume {{ sortIndicator('volume') }}</th>
+          <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="stock in paged" :key="stock.id">
+          <td>
+            <RouterLink :to="{ name: 'stock-detail', params: { symbol: stock.symbol } }">{{ stock.symbol }}</RouterLink>
+          </td>
+          <td>{{ stock.company_name || '—' }}</td>
+          <td>{{ sectorOf(stock) }}</td>
+          <td>{{ formatPrice(stock.latest_price?.close_price) }}</td>
+          <td :class="changeTone(stock.change_pct)">
+            {{ stock.change_pct !== null && stock.change_pct !== undefined ? `${stock.change_pct > 0 ? '+' : ''}${stock.change_pct}%` : '—' }}
+          </td>
+          <td v-if="showTurnoverVolume">{{ formatInt(stock.latest_price?.turnover) }}</td>
+          <td v-if="showTurnoverVolume">{{ formatInt(stock.latest_price?.volume) }}</td>
+          <td>
+            <span v-if="stock.latest_signal" class="badge" :class="stock.latest_signal.signal">
+              {{ stock.latest_signal.signal.replace('_', ' ') }}
+            </span>
+            <span v-else class="muted">No data</span>
+          </td>
+        </tr>
+        <tr v-if="paged.length === 0">
+          <td :colspan="showTurnoverVolume ? 8 : 6" class="muted" style="text-align: center; padding: 24px">No stocks match these filters.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div v-if="pageCount > 1" class="pagination">
+      <button class="btn-secondary btn" :disabled="page === 1" @click="page--">Prev</button>
+      <span class="muted">Page {{ page }} of {{ pageCount }}</span>
+      <button class="btn-secondary btn" :disabled="page === pageCount" @click="page++">Next</button>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.filter-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.result-count {
+  margin-left: auto;
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sortable:hover {
+  color: var(--text);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.positive {
+  color: var(--strong-buy);
+}
+
+.negative {
+  color: var(--strong-sell);
+}
+</style>

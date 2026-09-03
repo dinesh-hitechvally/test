@@ -1,0 +1,103 @@
+# =========================
+# ROOT (global ignores)
+# =========================
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+*.swo
+*.tmp
+*.temp
+
+# =========================
+# BACKEND (Laravel - /backend/franchisee)
+# =========================
+/backend/vendor/
+/backend/node_modules/
+
+# Env (IMPORTANT - never commit)
+/backend/.env
+/backend/.env.*
+!/backend/.env.example
+
+# Logs
+/backend/*.log
+
+# Laravel cache
+/backend/bootstrap/cache/*.php
+
+# Storage
+/backend/storage/*.key
+/backend/storage/pail
+/backend/storage/debugbar
+
+# Public build/temp
+/backend/public/build
+/backend/public/hot
+/backend/public/storage
+
+# Composer auth (secrets)
+/backend/auth.json
+
+# Testing
+/backend/.phpunit.result.cache
+/backend/.phpunit.cache
+/backend/coverage/
+
+# IDE / Editors
+/backend/.idea/
+/backend/.vscode/
+/backend/.fleet/
+/backend/.zed/
+
+# Misc
+/backend/_ide_helper.php
+/backend/Homestead.json
+/backend/Homestead.yaml
+/backend/.phpactor.json
+
+# =========================
+# FRONTEND (React/Vite - /frontend/franchisee)
+# =========================
+/frontend/node_modules/
+
+# Build outputs
+/frontend/build/
+/frontend/dist/
+/frontend/.next/
+/frontend/out/
+
+# Env files
+/frontend/.env
+/frontend/.env.*
+!/frontend/.env.example
+
+# Logs
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+/frontend/pnpm-debug.log*
+
+# Testing
+/frontend/coverage/
+
+# Cache
+/frontend/.cache/
+/frontend/.vite/
+/frontend/.turbo/
+
+# IDE
+/frontend/.idea/
+/frontend/.vscode/
+
+# Misc
+/frontend/.eslintcache
+/frontend/.stylelintcache
+
+# =========================
+# OPTIONAL GLOBAL
+# =========================
+.env
+.env.*
+
+docker-compose.override.yml
