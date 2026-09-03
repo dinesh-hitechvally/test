@@ -41,6 +41,7 @@ const navItems = [
       { to: '/reports/sector', label: 'By Sector' },
       { to: '/reports/stock', label: 'By Stock' },
       { to: '/reports/rule-scanner', label: 'Rule Scanner' },
+      { to: '/reports/technical', label: 'Technical Analysis' },
     ],
   },
 ]

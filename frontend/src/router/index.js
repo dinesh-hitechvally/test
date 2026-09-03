@@ -22,6 +22,7 @@ const routes = [
   { path: '/reports/sector', name: 'reports-sector', component: () => import('../views/ReportsSector.vue'), meta: { requiresAuth: true, title: 'Sector Report' } },
   { path: '/reports/stock/:symbol?', name: 'reports-stock', component: () => import('../views/ReportsStock.vue'), meta: { requiresAuth: true, title: 'Stock Report' } },
   { path: '/reports/rule-scanner', name: 'reports-rule-scanner', component: () => import('../views/ReportsRuleScanner.vue'), meta: { requiresAuth: true, title: 'Rule Scanner' } },
+  { path: '/reports/technical/:symbol?', name: 'reports-technical', component: () => import('../views/ReportsTechnical.vue'), meta: { requiresAuth: true, title: 'Technical Analysis' } },
 ]
 
 const router = createRouter({
