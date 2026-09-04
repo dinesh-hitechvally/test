@@ -30,10 +30,14 @@ export const useStocksStore = defineStore('stocks', {
       const { data } = await client.get('/scrape/logs')
       this.scrapeLogs = data
     },
+    // Official nepalstock.com source — see NepalStockScraperService. ShareSansar
+    // (/scrape/run) is kept server-side only as a manual fallback, and as the
+    // sole source for full-history backfills (the official API caps out at
+    // ~1 year of history no matter what).
     async runScrape() {
       this.lastError = null
       try {
-        const { data } = await client.post('/scrape/run')
+        const { data } = await client.post('/scrape/run-nepse')
         return data
       } catch (e) {
         this.lastError = e.response?.data?.message || 'Scrape failed.'

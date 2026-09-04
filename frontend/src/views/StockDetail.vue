@@ -15,20 +15,27 @@ const signals = ref([])
 const forecast = ref({ forecasts: [], disclaimer: '' })
 const mlPrediction = ref(null)
 const mlModel = ref(null)
+const dividends = ref([])
+const rightShares = ref([])
 const loading = ref(true)
 const fetchingHistory = ref(false)
 const fetchHistoryResult = ref('')
 const fetchHistoryError = ref('')
+const fetchingCorporateActions = ref(false)
+const corporateActionsResult = ref('')
+const corporateActionsError = ref('')
 
 async function loadAll(symbol) {
   loading.value = true
-  const [stockRes, pricesRes, indicatorsRes, signalsRes, forecastRes, mlRes] = await Promise.all([
+  const [stockRes, pricesRes, indicatorsRes, signalsRes, forecastRes, mlRes, dividendsRes, rightSharesRes] = await Promise.all([
     client.get(`/stocks/${symbol}`),
     client.get(`/stocks/${symbol}/prices`, { params: { days: 180 } }),
     client.get(`/stocks/${symbol}/indicators`, { params: { days: 180 } }),
     client.get(`/stocks/${symbol}/signals`, { params: { days: 30 } }),
     client.get(`/stocks/${symbol}/forecast`),
     client.get(`/stocks/${symbol}/ml-prediction`),
+    client.get(`/stocks/${symbol}/dividends`),
+    client.get(`/stocks/${symbol}/right-shares`),
   ])
 
   stock.value = stockRes.data
@@ -38,7 +45,29 @@ async function loadAll(symbol) {
   forecast.value = forecastRes.data.forecasts ? forecastRes.data : { forecasts: [], disclaimer: '' }
   mlPrediction.value = mlRes.data.prediction
   mlModel.value = mlRes.data.model
+  dividends.value = dividendsRes.data
+  rightShares.value = rightSharesRes.data
   loading.value = false
+}
+
+async function handleFetchCorporateActions() {
+  fetchingCorporateActions.value = true
+  corporateActionsResult.value = ''
+  corporateActionsError.value = ''
+  try {
+    const { data } = await client.post(`/stocks/${route.params.symbol}/fetch-corporate-actions`)
+    corporateActionsResult.value = `${data.dividends} dividend row(s), ${data.right_shares} right-share row(s) refreshed.`
+    const [dividendsRes, rightSharesRes] = await Promise.all([
+      client.get(`/stocks/${route.params.symbol}/dividends`),
+      client.get(`/stocks/${route.params.symbol}/right-shares`),
+    ])
+    dividends.value = dividendsRes.data
+    rightShares.value = rightSharesRes.data
+  } catch (e) {
+    corporateActionsError.value = e.response?.data?.message || 'Fetch failed.'
+  } finally {
+    fetchingCorporateActions.value = false
+  }
 }
 
 function formatSignal(label) {
@@ -197,6 +226,57 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
     </div>
 
     <div class="card" style="margin-top: 16px">
+      <div class="card-head">
+        <h3 style="margin: 0">Dividend &amp; Bonus History</h3>
+        <button class="btn-secondary btn" :disabled="fetchingCorporateActions" @click="handleFetchCorporateActions">
+          {{ fetchingCorporateActions ? 'Fetching…' : 'Refresh from ShareSansar' }}
+        </button>
+      </div>
+      <p v-if="corporateActionsResult" class="muted">{{ corporateActionsResult }}</p>
+      <p v-if="corporateActionsError" class="error-text">{{ corporateActionsError }}</p>
+
+      <table class="table" v-if="dividends.length">
+        <thead>
+          <tr><th>Fiscal Year</th><th>Bonus Share</th><th>Cash Dividend</th><th>Total Dividend</th><th>Book Closure</th><th>Bonus Listing</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="d in dividends" :key="d.id">
+            <td>{{ d.fiscal_year }}</td>
+            <td>{{ d.bonus_share_pct !== null ? `${d.bonus_share_pct}%` : '—' }}</td>
+            <td>{{ d.cash_dividend_pct !== null ? `${d.cash_dividend_pct}%` : '—' }}</td>
+            <td><strong>{{ d.total_dividend_pct !== null ? `${d.total_dividend_pct}%` : '—' }}</strong></td>
+            <td class="muted">{{ d.book_closure_date || '—' }}</td>
+            <td class="muted">{{ d.bonus_listing_date || '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="muted">
+        No dividend/bonus history recorded yet for {{ stock.symbol }} — click "Refresh from ShareSansar" to fetch it.
+        (Note: this source has occasionally been slow to respond to automated requests — if a refresh comes back
+        empty, that isn't necessarily because {{ stock.symbol }} has never paid a dividend.)
+      </p>
+
+      <template v-if="rightShares.length">
+        <h4>Right Share History</h4>
+        <table class="table">
+          <thead>
+            <tr><th>Ratio</th><th>Units</th><th>Issue Price</th><th>Opening</th><th>Closing</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in rightShares" :key="r.id">
+              <td>{{ r.ratio || '—' }}</td>
+              <td>{{ r.total_units !== null ? Number(r.total_units).toLocaleString() : '—' }}</td>
+              <td>{{ r.issue_price !== null ? `Rs. ${formatPrice(r.issue_price)}` : '—' }}</td>
+              <td class="muted">{{ r.opening_date || '—' }}</td>
+              <td class="muted">{{ r.closing_date || '—' }}</td>
+              <td class="muted">{{ r.status || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
+    </div>
+
+    <div class="card" style="margin-top: 16px">
       <h3>Signal History</h3>
       <p class="muted" style="margin-top: -6px">
         "Predicted" is what an earlier trend forecast projected for that date, so you can compare it against what the
@@ -234,6 +314,13 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
 .accuracy-box {

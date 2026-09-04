@@ -3,20 +3,20 @@
 namespace App\Console\Commands;
 
 use App\Models\Stock;
+use App\Services\MarketData\NepalStockScraperService;
 use App\Services\MarketData\RecalculationPipeline;
-use App\Services\MarketData\SharesansarScraperService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Throwable;
 
 #[Signature('market:sync')]
-#[Description('Scrape today\'s NEPSE prices and recalculate indicators/signals/forecasts for every affected stock')]
+#[Description('Scrape today\'s prices from the official nepalstock.com API and recalculate indicators/signals/forecasts for every affected stock')]
 class DailyMarketSync extends Command
 {
-    public function handle(SharesansarScraperService $scraper, RecalculationPipeline $pipeline): int
+    public function handle(NepalStockScraperService $scraper, RecalculationPipeline $pipeline): int
     {
-        $this->info('Scraping latest NEPSE prices...');
+        $this->info('Scraping latest prices from nepalstock.com (official)...');
 
         try {
             $result = $scraper->scrape();

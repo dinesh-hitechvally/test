@@ -49,6 +49,18 @@ class Stock extends Model
         return $this->hasMany(Forecast::class);
     }
 
+    /** @return HasMany<Dividend, $this> */
+    public function dividends(): HasMany
+    {
+        return $this->hasMany(Dividend::class);
+    }
+
+    /** @return HasMany<RightShare, $this> */
+    public function rightShares(): HasMany
+    {
+        return $this->hasMany(RightShare::class);
+    }
+
     /** @return HasOne<Signal, $this> */
     public function latestSignal(): HasOne
     {

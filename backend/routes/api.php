@@ -1,12 +1,20 @@
 <?php
 
+use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\IndexController;
+use App\Http\Controllers\Api\IpoController;
+use App\Http\Controllers\Api\NewsController;
+use App\Http\Controllers\Api\PatternScanController;
+use App\Http\Controllers\Api\SavedScreenController;
+use App\Http\Controllers\Api\SignalAccuracyController;
 use App\Http\Controllers\Api\MarketController;
 use App\Http\Controllers\Api\PortfolioController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ScrapeController;
 use App\Http\Controllers\Api\SignalController;
 use App\Http\Controllers\Api\StockController;
+use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WatchlistController;
 use Illuminate\Support\Facades\Route;
 
@@ -16,6 +24,9 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
+    Route::put('/user/profile', [AuthController::class, 'updateProfile']);
+    Route::put('/user/password', [AuthController::class, 'updatePassword']);
+    Route::get('/users', [UserController::class, 'index']);
 
     Route::get('/stocks', [StockController::class, 'index']);
     Route::post('/stocks', [StockController::class, 'store']);
@@ -28,8 +39,30 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/stocks/{symbol}/fetch-full-history', [StockController::class, 'fetchFullHistory']);
     Route::post('/stocks/{symbol}/fetch-nepse-history', [StockController::class, 'fetchNepseHistory']);
     Route::get('/stocks/{symbol}/ml-prediction', [StockController::class, 'mlPrediction']);
+    Route::get('/stocks/{symbol}/dividends', [StockController::class, 'dividends']);
+    Route::get('/stocks/{symbol}/right-shares', [StockController::class, 'rightShares']);
+    Route::post('/stocks/{symbol}/fetch-corporate-actions', [StockController::class, 'fetchCorporateActions']);
 
     Route::get('/signals/today', [SignalController::class, 'today']);
+
+    Route::get('/alerts', [AlertController::class, 'index']);
+
+    Route::get('/indices', [IndexController::class, 'index']);
+    Route::post('/indices/sync', [IndexController::class, 'sync']);
+
+    Route::get('/signals/accuracy', [SignalAccuracyController::class, 'index']);
+
+    Route::get('/ipo', [IpoController::class, 'index']);
+    Route::post('/ipo/sync', [IpoController::class, 'sync']);
+
+    Route::get('/news', [NewsController::class, 'index']);
+    Route::post('/news/sync', [NewsController::class, 'sync']);
+
+    Route::get('/saved-screens', [SavedScreenController::class, 'index']);
+    Route::post('/saved-screens', [SavedScreenController::class, 'store']);
+    Route::delete('/saved-screens/{id}', [SavedScreenController::class, 'destroy']);
+
+    Route::get('/patterns/scan', [PatternScanController::class, 'index']);
 
     Route::get('/reports/dashboard', [ReportController::class, 'dashboard']);
     Route::get('/reports/market', [ReportController::class, 'market']);
@@ -51,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/watchlists', [WatchlistController::class, 'store']);
     Route::post('/watchlists/{watchlist}/items', [WatchlistController::class, 'addItem']);
     Route::delete('/watchlists/{watchlist}/items/{stock}', [WatchlistController::class, 'removeItem']);
+    Route::put('/watchlists/{watchlist}/items/{stock}/alert', [WatchlistController::class, 'setAlert']);
 
     Route::get('/portfolios', [PortfolioController::class, 'index']);
     Route::post('/portfolios', [PortfolioController::class, 'store']);
@@ -58,6 +92,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/portfolios/{portfolio}/transactions', [PortfolioController::class, 'transactions']);
     Route::post('/portfolios/{portfolio}/transactions', [PortfolioController::class, 'storeTransaction']);
     Route::delete('/portfolios/{portfolio}/transactions/{transaction}', [PortfolioController::class, 'destroyTransaction']);
+    Route::put('/portfolios/{portfolio}/positions/{stock}/target', [PortfolioController::class, 'setTarget']);
     Route::get('/portfolios/{portfolio}/performance', [PortfolioController::class, 'performance']);
     Route::get('/portfolios/{portfolio}/export', [PortfolioController::class, 'exportCsv']);
+    Route::get('/portfolios/{portfolio}/export-pdf', [PortfolioController::class, 'exportPdf']);
+    Route::get('/portfolios/{portfolio}/export-excel', [PortfolioController::class, 'exportExcel']);
 });

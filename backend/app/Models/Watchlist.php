@@ -19,6 +19,7 @@ class Watchlist extends Model
     /** @return BelongsToMany<Stock, $this> */
     public function stocks(): BelongsToMany
     {
-        return $this->belongsToMany(Stock::class, 'watchlist_items');
+        return $this->belongsToMany(Stock::class, 'watchlist_items')
+            ->withPivot(['id', 'alert_price', 'alert_direction']);
     }
 }

@@ -207,6 +207,37 @@ class StockController extends Controller
         return response()->json($result);
     }
 
+    public function dividends(string $symbol)
+    {
+        $stock = $this->findStock($symbol);
+
+        return response()->json(
+            $stock->dividends()->orderByDesc('fiscal_year')->get()
+        );
+    }
+
+    public function rightShares(string $symbol)
+    {
+        $stock = $this->findStock($symbol);
+
+        return response()->json(
+            $stock->rightShares()->orderByDesc('opening_date')->get()
+        );
+    }
+
+    public function fetchCorporateActions(string $symbol, SharesansarHistoryService $history)
+    {
+        $stock = $this->findStock($symbol);
+
+        try {
+            $result = $history->fetchCorporateActions($stock);
+        } catch (Throwable $e) {
+            return response()->json(['message' => 'Dividend/right-share fetch failed: '.$e->getMessage()], 502);
+        }
+
+        return response()->json($result);
+    }
+
     private function findStock(string $symbol, array $with = []): Stock
     {
         return Stock::with($with)->where('symbol', strtoupper($symbol))->firstOrFail();

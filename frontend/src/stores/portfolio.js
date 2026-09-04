@@ -45,5 +45,10 @@ export const usePortfolioStore = defineStore('portfolio', {
       await client.delete(`/portfolios/${portfolioId}/transactions/${transactionId}`)
       await Promise.all([this.fetchDetail(portfolioId), this.fetchTransactions(portfolioId)])
     },
+    async setPositionTarget(portfolioId, stockId, payload) {
+      const { data } = await client.put(`/portfolios/${portfolioId}/positions/${stockId}/target`, payload)
+      await this.fetchDetail(portfolioId)
+      return data
+    },
   },
 })

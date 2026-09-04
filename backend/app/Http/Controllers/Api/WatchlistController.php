@@ -53,4 +53,27 @@ class WatchlistController extends Controller
 
         return response()->json(['message' => 'Removed.']);
     }
+
+    /**
+     * Sets or clears a price alert on one watchlist item — independent of
+     * the portfolio stop-loss/target alerts, since a watchlist stock isn't
+     * necessarily something you own.
+     */
+    public function setAlert(Request $request, int $watchlistId, int $stockId)
+    {
+        $watchlist = $request->user()->watchlists()->findOrFail($watchlistId);
+
+        $validated = $request->validate([
+            'alert_price' => ['nullable', 'numeric', 'min:0'],
+            'alert_direction' => ['nullable', 'in:above,below'],
+        ]);
+
+        if (! $watchlist->stocks()->where('stocks.id', $stockId)->exists()) {
+            return response()->json(['message' => 'That stock is not on this watchlist.'], 404);
+        }
+
+        $watchlist->stocks()->updateExistingPivot($stockId, $validated);
+
+        return response()->json(['message' => 'Alert saved.']);
+    }
 }

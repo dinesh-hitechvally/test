@@ -3,6 +3,8 @@
 namespace App\Services\MarketData;
 
 use App\Models\DailyPrice;
+use App\Models\Dividend;
+use App\Models\RightShare;
 use App\Models\ScrapeLog;
 use App\Models\Stock;
 use Illuminate\Support\Facades\Http;
@@ -21,6 +23,10 @@ class SharesansarHistoryService
     private const COMPANY_PAGE = 'https://www.sharesansar.com/company/%s';
 
     private const HISTORY_ENDPOINT = 'https://www.sharesansar.com/company-price-history';
+
+    private const DIVIDEND_ENDPOINT = 'https://www.sharesansar.com/company-dividend';
+
+    private const RIGHTSHARE_ENDPOINT = 'https://www.sharesansar.com/company-rightshare';
 
     /** Server rejects any length outside this set — matches the site's own UI page-size options. */
     private const PAGE_LENGTH = 50;
@@ -58,6 +64,10 @@ class SharesansarHistoryService
             if ($stock->sector === null) {
                 $stock->update(['sector' => $this->extractSector($html)]);
             }
+
+            // Same company page already has everything needed for corporate
+            // actions too — piggyback here rather than a second page fetch.
+            $this->persistCorporateActions($stock, $userAgent, $slug, $token, $companyId, $cookies);
 
             $rows = $this->paginateHistory($userAgent, $slug, $token, $companyId, $cookies);
 
@@ -125,6 +135,189 @@ class SharesansarHistoryService
         }
 
         return $sector;
+    }
+
+    /**
+     * Lightweight sibling to fetchFullHistory() — dividend/bonus-share and
+     * right-share history only, no price pagination. Used both for the
+     * one-time bulk backfill (stocks:backfill-corporate-actions) and a
+     * manual per-stock refresh, without re-pulling years of price data.
+     *
+     * @return array{dividends: int, right_shares: int}
+     */
+    public function fetchCorporateActions(Stock $stock): array
+    {
+        $userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
+        $slug = strtolower($stock->symbol);
+
+        $pageResponse = Http::withHeaders(['User-Agent' => $userAgent])
+            ->timeout(20)
+            ->get(sprintf(self::COMPANY_PAGE, $slug));
+
+        if ($pageResponse->status() === 404) {
+            throw new RuntimeException("No ShareSansar page found for symbol [{$stock->symbol}].");
+        }
+
+        $pageResponse->throw();
+        $html = $pageResponse->body();
+
+        $token = $this->extractToken($html);
+        $companyId = $this->extractCompanyId($html);
+        $cookies = $pageResponse->cookies();
+
+        return $this->persistCorporateActions($stock, $userAgent, $slug, $token, $companyId, $cookies);
+    }
+
+    /**
+     * @return array{dividends: int, right_shares: int}
+     */
+    private function persistCorporateActions(Stock $stock, string $userAgent, string $slug, string $token, string $companyId, $cookies): array
+    {
+        $referer = sprintf(self::COMPANY_PAGE, $slug);
+        $headers = [
+            'User-Agent' => $userAgent,
+            'X-CSRF-Token' => $token,
+            'X-Requested-With' => 'XMLHttpRequest',
+            'Referer' => $referer,
+            'Cookie' => $this->cookieHeader($cookies),
+        ];
+
+        // Dividend/right-share history per stock is small (a few dozen rows
+        // at most, one declaration a year) — a single generously-sized page
+        // covers it, no pagination loop needed like the price history has.
+        $divResponse = Http::withHeaders($headers)->asForm()->timeout(15)->post(self::DIVIDEND_ENDPOINT, [
+            'company' => $companyId, 'draw' => 1, 'start' => 0, 'length' => 200,
+        ]);
+        $divResponse->throw();
+        $dividendCount = $this->persistDividends($stock, $divResponse->json('data') ?? []);
+
+        usleep(300_000); // polite pacing between the two calls, same as the price-history pagination
+
+        $rsResponse = Http::withHeaders($headers)->asForm()->timeout(15)->post(self::RIGHTSHARE_ENDPOINT, [
+            'company' => $companyId, 'draw' => 1, 'start' => 0, 'length' => 200,
+        ]);
+        $rsResponse->throw();
+        $rightShareCount = $this->persistRightShares($stock, $rsResponse->json('data') ?? []);
+
+        return ['dividends' => $dividendCount, 'right_shares' => $rightShareCount];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function persistDividends(Stock $stock, array $rows): int
+    {
+        $divRows = [];
+
+        foreach ($rows as $row) {
+            $year = trim((string) ($row['year'] ?? ''));
+
+            if ($year === '') {
+                continue;
+            }
+
+            $divRows[] = [
+                'stock_id' => $stock->id,
+                'fiscal_year' => $year,
+                'bonus_share_pct' => $this->nullableNumber($row['bonus_share'] ?? null),
+                'cash_dividend_pct' => $this->nullableNumber($row['cash_dividend'] ?? null),
+                'total_dividend_pct' => $this->nullableNumber($row['total_dividend'] ?? null),
+                'announcement_date' => $this->nullableDate($row['announcement_date'] ?? null),
+                'distribution_date' => $this->nullableDate($row['distribution_date'] ?? null),
+                'book_closure_date' => $this->nullableString($row['bookclose_date'] ?? null),
+                'bonus_listing_date' => $this->nullableDate($row['bonus_listing_date'] ?? null),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        if ($divRows === []) {
+            return 0;
+        }
+
+        Dividend::upsert(
+            $divRows,
+            uniqueBy: ['stock_id', 'fiscal_year'],
+            update: [
+                'bonus_share_pct', 'cash_dividend_pct', 'total_dividend_pct',
+                'announcement_date', 'distribution_date', 'book_closure_date', 'bonus_listing_date', 'updated_at',
+            ]
+        );
+
+        return count($divRows);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function persistRightShares(Stock $stock, array $rows): int
+    {
+        $rsRows = [];
+
+        foreach ($rows as $row) {
+            $rsRows[] = [
+                'stock_id' => $stock->id,
+                'ratio' => $this->nullableString($row['ratio_value'] ?? null),
+                'total_units' => $this->nullableNumber($row['total_units'] ?? null),
+                'issue_price' => $this->nullableNumber($row['issue_price'] ?? null),
+                'opening_date' => $this->nullableDate($row['opening_date'] ?? null),
+                'closing_date' => $this->nullableDate($row['closing_date'] ?? null),
+                'book_closure_date' => $this->nullableString($row['final_date'] ?? null),
+                'listing_date' => $this->nullableDate($row['listing_date'] ?? null),
+                'issue_manager' => $this->nullableString($row['issue_manager'] ?? null),
+                'status' => $this->nullableString($row['status'] ?? null),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        // No stable natural key across re-fetches (a "coming soon" row's
+        // dates can still be blank), so each refresh replaces the small
+        // existing set outright rather than trying to upsert-match rows.
+        $stock->rightShares()->delete();
+
+        if ($rsRows === []) {
+            return 0;
+        }
+
+        RightShare::insert($rsRows);
+
+        return count($rsRows);
+    }
+
+    private function nullableNumber(mixed $raw): ?float
+    {
+        if ($raw === null) {
+            return null;
+        }
+
+        $clean = trim(str_replace([',', ' '], '', (string) $raw));
+
+        return $clean === '' ? null : (float) $clean;
+    }
+
+    private function nullableString(mixed $raw): ?string
+    {
+        $clean = trim((string) ($raw ?? ''));
+
+        return $clean === '' ? null : $clean;
+    }
+
+    /**
+     * The dividend/right-share endpoints sometimes append a status
+     * annotation (e.g. "2025-12-31 [Closed]") to what's otherwise a plain
+     * date — this pulls out just the date for real date columns; the raw
+     * (annotated) string is kept separately for book_closure_date.
+     */
+    private function nullableDate(mixed $raw): ?string
+    {
+        $clean = trim((string) ($raw ?? ''));
+
+        if ($clean === '') {
+            return null;
+        }
+
+        return preg_match('/^\d{4}-\d{2}-\d{2}/', $clean, $m) ? $m[0] : null;
     }
 
     private function extractSector(string $html): ?string

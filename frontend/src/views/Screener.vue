@@ -1,8 +1,10 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import client from '../api/client'
 import { formatPrice } from '../utils/format'
+
+const route = useRoute()
 
 const stocks = ref([])
 const loading = ref(true)
@@ -128,7 +130,51 @@ function resetFilters() {
   smaFilter.value = ''
 }
 
-onMounted(load)
+function currentFilters() {
+  return {
+    signal: signalFilter.value, sector: sectorFilter.value, rsiMin: rsiMin.value, rsiMax: rsiMax.value,
+    changeMin: changeMin.value, changeMax: changeMax.value, priceMin: priceMin.value, priceMax: priceMax.value, sma: smaFilter.value,
+  }
+}
+
+function applyFilters(f) {
+  signalFilter.value = f.signal ?? ''
+  sectorFilter.value = f.sector ?? ''
+  rsiMin.value = f.rsiMin ?? ''
+  rsiMax.value = f.rsiMax ?? ''
+  changeMin.value = f.changeMin ?? ''
+  changeMax.value = f.changeMax ?? ''
+  priceMin.value = f.priceMin ?? ''
+  priceMax.value = f.priceMax ?? ''
+  smaFilter.value = f.sma ?? ''
+}
+
+const savingName = ref('')
+const showSaveForm = ref(false)
+const saveError = ref('')
+
+async function saveScreen() {
+  if (!savingName.value.trim()) return
+  saveError.value = ''
+  try {
+    await client.post('/saved-screens', { name: savingName.value.trim(), filters: currentFilters() })
+    savingName.value = ''
+    showSaveForm.value = false
+  } catch (e) {
+    saveError.value = e.response?.data?.message || 'Could not save this screen.'
+  }
+}
+
+async function loadSavedScreen(id) {
+  const { data } = await client.get('/saved-screens')
+  const found = data.find((s) => s.id === Number(id))
+  if (found) applyFilters(found.filters)
+}
+
+onMounted(async () => {
+  await load()
+  if (route.query.load) await loadSavedScreen(route.query.load)
+})
 </script>
 
 <template>
@@ -189,7 +235,16 @@ onMounted(load)
           </select>
         </label>
       </div>
-      <button class="btn-secondary btn" style="margin-top: 12px" @click="resetFilters">Reset Filters</button>
+      <div class="save-row">
+        <button class="btn-secondary btn" @click="resetFilters">Reset Filters</button>
+        <button class="btn-secondary btn" @click="showSaveForm = !showSaveForm">Save this screen</button>
+        <RouterLink :to="{ name: 'screener-saved' }" class="btn-secondary btn">View Saved Screens</RouterLink>
+      </div>
+      <div v-if="showSaveForm" class="save-form">
+        <input v-model="savingName" class="input" placeholder="Name this screen" style="max-width: 260px" @keyup.enter="saveScreen" />
+        <button class="btn" @click="saveScreen">Save</button>
+      </div>
+      <p v-if="saveError" class="error-text">{{ saveError }}</p>
     </div>
 
     <p v-if="loading" class="muted">Loading…</p>
@@ -250,6 +305,18 @@ onMounted(load)
   gap: 4px;
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+.save-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.save-form {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .sortable {

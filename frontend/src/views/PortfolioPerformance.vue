@@ -13,11 +13,13 @@ import {
 import client, { apiBaseUrl } from '../api/client'
 import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
+import StatCard from '../components/StatCard.vue'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 
 const store = usePortfolioStore()
 const history = ref([])
+const metrics = ref(null)
 const loading = ref(true)
 
 const exportUrl = computed(() => `${apiBaseUrl}/api/portfolios/${store.activePortfolioId}/export`)
@@ -52,14 +54,18 @@ const options = {
   scales: { x: { ticks: { maxTicksLimit: 10 } } },
 }
 
-const latest = computed(() => history.value.at(-1))
+function changeTone(value) {
+  if (value === null || value === undefined) return 'neutral'
+  return value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral'
+}
 
 async function load() {
   loading.value = true
   if (store.portfolios.length === 0) await store.fetchPortfolios()
   if (store.activePortfolioId) {
     const { data } = await client.get(`/portfolios/${store.activePortfolioId}/performance`)
-    history.value = data
+    history.value = data.history
+    metrics.value = data.metrics
   }
   loading.value = false
 }
@@ -80,14 +86,20 @@ onMounted(load)
     </p>
     <template v-else>
       <div class="grid grid-cards">
-        <div class="card">
-          <p class="muted" style="margin: 0 0 4px; font-size: 0.75rem; text-transform: uppercase; font-weight: 600">Current Value</p>
-          <p style="margin: 0; font-size: 1.4rem; font-weight: 700">Rs. {{ formatPrice(latest?.value) }}</p>
-        </div>
-        <div class="card">
-          <p class="muted" style="margin: 0 0 4px; font-size: 0.75rem; text-transform: uppercase; font-weight: 600">Invested (as of latest)</p>
-          <p style="margin: 0; font-size: 1.4rem; font-weight: 700">Rs. {{ formatPrice(latest?.invested) }}</p>
-        </div>
+        <StatCard label="Current Value" :value="`Rs. ${formatPrice(metrics.current_value)}`" />
+        <StatCard label="Total Invested" :value="`Rs. ${formatPrice(metrics.total_invested)}`" />
+        <StatCard
+          label="Total P&L"
+          :value="`Rs. ${formatPrice(metrics.total_pnl)}`"
+          :tone="changeTone(metrics.total_pnl)"
+          :sub="metrics.total_pnl_pct !== null ? `${metrics.total_pnl_pct > 0 ? '+' : ''}${metrics.total_pnl_pct}%` : ''"
+        />
+        <StatCard
+          label="XIRR (Annualized)"
+          :value="metrics.xirr_pct !== null ? `${metrics.xirr_pct > 0 ? '+' : ''}${metrics.xirr_pct}%` : 'N/A'"
+          :tone="changeTone(metrics.xirr_pct)"
+          sub="Money-weighted return"
+        />
       </div>
 
       <div class="card" style="margin-top: 16px">
@@ -95,6 +107,40 @@ onMounted(load)
           <Line :data="chartData" :options="options" />
         </div>
       </div>
+
+      <div class="grid grid-cards" style="margin-top: 16px">
+        <StatCard
+          label="Best Day"
+          :value="metrics.best_day ? `Rs. ${formatPrice(metrics.best_day.change)}` : '—'"
+          tone="positive"
+          :sub="metrics.best_day?.date"
+        />
+        <StatCard
+          label="Worst Day"
+          :value="metrics.worst_day ? `Rs. ${formatPrice(metrics.worst_day.change)}` : '—'"
+          tone="negative"
+          :sub="metrics.worst_day?.date"
+        />
+        <StatCard
+          label="All-Time High"
+          :value="metrics.all_time_high ? `Rs. ${formatPrice(metrics.all_time_high.value)}` : '—'"
+          :sub="metrics.all_time_high?.date"
+        />
+      </div>
+
+      <p class="muted small">
+        Best/Worst Day measures the single biggest day-over-day swing in unrealized P&L (not raw value), so adding
+        new money on a given day isn't itself counted as a "gain." XIRR is the annualized, money-weighted return
+        across every buy/sell and today's value — the fair way to judge performance when contributions weren't a
+        single lump sum on day one.
+      </p>
     </template>
   </div>
 </template>
+
+<style scoped>
+.small {
+  font-size: 0.78rem;
+  margin-top: 12px;
+}
+</style>

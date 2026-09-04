@@ -30,6 +30,42 @@ async function removeFromWatchlist(watchlistId, stockId) {
   await load()
 }
 
+const editingAlertFor = ref(null) // { watchlistId, stock }
+const alertPrice = ref('')
+const alertDirection = ref('above')
+const alertSaving = ref(false)
+
+function openAlertEditor(watchlistId, stock) {
+  editingAlertFor.value = { watchlistId, stock }
+  alertPrice.value = stock.pivot?.alert_price ?? ''
+  alertDirection.value = stock.pivot?.alert_direction ?? 'above'
+}
+
+function closeAlertEditor() {
+  editingAlertFor.value = null
+}
+
+async function saveAlert() {
+  if (!editingAlertFor.value) return
+  alertSaving.value = true
+  try {
+    const { watchlistId, stock } = editingAlertFor.value
+    await client.put(`/watchlists/${watchlistId}/items/${stock.id}/alert`, {
+      alert_price: alertPrice.value || null,
+      alert_direction: alertPrice.value ? alertDirection.value : null,
+    })
+    closeAlertEditor()
+    await load()
+  } finally {
+    alertSaving.value = false
+  }
+}
+
+async function clearAlert() {
+  alertPrice.value = ''
+  await saveAlert()
+}
+
 function formatSignal(label) {
   return label.replace('_', ' ')
 }
@@ -64,7 +100,7 @@ onMounted(load)
       <h3>{{ wl.name }}</h3>
       <table class="table" v-if="wl.stocks.length">
         <thead>
-          <tr><th>Symbol</th><th>Company</th><th>Sector</th><th>Last Close</th><th>% Change</th><th>Signal</th><th></th></tr>
+          <tr><th>Symbol</th><th>Company</th><th>Sector</th><th>Last Close</th><th>% Change</th><th>Signal</th><th>Price Alert</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="stock in wl.stocks" :key="stock.id">
@@ -81,11 +117,35 @@ onMounted(load)
               </span>
               <span v-else class="muted">No data</span>
             </td>
-            <td><button class="btn-secondary btn" @click="removeFromWatchlist(wl.id, stock.id)">Remove</button></td>
+            <td class="muted">
+              <span v-if="stock.pivot?.alert_price">Alert when {{ stock.pivot.alert_direction }} Rs. {{ formatPrice(stock.pivot.alert_price) }}</span>
+              <span v-else>Not set</span>
+            </td>
+            <td class="row-actions">
+              <button class="btn-secondary btn" @click="openAlertEditor(wl.id, stock)">Set Alert</button>
+              <button class="btn-secondary btn" @click="removeFromWatchlist(wl.id, stock.id)">Remove</button>
+            </td>
           </tr>
         </tbody>
       </table>
       <p v-else class="muted">No stocks yet.</p>
+    </div>
+
+    <div v-if="editingAlertFor" class="card form-stack" style="margin-top: 16px">
+      <h3>Price Alert — {{ editingAlertFor.stock.symbol }}</h3>
+      <p class="muted">Current price Rs. {{ formatPrice(editingAlertFor.stock.latest_price?.close_price) }}.</p>
+      <div class="picker-row">
+        <select v-model="alertDirection" class="input" style="max-width: 160px">
+          <option value="above">Alert when above</option>
+          <option value="below">Alert when below</option>
+        </select>
+        <input v-model="alertPrice" type="number" min="0" step="0.01" class="input" placeholder="Price (Rs.)" style="max-width: 160px" />
+      </div>
+      <div class="picker-row">
+        <button class="btn" :disabled="alertSaving" @click="saveAlert">{{ alertSaving ? 'Saving…' : 'Save' }}</button>
+        <button class="btn-secondary btn" :disabled="alertSaving" @click="clearAlert">Clear Alert</button>
+        <button class="btn-secondary btn" :disabled="alertSaving" @click="closeAlertEditor">Cancel</button>
+      </div>
     </div>
   </div>
 </template>
@@ -108,5 +168,15 @@ onMounted(load)
 
 .negative {
   color: var(--strong-sell);
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.picker-row {
+  display: flex;
+  gap: 10px;
 }
 </style>

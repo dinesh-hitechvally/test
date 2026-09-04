@@ -18,6 +18,30 @@ Schedule::command('market:sync')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/market-sync.log'));
 
+Schedule::command('market:sync-index')
+    ->weekdays()
+    ->at('15:32')
+    ->timezone('Asia/Kathmandu')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/market-sync-index.log'));
+
+// IPO listings and news headlines change daily regardless of whether the
+// market is open (announcements, weekend news) — daily every day, not just
+// weekdays, unlike the price-dependent syncs above.
+Schedule::command('market:sync-ipo')
+    ->daily()
+    ->at('06:00')
+    ->timezone('Asia/Kathmandu')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/market-sync-ipo.log'));
+
+Schedule::command('market:sync-news')
+    ->daily()
+    ->at('06:05')
+    ->timezone('Asia/Kathmandu')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/market-sync-news.log'));
+
 // Catches any stock that has never had a full-history fetch — most often
 // newly-listed symbols the sync above just discovered — and queues it
 // (QUEUE_CONNECTION=database) rather than requiring someone to notice and
@@ -64,3 +88,12 @@ Schedule::command('forecast:backtest')
     ->timezone('Asia/Kathmandu')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/forecast-backtest.log'));
+
+// Same weekly cadence for the rule-based signal engine's own historical
+// win rate, so the Signal History / Accuracy page stays current as more
+// signal history accumulates.
+Schedule::command('signals:backtest-accuracy')
+    ->weeklyOn(1, '04:00')
+    ->timezone('Asia/Kathmandu')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/signal-accuracy.log'));

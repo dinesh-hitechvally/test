@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
+import client from '../api/client'
 import { usePortfolioStore } from '../stores/portfolio'
 import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
@@ -91,6 +92,100 @@ async function handleDelete(tx) {
   } finally {
     deletingId.value = null
   }
+}
+
+const editingTargetFor = ref(null) // the holding object currently being edited, or null
+const targetStopLoss = ref('')
+const targetPrice = ref('')
+const targetNotes = ref('')
+const targetError = ref('')
+const targetSaving = ref(false)
+const suggesting = ref(false)
+const suggestionNote = ref('')
+
+function openTargetEditor(holding) {
+  editingTargetFor.value = holding
+  targetStopLoss.value = holding.stop_loss ?? ''
+  targetPrice.value = holding.target_price ?? ''
+  targetNotes.value = holding.target_notes || ''
+  targetError.value = ''
+  suggestionNote.value = ''
+}
+
+function closeTargetEditor() {
+  editingTargetFor.value = null
+}
+
+async function suggestLevels() {
+  if (!editingTargetFor.value) return
+  suggesting.value = true
+  suggestionNote.value = ''
+  try {
+    const { data } = await client.get(`/reports/technical/${editingTargetFor.value.symbol}`)
+    const sr = data.report?.support_resistance
+    // Deliberately from support/resistance, not trade_setup — trade_setup is
+    // framed for opening a fresh position in whatever direction the trend
+    // favors (so a bearish stock gets a stop *above* price), which is
+    // backwards for a holding you already own long. Support is always below
+    // price and resistance always above, so they're the correctly-oriented
+    // pair for "where do I protect / take profit on what I hold."
+    const support = sr?.support?.[0]?.price ?? null
+    const resistance = sr?.resistance?.[0]?.price ?? null
+
+    if (support === null && resistance === null) {
+      suggestionNote.value = 'Not enough data yet for a suggested setup on this stock.'
+      return
+    }
+    if (support !== null) targetStopLoss.value = support
+    if (resistance !== null) targetPrice.value = resistance
+    suggestionNote.value = 'From the nearest support (stop-loss) / resistance (target) levels in the Technical Analysis report — review before saving.'
+  } catch {
+    suggestionNote.value = 'Could not fetch a suggestion right now.'
+  } finally {
+    suggesting.value = false
+  }
+}
+
+async function saveTarget() {
+  if (!editingTargetFor.value) return
+  targetError.value = ''
+  targetSaving.value = true
+  try {
+    await store.setPositionTarget(store.activePortfolioId, editingTargetFor.value.stock_id, {
+      stop_loss: targetStopLoss.value || null,
+      target_price: targetPrice.value || null,
+      notes: targetNotes.value || null,
+    })
+    closeTargetEditor()
+  } catch (e) {
+    targetError.value = e.response?.data?.message || 'Could not save levels.'
+  } finally {
+    targetSaving.value = false
+  }
+}
+
+async function clearTarget() {
+  targetStopLoss.value = ''
+  targetPrice.value = ''
+  await saveTarget()
+}
+
+function stopDistanceLabel(pct) {
+  if (pct === null) return null
+  return pct >= 0 ? `${pct}% above stop` : `${Math.abs(pct)}% below stop`
+}
+
+function targetDistanceLabel(pct) {
+  if (pct === null) return null
+  return pct >= 0 ? `${pct}% to target` : `${Math.abs(pct)}% past target`
+}
+
+function statusBadge(status) {
+  return {
+    stop_breached: { text: 'Stop hit — consider selling', class: 'sell' },
+    target_reached: { text: 'Target hit — consider booking profit', class: 'buy' },
+    holding: { text: 'Monitoring', class: 'hold' },
+  }[status] || null
 }
 
 function changeTone(value) {
@@ -188,6 +283,7 @@ onMounted(async () => {
             <tr>
               <th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Invested</th>
               <th>Current Price</th><th>Current Value</th><th>Unrealized P&L</th><th>Signal</th>
+              <th>Stop-Loss / Target</th><th>Status</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -208,10 +304,57 @@ onMounted(async () => {
                 <span v-if="h.latest_signal" class="badge" :class="h.latest_signal.signal">{{ formatSignal(h.latest_signal.signal) }}</span>
                 <span v-else class="muted">No data</span>
               </td>
+              <td>
+                <template v-if="h.stop_loss !== null || h.target_price !== null">
+                  <div class="muted small">
+                    <span v-if="h.stop_loss !== null">SL: {{ formatPrice(h.stop_loss) }}</span>
+                    <span v-if="h.stop_loss !== null && h.target_price !== null"> · </span>
+                    <span v-if="h.target_price !== null">TGT: {{ formatPrice(h.target_price) }}</span>
+                  </div>
+                  <div class="muted small" v-if="h.pct_to_stop !== null || h.pct_to_target !== null">
+                    <span v-if="h.pct_to_stop !== null">{{ stopDistanceLabel(h.pct_to_stop) }}</span>
+                    <span v-if="h.pct_to_stop !== null && h.pct_to_target !== null"> · </span>
+                    <span v-if="h.pct_to_target !== null">{{ targetDistanceLabel(h.pct_to_target) }}</span>
+                  </div>
+                </template>
+                <span v-else class="muted">Not set</span>
+              </td>
+              <td>
+                <span v-if="statusBadge(h.position_status)" class="badge" :class="statusBadge(h.position_status).class">
+                  {{ statusBadge(h.position_status).text }}
+                </span>
+                <span v-else class="muted">—</span>
+              </td>
+              <td>
+                <button class="btn-secondary btn" @click="openTargetEditor(h)">
+                  {{ h.stop_loss !== null || h.target_price !== null ? 'Edit Levels' : 'Set Levels' }}
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
         <p v-else class="muted">No open holdings — add a buy transaction to get started.</p>
+      </div>
+
+      <div v-if="editingTargetFor" class="card form-stack" style="margin-top: 16px">
+        <h3>Stop-Loss / Target — {{ editingTargetFor.symbol }}</h3>
+        <p class="muted">
+          Current price Rs. {{ formatPrice(editingTargetFor.current_price) }}, avg cost Rs. {{ formatPrice(editingTargetFor.avg_cost) }}.
+          Set the levels where you'd exit this position — the Holdings table will flag it the moment price crosses either one.
+        </p>
+        <button class="btn-secondary btn" style="align-self: flex-start" :disabled="suggesting" @click="suggestLevels">
+          {{ suggesting ? 'Fetching…' : 'Suggest levels from Technical Analysis' }}
+        </button>
+        <p v-if="suggestionNote" class="muted small">{{ suggestionNote }}</p>
+        <input v-model="targetStopLoss" type="number" min="0" step="0.01" class="input" placeholder="Stop-loss price (Rs.)" />
+        <input v-model="targetPrice" type="number" min="0" step="0.01" class="input" placeholder="Target price (Rs.)" />
+        <input v-model="targetNotes" class="input" placeholder="Notes (optional)" />
+        <p v-if="targetError" class="error-text">{{ targetError }}</p>
+        <div class="picker-row">
+          <button class="btn" :disabled="targetSaving" @click="saveTarget">{{ targetSaving ? 'Saving…' : 'Save' }}</button>
+          <button class="btn-secondary btn" :disabled="targetSaving" @click="clearTarget">Clear Levels</button>
+          <button class="btn-secondary btn" :disabled="targetSaving" @click="closeTargetEditor">Cancel</button>
+        </div>
       </div>
     </template>
 
@@ -271,5 +414,14 @@ onMounted(async () => {
 
 .negative {
   color: var(--strong-sell);
+}
+
+.small {
+  font-size: 0.75rem;
+}
+
+.picker-row {
+  display: flex;
+  gap: 10px;
 }
 </style>

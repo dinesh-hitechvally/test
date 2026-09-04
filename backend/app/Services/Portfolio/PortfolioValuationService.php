@@ -4,6 +4,7 @@ namespace App\Services\Portfolio;
 
 use App\Models\DailyPrice;
 use App\Models\Portfolio;
+use App\Models\PositionTarget;
 use App\Models\Stock;
 use Illuminate\Support\Collection;
 use RuntimeException;
@@ -28,6 +29,7 @@ class PortfolioValuationService
         }
 
         $stocks = Stock::with(['latestPrice', 'latestSignal'])->whereIn('id', array_keys($replay))->get()->keyBy('id');
+        $targets = PositionTarget::where('portfolio_id', $portfolio->id)->get()->keyBy('stock_id');
 
         $holdings = collect();
 
@@ -47,10 +49,25 @@ class PortfolioValuationService
             $currentValue = $currentPrice !== null ? $state['qty'] * $currentPrice : null;
             $unrealizedPnl = $currentValue !== null ? $currentValue - $state['total_cost'] : null;
 
+            $target = $targets->get($stockId);
+            $stopLoss = $target?->stop_loss !== null ? (float) $target->stop_loss : null;
+            $targetPrice = $target?->target_price !== null ? (float) $target->target_price : null;
+
+            // Which side of the fence the position currently sits on, given
+            // the levels the investor set — surfaced so it's obvious at a
+            // glance when a holding needs a decision, not just a data point.
+            $positionStatus = match (true) {
+                $currentPrice === null || ($stopLoss === null && $targetPrice === null) => null,
+                $stopLoss !== null && $currentPrice <= $stopLoss => 'stop_breached',
+                $targetPrice !== null && $currentPrice >= $targetPrice => 'target_reached',
+                default => 'holding',
+            };
+
             $holdings->push([
                 'stock_id' => $stockId,
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
+                'sector' => $stock->sector,
                 'quantity' => $state['qty'],
                 'avg_cost' => round($avgCost, 4),
                 'invested' => round($state['total_cost'], 4),
@@ -61,6 +78,14 @@ class PortfolioValuationService
                     ? round(($unrealizedPnl / $state['total_cost']) * 100, 2)
                     : null,
                 'latest_signal' => $stock->latestSignal,
+                'stop_loss' => $stopLoss,
+                'target_price' => $targetPrice,
+                'target_notes' => $target?->notes,
+                'position_status' => $positionStatus,
+                'pct_to_stop' => ($currentPrice !== null && $stopLoss !== null && $currentPrice > 0)
+                    ? round((($currentPrice - $stopLoss) / $currentPrice) * 100, 2) : null,
+                'pct_to_target' => ($currentPrice !== null && $targetPrice !== null && $currentPrice > 0)
+                    ? round((($targetPrice - $currentPrice) / $currentPrice) * 100, 2) : null,
             ]);
         }
 
@@ -204,6 +229,135 @@ class PortfolioValuationService
         }
 
         return $history;
+    }
+
+    /**
+     * Summary stats built on top of valueHistory() + summary() — best/worst
+     * single-day move, the portfolio's all-time-high value, and XIRR (the
+     * money-weighted annualized return, accounting for exactly when each
+     * rupee went in or came out — the fair way to compare returns when
+     * contributions weren't a single lump sum on day one).
+     *
+     * @param  list<array{date: string, value: float, invested: float}>  $history
+     */
+    public function performanceMetrics(Portfolio $portfolio, array $history): array
+    {
+        $summary = $this->summary($portfolio);
+
+        $bestDay = null;
+        $worstDay = null;
+
+        // Day-over-day change in (value - invested), i.e. unrealized P&L —
+        // using P&L rather than raw value means a deposit (buy) on a given
+        // day doesn't itself look like a "gain," only actual price moves do.
+        for ($i = 1; $i < count($history); $i++) {
+            $todayPnl = $history[$i]['value'] - $history[$i]['invested'];
+            $prevPnl = $history[$i - 1]['value'] - $history[$i - 1]['invested'];
+            $delta = $todayPnl - $prevPnl;
+
+            $row = ['date' => $history[$i]['date'], 'change' => round($delta, 4)];
+
+            if ($bestDay === null || $delta > $bestDay['change']) {
+                $bestDay = $row;
+            }
+            if ($worstDay === null || $delta < $worstDay['change']) {
+                $worstDay = $row;
+            }
+        }
+
+        $allTimeHigh = null;
+        foreach ($history as $row) {
+            if ($allTimeHigh === null || $row['value'] > $allTimeHigh['value']) {
+                $allTimeHigh = ['date' => $row['date'], 'value' => round($row['value'], 4)];
+            }
+        }
+
+        return [
+            'total_invested' => $summary['total_invested'],
+            'current_value' => $summary['current_value'],
+            'total_pnl' => $summary['total_pnl'],
+            'total_pnl_pct' => $summary['total_invested'] > 0 ? round(($summary['total_pnl'] / $summary['total_invested']) * 100, 2) : null,
+            'best_day' => $bestDay,
+            'worst_day' => $worstDay,
+            'all_time_high' => $allTimeHigh,
+            'xirr_pct' => $this->xirr($portfolio, $summary['current_value']),
+        ];
+    }
+
+    /**
+     * Money-weighted annualized return: every buy is a cash outflow, every
+     * sell an inflow, and the current portfolio value is treated as a final
+     * inflow today — the rate that makes all those cash flows, discounted
+     * back to the first transaction date, net to zero. Solved numerically
+     * (Newton-Raphson) since there's no closed form. Returns null rather
+     * than a wild number if the flows don't converge to a sane answer.
+     */
+    private function xirr(Portfolio $portfolio, float $currentValue): ?float
+    {
+        $transactions = $portfolio->transactions()->orderBy('transaction_date')->get();
+
+        if ($transactions->isEmpty() || $currentValue <= 0) {
+            return null;
+        }
+
+        $flows = $transactions->map(fn ($tx) => [
+            'date' => $tx->transaction_date,
+            'amount' => $tx->type === 'buy'
+                ? -(((int) $tx->quantity * (float) $tx->price) + (float) $tx->fees)
+                : (((int) $tx->quantity * (float) $tx->price) - (float) $tx->fees),
+        ])->values()->all();
+
+        $flows[] = ['date' => now(), 'amount' => $currentValue];
+
+        $hasPositive = collect($flows)->contains(fn ($f) => $f['amount'] > 0);
+        $hasNegative = collect($flows)->contains(fn ($f) => $f['amount'] < 0);
+        if (! $hasPositive || ! $hasNegative) {
+            return null; // XIRR is undefined without at least one inflow and one outflow
+        }
+
+        $firstDate = $flows[0]['date'];
+        $years = array_map(fn ($f) => $firstDate->diffInDays($f['date']) / 365, $flows);
+        $amounts = array_column($flows, 'amount');
+
+        $npv = function (float $rate) use ($amounts, $years): float {
+            $sum = 0.0;
+            foreach ($amounts as $i => $amount) {
+                $sum += $amount / (1 + $rate) ** $years[$i];
+            }
+
+            return $sum;
+        };
+
+        $rate = 0.1;
+        for ($i = 0; $i < 100; $i++) {
+            $npv0 = $npv($rate);
+            $derivative = ($npv($rate + 0.0001) - $npv0) / 0.0001;
+
+            if (abs($derivative) < 1e-10) {
+                break;
+            }
+
+            $nextRate = $rate - ($npv0 / $derivative);
+
+            if (! is_finite($nextRate) || $nextRate <= -0.999) {
+                return null;
+            }
+            if (abs($nextRate - $rate) < 1e-7) {
+                $rate = $nextRate;
+                break;
+            }
+
+            $rate = $nextRate;
+        }
+
+        // A converged-but-absurd rate (e.g. from a pathological flow
+        // pattern) is more useful reported as "unavailable" than as a
+        // nonsensical number like +50,000%.
+        if (! is_finite($rate) || abs($rate) > 10) {
+            return null;
+        }
+
+        return round($rate * 100, 2);
     }
 
     /**
