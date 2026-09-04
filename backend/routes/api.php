@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\IndexController;
 use App\Http\Controllers\Api\IpoController;
 use App\Http\Controllers\Api\NewsController;
+use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\PatternScanController;
 use App\Http\Controllers\Api\SavedScreenController;
 use App\Http\Controllers\Api\SignalAccuracyController;
@@ -57,6 +58,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/news', [NewsController::class, 'index']);
     Route::post('/news/sync', [NewsController::class, 'sync']);
+
+    Route::get('/schedule', [ScheduleController::class, 'index']);
 
     Route::get('/saved-screens', [SavedScreenController::class, 'index']);
     Route::post('/saved-screens', [SavedScreenController::class, 'store']);

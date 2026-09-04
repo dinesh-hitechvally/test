@@ -31,6 +31,75 @@ function fmt(v) {
 
 const report = computed(() => data.value?.report ?? null)
 
+// A plain-language synthesis of every section below, generated from the
+// same computed report — not a separate model, just written out in prose so
+// the reader gets a conclusion up front instead of having to mentally
+// combine 8 cards themselves.
+const summary = computed(() => {
+  if (!report.value || report.value.available === false) return []
+
+  const r = report.value
+  const sym = data.value.stock.symbol
+  const lines = []
+
+  const pa = r.probability_assessment
+  lines.push(
+    `${sym} currently shows an overall ${pa.overall_bias} bias — ${pa.bullish_pct}% of the ${pa.signals_considered} tracked signals lean bullish, ${pa.bearish_pct}% bearish, and the rest neutral.`
+  )
+
+  if (r.trend.direction === 'unknown') {
+    lines.push(`Not enough price history yet to call a trend (${r.trend.reason})`)
+  } else {
+    lines.push(
+      `The trend reads ${r.trend.direction}: price is ${r.trend.price_vs_sma50} its 50-day average, which sits ${r.trend.sma50_vs_sma200} the 200-day average and is currently ${r.trend.sma50_slope}.`
+    )
+  }
+
+  if (r.rsi.value !== null) {
+    let momentum = `RSI is at ${r.rsi.value} (${r.rsi.state})`
+    if (r.rsi.divergence) momentum += `, with a ${r.rsi.divergence} divergence forming`
+    if (r.macd.position) {
+      momentum += `; MACD is ${r.macd.position.replace('_', ' ')}`
+      if (r.macd.crossover) momentum += ` after a recent ${r.macd.crossover.replace('_', ' ')}`
+      momentum += ` and ${r.macd.momentum}`
+    }
+    lines.push(momentum + '.')
+  }
+
+  if (r.volume_analysis.volume_level !== 'unknown') {
+    lines.push(
+      `Volume is ${r.volume_analysis.volume_level} with OBV trending ${r.volume_analysis.obv_trend}, consistent with ${r.volume_analysis.classification}.`
+    )
+  }
+
+  const resistance = r.support_resistance.resistance[0]
+  const support = r.support_resistance.support[0]
+  if (resistance || support) {
+    let levels = 'Nearest'
+    const parts = []
+    if (resistance) parts.push(`resistance around Rs. ${resistance.price} (${resistance.strength} touches)`)
+    if (support) parts.push(`support around Rs. ${support.price} (${support.strength} touches)`)
+    levels += ' ' + parts.join(' and ') + '.'
+    if (r.breakout.state !== 'none' && r.breakout.state !== 'unknown') {
+      levels += ` Price has just staged a ${r.breakout.state.replace('_', ' ')} of its 20-day range, ${r.breakout.volume_confirmed ? 'backed by above-average volume' : 'though not confirmed by above-average volume'}.`
+    }
+    lines.push(levels)
+  }
+
+  if (r.candlestick_patterns.length) {
+    const p = r.candlestick_patterns[0]
+    lines.push(`The most recent candle also forms a ${p.name} (${p.signal}) — ${p.note}`)
+  }
+
+  if (r.trade_setup.target !== null && r.trade_setup.stop_loss !== null) {
+    lines.push(
+      `A ${r.trade_setup.bias} setup from here would target Rs. ${r.trade_setup.target} with a stop near Rs. ${r.trade_setup.stop_loss} — a ${r.trade_setup.attractive ? 'favorable' : 'weak'} risk:reward of roughly 1:${r.trade_setup.risk_reward_ratio ?? '?'}.`
+    )
+  }
+
+  return lines
+})
+
 async function load() {
   if (!selected.value) {
     data.value = null
@@ -99,6 +168,12 @@ onMounted(async () => {
         </RouterLink>
       </div>
       <p class="muted">Rs. {{ fmt(report.close) }} as of {{ report.as_of }}</p>
+
+      <!-- Summary -->
+      <div class="card summary-card">
+        <h3>Summary</h3>
+        <p v-for="(line, i) in summary" :key="i">{{ line }}</p>
+      </div>
 
       <!-- Probability assessment -->
       <div class="grid grid-cards" style="margin-top: 8px">
@@ -292,5 +367,21 @@ onMounted(async () => {
 
 .small {
   font-size: 0.78rem;
+}
+
+.summary-card {
+  margin-top: 12px;
+  background: #f8faff;
+  border-color: #dbeafe;
+}
+
+.summary-card p {
+  line-height: 1.6;
+  font-size: 0.92rem;
+  margin: 0 0 10px;
+}
+
+.summary-card p:last-child {
+  margin-bottom: 0;
 }
 </style>

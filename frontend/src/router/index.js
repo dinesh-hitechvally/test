@@ -59,6 +59,7 @@ const routes = [
   { path: '/learn/indicators', name: 'learn-indicators', component: () => import('../views/LearnTopic.vue'), meta: { requiresAuth: true, title: 'Understanding Technical Indicators', topic: 'indicators' } },
   { path: '/learn/glossary', name: 'learn-glossary', component: () => import('../views/LearnTopic.vue'), meta: { requiresAuth: true, title: 'Glossary of Terms', topic: 'glossary' } },
 
+  { path: '/settings', name: 'settings', component: () => import('../views/SettingsOverview.vue'), meta: { requiresAuth: true, title: 'Settings' } },
   { path: '/settings/profile', name: 'settings-profile', component: () => import('../views/Profile.vue'), meta: { requiresAuth: true, title: 'Profile' } },
   { path: '/settings/notifications', name: 'settings-notifications', component: () => import('../views/NotificationPreferences.vue'), meta: { requiresAuth: true, title: 'Notification Preferences' } },
   { path: '/settings/data-source', name: 'settings-data-source', component: () => import('../views/DataSourceSettings.vue'), meta: { requiresAuth: true, title: 'Data Source / Scrape Settings' } },

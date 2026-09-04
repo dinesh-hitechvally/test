@@ -1,24 +1,16 @@
 <script setup>
 import { onMounted, ref } from 'vue'
+import client from '../api/client'
 import { useStocksStore } from '../stores/stocks'
 
 const store = useStocksStore()
+const schedule = ref([])
 const loading = ref(true)
-
-const SCHEDULE = [
-  { command: 'market:sync', when: 'Weekdays at 15:30 NPT', description: 'Scrapes today\'s prices from the official nepalstock.com API for every stock.' },
-  { command: 'market:sync-index', when: 'Weekdays at 15:32 NPT', description: 'Snapshots the NEPSE Index and sub-indices.' },
-  { command: 'stocks:queue-missing-history', when: 'Weekdays at 15:35 NPT', description: 'Queues a full price-history backfill (via ShareSansar) for any stock that\'s never had one.' },
-  { command: 'queue:work', when: 'Every 15 minutes, 06:00–23:00 NPT', description: 'Drains the queue above — this is what actually processes the history backfills.' },
-  { command: 'stocks:backfill-sectors', when: 'Weekly, Monday 03:00 NPT', description: 'Fills in sector data for any stock still missing it.' },
-  { command: 'ml:train-predictor', when: 'Weekly, Monday 03:30 NPT', description: 'Retrains the ML direction predictor on the latest pooled data.' },
-  { command: 'forecast:backtest', when: 'Weekly, Monday 03:45 NPT', description: 'Re-measures the statistical (Holt) forecast\'s real accuracy.' },
-  { command: 'signals:backtest-accuracy', when: 'Weekly, Monday 04:00 NPT', description: 'Re-measures the rule-based signal engine\'s historical win rate.' },
-]
 
 async function load() {
   loading.value = true
-  await store.fetchScrapeLogs()
+  const [scheduleRes] = await Promise.all([client.get('/schedule'), store.fetchScrapeLogs()])
+  schedule.value = scheduleRes.data
   loading.value = false
 }
 
@@ -36,13 +28,15 @@ onMounted(load)
 
     <div class="card" style="margin-top: 16px">
       <h3>Configured Schedule</h3>
-      <table class="table">
+      <p class="muted">Read directly from the backend's registered schedule — always matches what's actually configured, not a hand-copied list.</p>
+      <p v-if="loading" class="muted">Loading…</p>
+      <table class="table" v-else>
         <thead><tr><th>Command</th><th>Runs</th><th>What it does</th></tr></thead>
         <tbody>
-          <tr v-for="s in SCHEDULE" :key="s.command">
+          <tr v-for="s in schedule" :key="s.command">
             <td><code>{{ s.command }}</code></td>
-            <td class="muted">{{ s.when }}</td>
-            <td class="muted">{{ s.description }}</td>
+            <td class="muted">{{ s.schedule_description }} {{ s.timezone }}</td>
+            <td class="muted">{{ s.description || '—' }}</td>
           </tr>
         </tbody>
       </table>

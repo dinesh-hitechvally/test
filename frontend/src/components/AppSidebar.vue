@@ -118,6 +118,7 @@ const navItems = [
     icon: 'gear',
     base: '/settings',
     children: [
+      { to: '/settings', label: 'Overview' },
       { to: '/settings/profile', label: 'Profile' },
       { to: '/settings/notifications', label: 'Notification Preferences' },
       { to: '/settings/data-source', label: 'Data Source / Scrape Settings' },
