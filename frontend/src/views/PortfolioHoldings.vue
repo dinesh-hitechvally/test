@@ -43,7 +43,12 @@ onMounted(async () => {
           <tr v-for="h in store.detail.holdings" :key="h.stock_id">
             <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: h.symbol } }">{{ h.symbol }}</RouterLink></td>
             <td class="muted">{{ h.sector || 'Other' }}</td>
-            <td>{{ h.quantity }}</td>
+            <td>
+              {{ h.quantity }}
+              <span v-if="h.bonus_shares_received > 0" class="muted small" :title="`Includes ${h.bonus_shares_received} bonus share(s) credited over time`">
+                (+{{ h.bonus_shares_received }} bonus)
+              </span>
+            </td>
             <td>{{ formatPrice(h.avg_cost) }}</td>
             <td>{{ formatPrice(h.invested) }}</td>
             <td>{{ h.current_price !== null ? formatPrice(h.current_price) : '—' }}</td>
@@ -71,5 +76,9 @@ onMounted(async () => {
 
 .negative {
   color: var(--strong-sell);
+}
+
+.small {
+  font-size: 0.72rem;
 }
 </style>

@@ -6,6 +6,7 @@ import { formatPrice } from '../utils/format'
 import StatCard from '../components/StatCard.vue'
 import SignalDistributionChart from '../components/SignalDistributionChart.vue'
 import TrendChart from '../components/TrendChart.vue'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +14,7 @@ const router = useRouter()
 const sectors = ref([])
 const selected = ref(route.query.name || '')
 const report = ref(null)
+const sectorOptions = computed(() => sectors.value.map((s) => ({ value: s.sector, label: `${s.sector} (${s.stock_count})` })))
 const loading = ref(false)
 const error = ref('')
 
@@ -75,10 +77,7 @@ onMounted(async () => {
     <p class="muted">Pick a sector to see its today's performance, breadth, and constituent stocks.</p>
 
     <div class="card">
-      <select v-model="selected" class="input" style="max-width: 340px" @change="onSelect">
-        <option value="" disabled>Select a sector…</option>
-        <option v-for="s in sectors" :key="s.sector" :value="s.sector">{{ s.sector }} ({{ s.stock_count }})</option>
-      </select>
+      <SearchableSelect v-model="selected" :options="sectorOptions" style="max-width: 340px" placeholder="Select a sector…" @change="onSelect" />
     </div>
 
     <p v-if="loading" class="muted" style="margin-top: 16px">Loading…</p>

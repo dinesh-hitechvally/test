@@ -3,6 +3,7 @@
 namespace App\Services\Portfolio;
 
 use App\Models\DailyPrice;
+use App\Models\Dividend;
 use App\Models\Portfolio;
 use App\Models\PositionTarget;
 use App\Models\Stock;
@@ -86,6 +87,7 @@ class PortfolioValuationService
                     ? round((($currentPrice - $stopLoss) / $currentPrice) * 100, 2) : null,
                 'pct_to_target' => ($currentPrice !== null && $targetPrice !== null && $currentPrice > 0)
                     ? round((($targetPrice - $currentPrice) / $currentPrice) * 100, 2) : null,
+                'bonus_shares_received' => $state['bonus_shares_received'],
             ]);
         }
 
@@ -411,7 +413,7 @@ class PortfolioValuationService
     }
 
     /**
-     * @return array<int, array{qty: int, total_cost: float, realized_pnl: float, realized_lines: array}>
+     * @return array<int, array{qty: int, total_cost: float, realized_pnl: float, realized_lines: array, bonus_shares_received: int}>
      */
     private function replay(Portfolio $portfolio): array
     {
@@ -421,15 +423,40 @@ class PortfolioValuationService
             ->get()
             ->groupBy('stock_id');
 
+        $bonusEventsByStock = $this->bonusEvents(array_keys($transactionsByStock->all()));
+
         $result = [];
 
         foreach ($transactionsByStock as $stockId => $transactions) {
+            // Buys/sells and bonus-share credits share one chronological
+            // timeline per stock — a bonus that lands between two trades has
+            // to inflate only the quantity actually held at that point, not
+            // shares bought later. Same-day ties resolve transactions first
+            // (a same-day buy is available to receive that day's bonus;
+            // ambiguous either way, but this is the more common real case).
+            $events = $transactions->map(fn ($tx) => ['date' => $tx->transaction_date->toDateString(), 'kind' => $tx->type, 'tx' => $tx])
+                ->concat(($bonusEventsByStock[$stockId] ?? [])->map(fn ($ev) => ['date' => $ev['date'], 'kind' => 'bonus', 'bonus' => $ev]))
+                ->sortBy([['date', 'asc'], ['kind', 'asc']])
+                ->values();
+
             $qty = 0;
             $totalCost = 0.0;
             $realizedPnl = 0.0;
             $realizedLines = [];
+            $bonusSharesReceived = 0;
 
-            foreach ($transactions as $tx) {
+            foreach ($events as $event) {
+                if ($event['kind'] === 'bonus') {
+                    if ($qty > 0) {
+                        $credited = (int) floor($qty * $event['bonus']['pct'] / 100);
+                        $qty += $credited;
+                        $bonusSharesReceived += $credited;
+                    }
+
+                    continue;
+                }
+
+                $tx = $event['tx'];
                 $txQty = (int) $tx->quantity;
                 $txPrice = (float) $tx->price;
                 $txFees = (float) $tx->fees;
@@ -463,9 +490,39 @@ class PortfolioValuationService
                 'total_cost' => $totalCost,
                 'realized_pnl' => $realizedPnl,
                 'realized_lines' => $realizedLines,
+                'bonus_shares_received' => $bonusSharesReceived,
             ];
         }
 
         return $result;
+    }
+
+    /**
+     * Bonus-share declarations for the given stocks, keyed by stock_id, each
+     * as a {date, pct} event. Dated by announcement_date since that's the
+     * only date NEPSE's own dividend feed actually provides — the real
+     * credit date is typically some weeks later (after book closure), so
+     * this is a documented best-effort approximation, not exact. Skips any
+     * declaration missing that date entirely rather than guessing further.
+     *
+     * @param  list<int>  $stockIds
+     * @return array<int, Collection<int, array{date: string, pct: float}>>
+     */
+    private function bonusEvents(array $stockIds): array
+    {
+        if ($stockIds === []) {
+            return [];
+        }
+
+        return Dividend::whereIn('stock_id', $stockIds)
+            ->where('bonus_share_pct', '>', 0)
+            ->whereNotNull('announcement_date')
+            ->get()
+            ->groupBy('stock_id')
+            ->map(fn ($rows) => $rows->map(fn ($d) => [
+                'date' => $d->announcement_date->toDateString(),
+                'pct' => (float) $d->bonus_share_pct,
+            ])->values())
+            ->all();
     }
 }

@@ -1,9 +1,17 @@
 <script setup>
 import { ref } from 'vue'
 import { getNotificationPrefs, setNotificationPrefs } from '../utils/notificationPrefs'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const prefs = ref(getNotificationPrefs())
 const saved = ref(false)
+
+const pollIntervalOptions = [
+  { value: 30, label: '30 seconds' },
+  { value: 60, label: '1 minute' },
+  { value: 90, label: '90 seconds' },
+  { value: 300, label: '5 minutes' },
+]
 
 function save() {
   setNotificationPrefs(prefs.value)
@@ -31,12 +39,7 @@ function save() {
       </label>
       <label class="field-row">
         Check for new alerts every
-        <select v-model.number="prefs.pollIntervalSeconds" class="input" style="width: auto">
-          <option :value="30">30 seconds</option>
-          <option :value="60">1 minute</option>
-          <option :value="90">90 seconds</option>
-          <option :value="300">5 minutes</option>
-        </select>
+        <SearchableSelect v-model="prefs.pollIntervalSeconds" :options="pollIntervalOptions" style="width: auto" />
       </label>
       <button class="btn" @click="save" style="align-self: flex-start">Save</button>
       <p v-if="saved" class="muted">Saved — takes effect next page load.</p>

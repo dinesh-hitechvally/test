@@ -7,13 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector', 'is_active', 'history_fetched_at'])]
+#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector', 'face_value', 'is_active', 'history_fetched_at'])]
 class Stock extends Model
 {
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
+            'face_value' => 'decimal:2',
             'history_fetched_at' => 'datetime',
         ];
     }

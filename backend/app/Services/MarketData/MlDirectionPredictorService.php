@@ -5,6 +5,7 @@ namespace App\Services\MarketData;
 use App\Models\MlModel;
 use App\Models\Stock;
 use Illuminate\Support\Facades\File;
+use Rubix\ML\Classifiers\ClassificationTree;
 use Rubix\ML\Classifiers\RandomForest;
 use Rubix\ML\Datasets\Labeled;
 use Rubix\ML\Datasets\Unlabeled;
@@ -27,6 +28,14 @@ class MlDirectionPredictorService
 
     private const MIN_ROWS_PER_STOCK = 60;
 
+    // Caps how much history each stock contributes. Two reasons, not just
+    // memory: (1) with 300+ eligible stocks, using every day of a 10+ year
+    // history blows past what a 150-tree forest can fit in memory, and (2)
+    // NEPSE's own regulatory/liquidity regime years ago behaves differently
+    // from today's market, so the most recent ~2 years is arguably more
+    // relevant training signal anyway, not just a smaller sample of it.
+    private const MAX_ROWS_PER_STOCK = 500;
+
     private const TEST_SPLIT = 0.2;
 
     private const MODEL_RELATIVE_PATH = 'ml/direction_model.rbx';
@@ -47,6 +56,10 @@ class MlDirectionPredictorService
 
             if (count($rows) < self::MIN_ROWS_PER_STOCK) {
                 continue;
+            }
+
+            if (count($rows) > self::MAX_ROWS_PER_STOCK) {
+                $rows = array_slice($rows, -self::MAX_ROWS_PER_STOCK);
             }
 
             $usedAny = false;
@@ -86,8 +99,26 @@ class MlDirectionPredictorService
         $train = array_slice($examples, 0, $splitIndex);
         $test = array_slice($examples, $splitIndex);
 
+        // balanced:true vs false was A/B tested, not assumed: with the same
+        // 309-stock/112k-row training set, balanced:true scored 50.37% and
+        // balanced:false scored 53.03% (both against a 67.05% baseline from
+        // a heavily trending test window). Unbalanced is the real, measured
+        // improvement, but it's a partial one — the model still doesn't beat
+        // baseline. During a sustained one-directional market, "the trend
+        // continues" is a genuinely hard bar for a technical-indicator model
+        // to clear; this isn't a tuning bug, it's the feature set's real
+        // limit in this kind of regime.
+        //
+        // ClassificationTree's default maxLeafSize (3) with no depth cap is
+        // fine on a few thousand rows but produces enormous trees at 100k+
+        // rows — the saved model hit 27MB gzip-compressed and blew past
+        // PHP's default 512MB memory_limit just to *deserialize* it for a
+        // single prediction (a real production incident, not hypothetical:
+        // it 500'd every /ml-prediction request). Capping depth/leaf size
+        // keeps the model small enough to load normally and also curbs
+        // overfitting on noisy daily price data.
         $model = new PersistentModel(
-            new RandomForest(estimators: 150, ratio: 0.3, balanced: true),
+            new RandomForest(new ClassificationTree(maxHeight: 12, maxLeafSize: 20), estimators: 100, ratio: 0.3, balanced: false),
             new Filesystem($this->modelPath()),
             new RBX()
         );

@@ -8,6 +8,7 @@ use App\Models\Stock;
 use App\Services\MarketData\CsvPriceImportService;
 use App\Services\MarketData\MarketReportService;
 use App\Services\MarketData\MlDirectionPredictorService;
+use App\Services\MarketData\CorporateActionsRefreshService;
 use App\Services\MarketData\NepalStockHistoryService;
 use App\Services\MarketData\RecalculationPipeline;
 use App\Services\MarketData\SharesansarHistoryService;
@@ -81,10 +82,37 @@ class StockController extends Controller
 
     public function signals(string $symbol, Request $request)
     {
-        $stock = $this->findStock($symbol);
-        $days = (int) $request->query('days', 90);
+        $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+        ]);
 
-        $signals = $stock->signals()->orderByDesc('trade_date')->limit($days)->get()->reverse()->values();
+        $stock = $this->findStock($symbol);
+        $perPage = min((int) $request->query('per_page', 30), 200);
+        $page = max((int) $request->query('page', 1), 1);
+
+        $query = $stock->signals();
+        if ($validated['from'] ?? null) {
+            $query->where('trade_date', '>=', $validated['from']);
+        }
+        if ($validated['to'] ?? null) {
+            $query->where('trade_date', '<=', $validated['to']);
+        }
+
+        $total = (clone $query)->count();
+
+        // Page 1 = the most recent `per_page` days (within the date range, if
+        // one's set), page 2 = the `per_page` days before that, etc. — paged
+        // back from the newest matching row, not forward from the oldest,
+        // since that's what users actually want when browsing a signal
+        // history table (newest first).
+        $signals = $query
+            ->orderByDesc('trade_date')
+            ->skip(($page - 1) * $perPage)
+            ->take($perPage)
+            ->get()
+            ->reverse()
+            ->values();
 
         $dates = $signals->pluck('trade_date')->map(fn ($d) => $d->toDateString())->all();
 
@@ -102,7 +130,13 @@ class StockController extends Controller
             $signal->predicted_close = $forecastByTargetDate[$key]->predicted_close ?? null;
         });
 
-        return response()->json($signals);
+        return response()->json([
+            'data' => $signals,
+            'page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'total_pages' => (int) ceil($total / $perPage),
+        ]);
     }
 
     public function forecast(string $symbol)
@@ -148,7 +182,14 @@ class StockController extends Controller
             return response()->json(['prediction' => null, 'model' => null]);
         }
 
-        $prediction = $predictor->predict($stock);
+        try {
+            $prediction = $predictor->predict($stock);
+        } catch (Throwable $e) {
+            // The saved model file and MlFeatureBuilder's feature set can briefly
+            // disagree right after a feature-set change and before the next
+            // retrain finishes — degrade to "no prediction" rather than a 500.
+            $prediction = null;
+        }
 
         return response()->json([
             'prediction' => $prediction,
@@ -225,14 +266,15 @@ class StockController extends Controller
         );
     }
 
-    public function fetchCorporateActions(string $symbol, SharesansarHistoryService $history)
+    public function fetchCorporateActions(string $symbol, CorporateActionsRefreshService $refresher)
     {
         $stock = $this->findStock($symbol);
+        $result = $refresher->refresh($stock);
 
-        try {
-            $result = $history->fetchCorporateActions($stock);
-        } catch (Throwable $e) {
-            return response()->json(['message' => 'Dividend/right-share fetch failed: '.$e->getMessage()], 502);
+        if ($result['sources'] === []) {
+            return response()->json([
+                'message' => 'No dividend/right-share data available right now from either ShareSansar or nepalstock.com.',
+            ], 502);
         }
 
         return response()->json($result);

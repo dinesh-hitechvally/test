@@ -1,14 +1,18 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import client from '../api/client'
 import { usePortfolioStore } from '../stores/portfolio'
 import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
 import StatCard from '../components/StatCard.vue'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const store = usePortfolioStore()
 const stocksStore = useStocksStore()
+
+const portfolioOptions = computed(() => store.portfolios.map((p) => ({ value: p.id, label: p.name })))
+const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.id, label: `${s.symbol} — ${s.company_name}` })))
 
 const showNewPortfolioForm = ref(false)
 const newPortfolioName = ref('')
@@ -220,9 +224,12 @@ onMounted(async () => {
     <div class="page-header">
       <h1>Portfolio</h1>
       <div class="actions">
-        <select v-if="store.portfolios.length > 1" v-model="store.activePortfolioId" class="input" style="max-width: 220px">
-          <option v-for="p in store.portfolios" :key="p.id" :value="p.id">{{ p.name }}</option>
-        </select>
+        <SearchableSelect
+          v-if="store.portfolios.length > 1"
+          v-model="store.activePortfolioId"
+          :options="portfolioOptions"
+          style="max-width: 220px"
+        />
         <button class="btn-secondary btn" @click="showNewPortfolioForm = !showNewPortfolioForm">New Portfolio</button>
         <button class="btn" :disabled="!store.activePortfolioId" @click="showAddForm = !showAddForm">Add Transaction</button>
       </div>
@@ -241,10 +248,7 @@ onMounted(async () => {
         <button class="btn-secondary btn" :class="{ active: txType === 'buy' }" @click="txType = 'buy'">Buy</button>
         <button class="btn-secondary btn" :class="{ active: txType === 'sell' }" @click="txType = 'sell'">Sell</button>
       </div>
-      <select v-model="txStockId" class="input">
-        <option value="" disabled>Select a stock…</option>
-        <option v-for="s in stocksStore.stocks" :key="s.id" :value="s.id">{{ s.symbol }} — {{ s.company_name }}</option>
-      </select>
+      <SearchableSelect v-model="txStockId" :options="stockOptions" placeholder="Select a stock…" />
       <input v-model="txQuantity" type="number" min="1" class="input" placeholder="Quantity" />
       <input v-model="txPrice" type="number" min="0.01" step="0.01" class="input" placeholder="Price per share (Rs.)" />
       <input v-model="txFees" type="number" min="0" step="0.01" class="input" placeholder="Fees / brokerage (optional)" />
@@ -289,7 +293,12 @@ onMounted(async () => {
           <tbody>
             <tr v-for="h in store.detail.holdings" :key="h.stock_id">
               <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: h.symbol } }">{{ h.symbol }}</RouterLink></td>
-              <td>{{ h.quantity }}</td>
+              <td>
+                {{ h.quantity }}
+                <span v-if="h.bonus_shares_received > 0" class="muted small" :title="`Includes ${h.bonus_shares_received} bonus share(s) credited over time`">
+                  (+{{ h.bonus_shares_received }})
+                </span>
+              </td>
               <td>{{ formatPrice(h.avg_cost) }}</td>
               <td>{{ formatPrice(h.invested) }}</td>
               <td>{{ h.current_price !== null ? formatPrice(h.current_price) : '—' }}</td>

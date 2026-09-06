@@ -45,6 +45,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/stocks/{symbol}/fetch-corporate-actions', [StockController::class, 'fetchCorporateActions']);
 
     Route::get('/signals/today', [SignalController::class, 'today']);
+    Route::get('/signals/actionable', [SignalController::class, 'actionable']);
 
     Route::get('/alerts', [AlertController::class, 'index']);
 
@@ -75,6 +76,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/rules', [ReportController::class, 'rules']);
     Route::get('/reports/rule-scan', [ReportController::class, 'ruleScan']);
     Route::get('/reports/technical/{symbol}', [ReportController::class, 'technical']);
+    Route::get('/reports/dividends', [ReportController::class, 'dividends']);
+    Route::get('/reports/analyst/{symbol}', [ReportController::class, 'analyst']);
 
     Route::get('/market/screener', [MarketController::class, 'screener']);
     Route::get('/market/52-week', [MarketController::class, 'fiftyTwoWeek']);

@@ -3,8 +3,24 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import client from '../api/client'
 import { formatPrice } from '../utils/format'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const route = useRoute()
+
+const SIGNAL_OPTIONS = [
+  { value: '', label: 'Any' },
+  { value: 'strong_buy', label: 'Strong Buy' },
+  { value: 'buy', label: 'Buy' },
+  { value: 'hold', label: 'Hold' },
+  { value: 'sell', label: 'Sell' },
+  { value: 'strong_sell', label: 'Strong Sell' },
+]
+
+const SMA_OPTIONS = [
+  { value: '', label: 'Any' },
+  { value: 'above', label: 'SMA20 above SMA50' },
+  { value: 'below', label: 'SMA20 below SMA50' },
+]
 
 const stocks = ref([])
 const loading = ref(true)
@@ -35,6 +51,8 @@ const sectors = computed(() => {
   const set = new Set(stocks.value.map((s) => s.sector || 'Other'))
   return Array.from(set).sort()
 })
+
+const sectorOptions = computed(() => [{ value: '', label: 'Any' }, ...sectors.value.map((s) => ({ value: s, label: s }))])
 
 function sectorOf(stock) {
   return stock.sector || 'Other'
@@ -186,21 +204,11 @@ onMounted(async () => {
       <div class="filter-grid">
         <label>
           Signal
-          <select v-model="signalFilter" class="input">
-            <option value="">Any</option>
-            <option value="strong_buy">Strong Buy</option>
-            <option value="buy">Buy</option>
-            <option value="hold">Hold</option>
-            <option value="sell">Sell</option>
-            <option value="strong_sell">Strong Sell</option>
-          </select>
+          <SearchableSelect v-model="signalFilter" :options="SIGNAL_OPTIONS" />
         </label>
         <label>
           Sector
-          <select v-model="sectorFilter" class="input">
-            <option value="">Any</option>
-            <option v-for="s in sectors" :key="s" :value="s">{{ s }}</option>
-          </select>
+          <SearchableSelect v-model="sectorFilter" :options="sectorOptions" />
         </label>
         <label>
           RSI (14) min
@@ -228,11 +236,7 @@ onMounted(async () => {
         </label>
         <label>
           SMA20 vs SMA50
-          <select v-model="smaFilter" class="input">
-            <option value="">Any</option>
-            <option value="above">SMA20 above SMA50</option>
-            <option value="below">SMA20 below SMA50</option>
-          </select>
+          <SearchableSelect v-model="smaFilter" :options="SMA_OPTIONS" />
         </label>
       </div>
       <div class="save-row">

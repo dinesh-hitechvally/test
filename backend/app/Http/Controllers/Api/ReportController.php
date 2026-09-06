@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ForecastModel;
+use App\Models\SignalAccuracyStat;
 use App\Models\Stock;
 use App\Services\MarketData\MarketReportService;
+use App\Services\MarketData\MlDirectionPredictorService;
 use App\Services\MarketData\SignalRules;
 use App\Services\MarketData\TechnicalAnalysisReportService;
 use Illuminate\Http\Request;
+use Throwable;
 
 class ReportController extends Controller
 {
@@ -120,6 +124,11 @@ class ReportController extends Controller
         ]);
     }
 
+    public function dividends(Request $request, MarketReportService $reports)
+    {
+        return response()->json($reports->dividendReport($request->query('sector')));
+    }
+
     public function technical(string $symbol, TechnicalAnalysisReportService $reports)
     {
         $stock = Stock::where('symbol', strtoupper($symbol))->firstOrFail();
@@ -131,6 +140,87 @@ class ReportController extends Controller
                 'sector' => $stock->sector,
             ],
             'report' => $reports->build($stock),
+        ]);
+    }
+
+    /**
+     * The "Analyst Report" — one stock, every lens the app has on it (price
+     * performance, technical read, dividend history, rule-based signal with
+     * its own honest backtest context, ML direction call, statistical
+     * forecast) assembled in one response. No new computation happens here;
+     * it's a merge of what TechnicalAnalysisReportService, MarketReportService,
+     * MlDirectionPredictorService and the forecast/signal tables already
+     * produce elsewhere, so nothing here can drift from those other pages.
+     */
+    public function analyst(string $symbol, MarketReportService $reports, TechnicalAnalysisReportService $technical, MlDirectionPredictorService $predictor)
+    {
+        $stock = Stock::with(['latestPrice', 'latestSignal'])->where('symbol', strtoupper($symbol))->firstOrFail();
+
+        $change = $reports->priceChanges()->get($stock->id);
+
+        $signalAccuracy = $stock->latestSignal
+            ? SignalAccuracyStat::where('signal_type', $stock->latestSignal->signal)
+                ->where('computed_at', SignalAccuracyStat::max('computed_at'))
+                ->first()
+            : null;
+
+        $mlModel = $predictor->latestMetrics();
+        try {
+            $mlPrediction = $mlModel ? $predictor->predict($stock) : null;
+        } catch (Throwable $e) {
+            // The saved model file and MlFeatureBuilder's feature set can briefly
+            // disagree right after a feature-set change and before the next
+            // retrain finishes — degrade to "no prediction" rather than
+            // failing the whole report over one section.
+            $mlPrediction = null;
+        }
+
+        $latestForecastDate = $stock->forecasts()->max('generated_date');
+        $forecastAccuracy = ForecastModel::latest('computed_at')->first();
+        $forecasts = $latestForecastDate
+            ? $stock->forecasts()->where('generated_date', $latestForecastDate)->orderBy('target_date')->get()
+            : collect();
+
+        return response()->json([
+            'stock' => [
+                'symbol' => $stock->symbol,
+                'company_name' => $stock->company_name,
+                'sector' => $stock->sector,
+            ],
+            'latest_price' => $stock->latestPrice,
+            'change_pct' => $change['change_pct'] ?? null,
+            'returns' => $reports->stockReturns($stock),
+            'technical' => $technical->build($stock),
+            'dividend' => $reports->stockDividendSummary($stock),
+            'signal' => $stock->latestSignal ? [
+                'signal' => $stock->latestSignal->signal,
+                'score' => (float) $stock->latestSignal->score,
+                'reasons' => $stock->latestSignal->reasons,
+                'trade_date' => $stock->latestSignal->trade_date,
+                'accuracy' => $signalAccuracy ? [
+                    'sample_size' => $signalAccuracy->sample_size,
+                    'win_rate' => (float) $signalAccuracy->win_rate,
+                    'baseline_win_rate' => (float) $signalAccuracy->baseline_win_rate,
+                    'horizon_days' => $signalAccuracy->horizon_days,
+                ] : null,
+            ] : null,
+            'ml_prediction' => $mlPrediction ? [
+                'direction' => $mlPrediction['direction'],
+                'probability' => $mlPrediction['probability'],
+                'as_of_date' => $mlPrediction['as_of_date'],
+                'horizon_days' => $mlModel->horizon_days,
+                'model_accuracy' => (float) $mlModel->accuracy,
+                'model_baseline_accuracy' => (float) $mlModel->baseline_accuracy,
+                'beats_baseline' => $mlModel->beatsBaseline(),
+            ] : null,
+            'forecast' => [
+                'forecasts' => $forecasts,
+                'accuracy' => $forecastAccuracy ? [
+                    'mape' => (float) $forecastAccuracy->mape,
+                    'directional_accuracy' => (float) $forecastAccuracy->directional_accuracy,
+                    'beats_coin_flip' => $forecastAccuracy->beatsCoinFlip(),
+                ] : null,
+            ],
         ]);
     }
 

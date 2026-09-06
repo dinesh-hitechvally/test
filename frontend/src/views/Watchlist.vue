@@ -1,14 +1,22 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import client from '../api/client'
 import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const stocksStore = useStocksStore()
 const watchlists = ref([])
 const selectedStockId = ref('')
 const selectedWatchlistId = ref('')
+
+const watchlistOptions = computed(() => watchlists.value.map((wl) => ({ value: wl.id, label: wl.name })))
+const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.id, label: `${s.symbol} — ${s.company_name}` })))
+const ALERT_DIRECTION_OPTIONS = [
+  { value: 'above', label: 'Alert when above' },
+  { value: 'below', label: 'Alert when below' },
+]
 
 async function load() {
   const [wlRes] = await Promise.all([client.get('/watchlists'), stocksStore.stocks.length ? Promise.resolve() : stocksStore.fetchStocks()])
@@ -85,13 +93,8 @@ onMounted(load)
     <div class="card" style="margin-bottom: 20px">
       <h3>Add a stock</h3>
       <div class="add-row">
-        <select v-model="selectedWatchlistId" class="input">
-          <option v-for="wl in watchlists" :key="wl.id" :value="wl.id">{{ wl.name }}</option>
-        </select>
-        <select v-model="selectedStockId" class="input">
-          <option value="" disabled>Select a stock…</option>
-          <option v-for="s in stocksStore.stocks" :key="s.id" :value="s.id">{{ s.symbol }} — {{ s.company_name }}</option>
-        </select>
+        <SearchableSelect v-model="selectedWatchlistId" :options="watchlistOptions" />
+        <SearchableSelect v-model="selectedStockId" :options="stockOptions" placeholder="Select a stock…" />
         <button class="btn" @click="addToWatchlist">Add</button>
       </div>
     </div>
@@ -135,10 +138,7 @@ onMounted(load)
       <h3>Price Alert — {{ editingAlertFor.stock.symbol }}</h3>
       <p class="muted">Current price Rs. {{ formatPrice(editingAlertFor.stock.latest_price?.close_price) }}.</p>
       <div class="picker-row">
-        <select v-model="alertDirection" class="input" style="max-width: 160px">
-          <option value="above">Alert when above</option>
-          <option value="below">Alert when below</option>
-        </select>
+        <SearchableSelect v-model="alertDirection" :options="ALERT_DIRECTION_OPTIONS" style="max-width: 160px" />
         <input v-model="alertPrice" type="number" min="0" step="0.01" class="input" placeholder="Price (Rs.)" style="max-width: 160px" />
       </div>
       <div class="picker-row">

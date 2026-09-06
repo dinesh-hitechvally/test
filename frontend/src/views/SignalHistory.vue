@@ -7,12 +7,15 @@ const loading = ref(true)
 
 const LABELS = { strong_buy: 'Strong Buy', buy: 'Buy', hold: 'Hold', sell: 'Sell', strong_sell: 'Strong Sell' }
 
+const LOW_SAMPLE_THRESHOLD = 200
+
 const rows = computed(() => {
   if (!data.value?.available) return []
   return data.value.stats.map((s) => ({
     ...s,
     label: LABELS[s.signal_type] || s.signal_type,
     beatsBaseline: s.baseline_win_rate !== null && Number(s.win_rate) > Number(s.baseline_win_rate),
+    lowSample: s.sample_size < LOW_SAMPLE_THRESHOLD,
   }))
 })
 
@@ -49,14 +52,19 @@ onMounted(load)
           <tbody>
             <tr v-for="r in rows" :key="r.signal_type">
               <td><span class="badge" :class="r.signal_type">{{ r.label }}</span></td>
-              <td>{{ r.sample_size.toLocaleString() }}</td>
-              <td>{{ r.win_rate }}%</td>
+              <td>
+                {{ r.sample_size.toLocaleString() }}
+                <span v-if="r.lowSample" class="muted small" title="Fewer than 200 samples — not enough data to trust this win rate yet.">(low sample)</span>
+              </td>
+              <td :class="{ muted: r.lowSample }">{{ r.win_rate }}%</td>
               <td class="muted">{{ r.baseline_win_rate }}%</td>
               <td :class="Number(r.avg_forward_return_pct) > 0 ? 'positive' : Number(r.avg_forward_return_pct) < 0 ? 'negative' : ''">
                 {{ Number(r.avg_forward_return_pct) > 0 ? '+' : '' }}{{ r.avg_forward_return_pct }}%
               </td>
               <td>
-                <span class="badge" :class="r.beatsBaseline ? 'buy' : 'sell'">{{ r.beatsBaseline ? 'Yes' : 'No' }}</span>
+                <span class="badge" :class="r.lowSample ? 'hold' : (r.beatsBaseline ? 'buy' : 'sell')">
+                  {{ r.lowSample ? 'Too few samples' : (r.beatsBaseline ? 'Yes' : 'No') }}
+                </span>
               </td>
             </tr>
           </tbody>

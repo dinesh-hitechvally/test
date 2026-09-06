@@ -2,6 +2,16 @@
 import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { formatPrice } from '../utils/format'
+import SearchableSelect from './SearchableSelect.vue'
+
+const SIGNAL_OPTIONS = [
+  { value: '', label: 'All signals' },
+  { value: 'strong_buy', label: 'Strong Buy' },
+  { value: 'buy', label: 'Buy' },
+  { value: 'hold', label: 'Hold' },
+  { value: 'sell', label: 'Sell' },
+  { value: 'strong_sell', label: 'Strong Sell' },
+]
 
 const props = defineProps({
   stocks: { type: Array, required: true },
@@ -30,6 +40,8 @@ const sectors = computed(() => {
   const set = new Set(props.stocks.map((s) => s.sector || 'Other'))
   return Array.from(set).sort()
 })
+
+const sectorOptions = computed(() => [{ value: '', label: 'All sectors' }, ...sectors.value.map((s) => ({ value: s, label: s }))])
 
 function sectorOf(stock) {
   return stock.sector || 'Other'
@@ -108,18 +120,8 @@ function formatInt(value) {
   <div>
     <div class="filter-bar">
       <input v-model="search" class="input" style="max-width: 280px" placeholder="Search symbol or company…" @input="resetToFirstPage" />
-      <select v-model="sectorFilter" class="input" style="max-width: 200px" @change="resetToFirstPage">
-        <option value="">All sectors</option>
-        <option v-for="s in sectors" :key="s" :value="s">{{ s }}</option>
-      </select>
-      <select v-model="signalFilter" class="input" style="max-width: 180px" @change="resetToFirstPage">
-        <option value="">All signals</option>
-        <option value="strong_buy">Strong Buy</option>
-        <option value="buy">Buy</option>
-        <option value="hold">Hold</option>
-        <option value="sell">Sell</option>
-        <option value="strong_sell">Strong Sell</option>
-      </select>
+      <SearchableSelect v-model="sectorFilter" :options="sectorOptions" style="max-width: 200px" @change="resetToFirstPage" />
+      <SearchableSelect v-model="signalFilter" :options="SIGNAL_OPTIONS" style="max-width: 180px" @change="resetToFirstPage" />
       <span class="muted result-count">{{ filtered.length }} stocks</span>
     </div>
 

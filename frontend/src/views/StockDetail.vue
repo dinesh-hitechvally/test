@@ -12,6 +12,11 @@ const stock = ref(null)
 const prices = ref([])
 const indicators = ref([])
 const signals = ref([])
+const signalsPage = ref(1)
+const signalsTotalPages = ref(1)
+const signalsLoading = ref(false)
+const signalsFromFilter = ref('')
+const signalsToFilter = ref('')
 const forecast = ref({ forecasts: [], disclaimer: '' })
 const mlPrediction = ref(null)
 const mlModel = ref(null)
@@ -27,11 +32,11 @@ const corporateActionsError = ref('')
 
 async function loadAll(symbol) {
   loading.value = true
-  const [stockRes, pricesRes, indicatorsRes, signalsRes, forecastRes, mlRes, dividendsRes, rightSharesRes] = await Promise.all([
+  signalsPage.value = 1
+  const [stockRes, pricesRes, indicatorsRes, forecastRes, mlRes, dividendsRes, rightSharesRes] = await Promise.all([
     client.get(`/stocks/${symbol}`),
     client.get(`/stocks/${symbol}/prices`, { params: { days: 180 } }),
     client.get(`/stocks/${symbol}/indicators`, { params: { days: 180 } }),
-    client.get(`/stocks/${symbol}/signals`, { params: { days: 30 } }),
     client.get(`/stocks/${symbol}/forecast`),
     client.get(`/stocks/${symbol}/ml-prediction`),
     client.get(`/stocks/${symbol}/dividends`),
@@ -41,13 +46,43 @@ async function loadAll(symbol) {
   stock.value = stockRes.data
   prices.value = pricesRes.data
   indicators.value = indicatorsRes.data
-  signals.value = signalsRes.data.reverse()
   forecast.value = forecastRes.data.forecasts ? forecastRes.data : { forecasts: [], disclaimer: '' }
   mlPrediction.value = mlRes.data.prediction
   mlModel.value = mlRes.data.model
   dividends.value = dividendsRes.data
   rightShares.value = rightSharesRes.data
   loading.value = false
+
+  await loadSignalsPage(1)
+}
+
+async function loadSignalsPage(page) {
+  signalsLoading.value = true
+  try {
+    const { data } = await client.get(`/stocks/${route.params.symbol}/signals`, {
+      params: {
+        page,
+        per_page: 30,
+        from: signalsFromFilter.value || undefined,
+        to: signalsToFilter.value || undefined,
+      },
+    })
+    signals.value = data.data.reverse()
+    signalsPage.value = data.page
+    signalsTotalPages.value = data.total_pages
+  } finally {
+    signalsLoading.value = false
+  }
+}
+
+function applySignalsFilter() {
+  loadSignalsPage(1)
+}
+
+function clearSignalsFilter() {
+  signalsFromFilter.value = ''
+  signalsToFilter.value = ''
+  loadSignalsPage(1)
 }
 
 async function handleFetchCorporateActions() {
@@ -56,7 +91,8 @@ async function handleFetchCorporateActions() {
   corporateActionsError.value = ''
   try {
     const { data } = await client.post(`/stocks/${route.params.symbol}/fetch-corporate-actions`)
-    corporateActionsResult.value = `${data.dividends} dividend row(s), ${data.right_shares} right-share row(s) refreshed.`
+    const sourceLabel = data.sources?.join(' + ') || 'source'
+    corporateActionsResult.value = `${data.dividends} dividend row(s), ${data.right_shares} right-share row(s) refreshed (via ${sourceLabel}).`
     const [dividendsRes, rightSharesRes] = await Promise.all([
       client.get(`/stocks/${route.params.symbol}/dividends`),
       client.get(`/stocks/${route.params.symbol}/right-shares`),
@@ -229,7 +265,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       <div class="card-head">
         <h3 style="margin: 0">Dividend &amp; Bonus History</h3>
         <button class="btn-secondary btn" :disabled="fetchingCorporateActions" @click="handleFetchCorporateActions">
-          {{ fetchingCorporateActions ? 'Fetching…' : 'Refresh from ShareSansar' }}
+          {{ fetchingCorporateActions ? 'Fetching…' : 'Refresh Dividend/Bonus Data' }}
         </button>
       </div>
       <p v-if="corporateActionsResult" class="muted">{{ corporateActionsResult }}</p>
@@ -251,9 +287,9 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         </tbody>
       </table>
       <p v-else class="muted">
-        No dividend/bonus history recorded yet for {{ stock.symbol }} — click "Refresh from ShareSansar" to fetch it.
-        (Note: this source has occasionally been slow to respond to automated requests — if a refresh comes back
-        empty, that isn't necessarily because {{ stock.symbol }} has never paid a dividend.)
+        No dividend/bonus history recorded yet for {{ stock.symbol }} — click "Refresh Dividend/Bonus Data" to fetch it.
+        (Pulled from ShareSansar first, falling back to the official nepalstock.com feed if that comes back empty —
+        cash dividend and bonus share % are covered either way; full right-share detail needs ShareSansar.)
       </p>
 
       <template v-if="rightShares.length">
@@ -282,6 +318,27 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         "Predicted" is what an earlier trend forecast projected for that date, so you can compare it against what the
         price actually did.
       </p>
+
+      <div class="signal-filters">
+        <label class="filter-field">
+          <span class="muted small">From</span>
+          <input v-model="signalsFromFilter" type="date" class="input" />
+        </label>
+        <label class="filter-field">
+          <span class="muted small">To</span>
+          <input v-model="signalsToFilter" type="date" class="input" />
+        </label>
+        <button class="btn-secondary btn" :disabled="signalsLoading" @click="applySignalsFilter">Apply</button>
+        <button
+          v-if="signalsFromFilter || signalsToFilter"
+          class="btn-secondary btn"
+          :disabled="signalsLoading"
+          @click="clearSignalsFilter"
+        >
+          Clear
+        </button>
+      </div>
+
       <table class="table">
         <thead>
           <tr><th>Date</th><th>Price</th><th>Predicted</th><th>Signal</th><th>Score</th><th>Reasons</th></tr>
@@ -297,12 +354,48 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
           </tr>
         </tbody>
       </table>
-      <p v-if="signals.length === 0" class="muted">No signals yet.</p>
+      <p v-if="!signalsLoading && signals.length === 0" class="muted">No signals yet.</p>
+
+      <div class="pagination">
+        <button class="btn-secondary btn" :disabled="signalsLoading || signalsPage >= signalsTotalPages" @click="loadSignalsPage(signalsPage + 1)">
+          ← Older
+        </button>
+        <span class="muted small">Page {{ signalsPage }} of {{ signalsTotalPages }}</span>
+        <button class="btn-secondary btn" :disabled="signalsLoading || signalsPage <= 1" @click="loadSignalsPage(signalsPage - 1)">
+          Newer →
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.signal-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.small {
+  font-size: 0.78rem;
+}
+
 .price {
   font-size: 1.6rem;
   font-weight: 700;

@@ -5,6 +5,7 @@ import client from '../api/client'
 import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
 import StatCard from '../components/StatCard.vue'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +14,7 @@ const stocksStore = useStocksStore()
 const selected = ref(route.params.symbol || '')
 const data = ref(null)
 const loading = ref(false)
+const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.symbol, label: `${s.symbol} — ${s.company_name}` })))
 const error = ref('')
 
 const BULLISH_WORDS = ['bullish', 'breakout_up', 'accumulation', 'above', 'above_signal', 'rising', 'oversold']
@@ -147,10 +149,7 @@ onMounted(async () => {
     </p>
 
     <div class="card">
-      <select v-model="selected" class="input" style="max-width: 340px" @change="onSelect">
-        <option value="" disabled>Select a stock…</option>
-        <option v-for="s in stocksStore.stocks" :key="s.id" :value="s.symbol">{{ s.symbol }} — {{ s.company_name }}</option>
-      </select>
+      <SearchableSelect v-model="selected" :options="stockOptions" style="max-width: 340px" placeholder="Select a stock…" @change="onSelect" />
     </div>
 
     <p v-if="loading" class="muted" style="margin-top: 16px">Loading…</p>

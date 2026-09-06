@@ -13,6 +13,7 @@ import PointFigureChart from '../components/PointFigureChart.vue'
 import TrendChart from '../components/TrendChart.vue'
 import SectorPerformanceChart from '../components/SectorPerformanceChart.vue'
 import StatCard from '../components/StatCard.vue'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +35,9 @@ const CHART_TYPES = [
   { key: 'renko', label: 'Renko' },
   { key: 'kagi', label: 'Kagi' },
 ]
+
+const reportTypeOptions = REPORT_TYPES.map((t) => ({ value: t.key, label: t.label }))
+const chartTypeOptions = CHART_TYPES.map((c) => ({ value: c.key, label: c.label }))
 
 const reportType = ref(route.params.symbol ? 'stock' : 'overall')
 const selectedSector = ref('')
@@ -78,6 +82,8 @@ const sectorPerformance = ref([])
 const sectorTrendData = ref(null)
 const sectorLoading = ref(false)
 let sectorListLoaded = false
+const sectorOptions = computed(() => sectors.value.map((s) => ({ value: s.sector, label: `${s.sector} (${s.stock_count})` })))
+const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.symbol, label: `${s.symbol} — ${s.company_name}` })))
 
 async function loadSectorList() {
   if (sectorListLoaded) return
@@ -112,11 +118,18 @@ const days = ref(180)
 const prices = ref([])
 const stockLoading = ref(false)
 
+// 100000 trading days is longer than any NEPSE listing's history could ever
+// be — a plain sentinel for "everything stored", not a real day count. The
+// backend's LIMIT just returns fewer rows when a stock has less than that,
+// so this needs no backend change to reach all the way back to listing date.
+const MAX_HISTORY_DAYS = 100000
+
 const RANGES = [
   { label: '3M', value: 90 },
   { label: '6M', value: 180 },
   { label: '1Y', value: 365 },
   { label: '2Y', value: 730 },
+  { label: 'Max', value: MAX_HISTORY_DAYS },
 ]
 
 async function loadStock() {
@@ -198,31 +211,28 @@ onMounted(async () => {
       <div class="picker-row">
         <label class="picker-field">
           <span class="picker-label">Report Type</span>
-          <select v-model="reportType" class="input" @change="onReportTypeChange">
-            <option v-for="t in REPORT_TYPES" :key="t.key" :value="t.key">{{ t.label }}</option>
-          </select>
+          <SearchableSelect v-model="reportType" :options="reportTypeOptions" @change="onReportTypeChange" />
         </label>
 
         <label class="picker-field">
           <span class="picker-label">Sector</span>
-          <select v-model="selectedSector" class="input" :disabled="reportType !== 'sector'" @change="onSelectSector">
-            <option v-for="s in sectors" :key="s.sector" :value="s.sector">{{ s.sector }} ({{ s.stock_count }})</option>
-          </select>
+          <SearchableSelect v-model="selectedSector" :options="sectorOptions" :disabled="reportType !== 'sector'" @change="onSelectSector" />
         </label>
 
         <label class="picker-field">
           <span class="picker-label">Stock</span>
-          <select v-model="selectedStock" class="input" :disabled="reportType !== 'stock'" @change="onSelectStock">
-            <option value="" disabled>Select a stock…</option>
-            <option v-for="s in stocksStore.stocks" :key="s.id" :value="s.symbol">{{ s.symbol }} — {{ s.company_name }}</option>
-          </select>
+          <SearchableSelect
+            v-model="selectedStock"
+            :options="stockOptions"
+            :disabled="reportType !== 'stock'"
+            placeholder="Select a stock…"
+            @change="onSelectStock"
+          />
         </label>
 
         <label class="picker-field">
           <span class="picker-label">Chart Type</span>
-          <select v-model="chartType" class="input" :disabled="reportType !== 'stock'">
-            <option v-for="c in CHART_TYPES" :key="c.key" :value="c.key">{{ c.label }}</option>
-          </select>
+          <SearchableSelect v-model="chartType" :options="chartTypeOptions" :disabled="reportType !== 'stock'" />
         </label>
 
         <div v-if="reportType === 'stock'" class="ranges">

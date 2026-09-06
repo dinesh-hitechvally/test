@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\DB;
  */
 class MarketReportService
 {
+    private const DIVIDEND_FACE_VALUE = 100.0;
+
     /**
      * Latest close, previous close, and % change per stock — the one piece of
      * real aggregate SQL here, everything else reuses existing relations.
@@ -268,5 +270,154 @@ class MarketReportService
                 'losers' => $ranked->reverse()->take(5)->values(),
             ],
         ];
+    }
+
+    /**
+     * Market-wide dividend ranking — one row per stock that has at least one
+     * recorded dividend, ranked by trailing dividend yield. Cash dividend %
+     * is declared against face value, not market price — most NEPSE equities
+     * are Rs. 100 face value (the fallback here), but some instruments (e.g.
+     * mutual fund units) use a different one, captured per-stock via
+     * NepalStockCorporateActionsService when available.
+     *
+     * @return array{totals: array, stocks: Collection}
+     */
+    public function dividendReport(?string $sector = null): array
+    {
+        $query = Stock::query()->with(['latestPrice', 'latestSignal', 'dividends' => fn ($q) => $q->orderByDesc('fiscal_year')]);
+
+        if ($sector) {
+            $query->where('sector', $sector);
+        }
+
+        $rows = $query->get()
+            ->filter(fn ($stock) => $stock->dividends->isNotEmpty())
+            ->map(fn ($stock) => $this->summarizeDividends($stock))
+            ->sortByDesc(fn ($r) => $r['dividend_yield_pct'] ?? -1)
+            ->values();
+
+        $yields = $rows->pluck('dividend_yield_pct')->filter(fn ($v) => $v !== null);
+
+        return [
+            'totals' => [
+                'stocks_with_dividends' => $rows->count(),
+                'avg_yield_pct' => $yields->isNotEmpty() ? round($yields->avg(), 2) : null,
+                'top_yield_pct' => $yields->isNotEmpty() ? $yields->max() : null,
+            ],
+            'top_picks' => $this->rankDividendPicks($rows),
+            'stocks' => $rows,
+        ];
+    }
+
+    /**
+     * Single-stock dividend summary — same shape/math as one row of
+     * dividendReport(), reused there and by the Analyst Report so the yield
+     * calculation can't drift between the two. Returns null if the stock has
+     * no recorded dividend history.
+     */
+    public function stockDividendSummary(Stock $stock): ?array
+    {
+        $stock->loadMissing(['latestPrice', 'latestSignal', 'dividends' => fn ($q) => $q->orderByDesc('fiscal_year')]);
+
+        if ($stock->dividends->isEmpty()) {
+            return null;
+        }
+
+        return $this->summarizeDividends($stock);
+    }
+
+    private function summarizeDividends(Stock $stock): array
+    {
+        $latest = $stock->dividends->first();
+        $close = $stock->latestPrice?->close_price;
+        $faceValue = $stock->face_value !== null ? (float) $stock->face_value : self::DIVIDEND_FACE_VALUE;
+        $latestCashRs = $latest->cash_dividend_pct !== null
+            ? (float) $latest->cash_dividend_pct * $faceValue / 100
+            : null;
+
+        $totals = $stock->dividends->pluck('total_dividend_pct')->filter(fn ($v) => $v !== null)->map(fn ($v) => (float) $v);
+
+        $cashYieldPct = ($latestCashRs !== null && $close > 0) ? ($latestCashRs / $close) * 100 : null;
+        $bonusPct = $latest->bonus_share_pct !== null ? (float) $latest->bonus_share_pct : null;
+
+        // The declared Cash/Bonus/Total % columns are all against Rs. 100 face
+        // value, not what the stock actually trades at — misleading once price
+        // has moved far from face value (e.g. Rs. 539 vs Rs. 100 for NABIL).
+        // Bonus shares don't need that face-value conversion: a 6% bonus means
+        // 6% more shares, and those extra shares are worth the same current
+        // price as the ones already held — so bonus_share_pct is already a
+        // real, price-relative % on its own. Only the cash portion needs
+        // converting (via dividend_yield_pct above). Total actual return here
+        // is that converted cash yield plus the (already price-relative) bonus %.
+        $actualTotalYieldPct = ($cashYieldPct !== null || $bonusPct !== null)
+            ? round(($cashYieldPct ?? 0) + ($bonusPct ?? 0), 2)
+            : null;
+
+        return [
+            'stock_id' => $stock->id,
+            'symbol' => $stock->symbol,
+            'company_name' => $stock->company_name,
+            'sector' => $stock->sector,
+            'close' => $close,
+            'latest_fiscal_year' => $latest->fiscal_year,
+            'latest_cash_pct' => $latest->cash_dividend_pct !== null ? (float) $latest->cash_dividend_pct : null,
+            'latest_bonus_pct' => $bonusPct,
+            'latest_total_pct' => $latest->total_dividend_pct !== null ? (float) $latest->total_dividend_pct : null,
+            'dividend_yield_pct' => $cashYieldPct !== null ? round($cashYieldPct, 2) : null,
+            'actual_total_yield_pct' => $actualTotalYieldPct,
+            'years_recorded' => $stock->dividends->count(),
+            'avg_total_dividend_pct' => $totals->isNotEmpty() ? round($totals->avg(), 2) : null,
+            'latest_signal' => $stock->latestSignal?->signal,
+            'history' => $stock->dividends->values(),
+        ];
+    }
+
+    /**
+     * Ranks dividend-paying stocks by a transparent weighted score — trailing
+     * yield (50%), payout consistency across recorded years (30%), and
+     * historical average total payout (20%) — each normalized against the
+     * best value among candidates so no single metric dominates just because
+     * of its raw scale. Requires an actual cash yield (bonus-only years don't
+     * count as an income pick) and a latest signal that isn't bearish, so
+     * this can't recommend a stock currently flagged Sell/Strong Sell.
+     *
+     * @param  Collection  $rows
+     * @return Collection
+     */
+    private function rankDividendPicks(Collection $rows): Collection
+    {
+        $candidates = $rows->filter(fn ($r) => ($r['dividend_yield_pct'] ?? 0) > 0
+            && ! in_array($r['latest_signal'], ['sell', 'strong_sell'], true));
+
+        if ($candidates->isEmpty()) {
+            return collect();
+        }
+
+        $maxYield = $candidates->max('dividend_yield_pct');
+        $maxYears = $candidates->max('years_recorded');
+        $maxAvg = $candidates->max(fn ($r) => $r['avg_total_dividend_pct'] ?? 0) ?: 1;
+
+        return $candidates->map(function ($r) use ($maxYield, $maxYears, $maxAvg) {
+            $yieldScore = $maxYield > 0 ? $r['dividend_yield_pct'] / $maxYield : 0;
+            $consistencyScore = $maxYears > 0 ? $r['years_recorded'] / $maxYears : 0;
+            $growthScore = ($r['avg_total_dividend_pct'] ?? 0) / $maxAvg;
+
+            $score = round((0.5 * $yieldScore + 0.3 * $consistencyScore + 0.2 * $growthScore) * 100, 1);
+
+            $reasons = [];
+            $reasons[] = "{$r['dividend_yield_pct']}% trailing yield";
+            $reasons[] = "{$r['years_recorded']} year(s) of recorded payouts";
+            if ($r['avg_total_dividend_pct'] !== null) {
+                $reasons[] = "averages {$r['avg_total_dividend_pct']}% total dividend historically";
+            }
+            if ($r['latest_signal']) {
+                $reasons[] = 'currently flagged '.str_replace('_', ' ', $r['latest_signal']);
+            }
+
+            return [...$r, 'pick_score' => $score, 'reasons' => $reasons];
+        })
+            ->sortByDesc('pick_score')
+            ->take(10)
+            ->values();
     }
 }

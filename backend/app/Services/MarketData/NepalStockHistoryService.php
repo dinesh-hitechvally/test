@@ -6,7 +6,6 @@ use App\Models\DailyPrice;
 use App\Models\ScrapeLog;
 use App\Models\Stock;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -25,8 +24,6 @@ class NepalStockHistoryService
 {
     private const BASE_URL = 'https://www.nepalstock.com';
 
-    private const SECURITIES_PATH = '/api/nots/security?nonDelisted=true';
-
     private const HISTORY_PATH = '/api/nots/market/history/security/%d';
 
     private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
@@ -37,6 +34,7 @@ class NepalStockHistoryService
 
     public function __construct(
         private readonly NepalStockTokenService $tokens,
+        private readonly NepalStockSecurityResolver $resolver,
         private readonly RecalculationPipeline $pipeline,
     ) {}
 
@@ -46,7 +44,7 @@ class NepalStockHistoryService
     public function fetchHistory(Stock $stock): array
     {
         try {
-            $securityId = $this->resolveSecurityId($stock);
+            $securityId = $this->resolver->resolve($stock);
             $rows = $this->paginateHistory($securityId);
 
             if ($rows === []) {
@@ -83,38 +81,6 @@ class NepalStockHistoryService
 
             throw $e;
         }
-    }
-
-    private function resolveSecurityId(Stock $stock): int
-    {
-        if ($stock->nepse_security_id !== null) {
-            return $stock->nepse_security_id;
-        }
-
-        $securities = Cache::remember('nepse_securities_list', now()->addHours(6), function () {
-            $token = $this->tokens->getAccessToken();
-
-            $response = Http::withHeaders([
-                'User-Agent' => self::USER_AGENT,
-                'Referer' => self::BASE_URL.'/',
-                'Authorization' => 'Salter '.$token,
-            ])->timeout(20)->get(self::BASE_URL.self::SECURITIES_PATH);
-
-            $response->throw();
-
-            return $response->json();
-        });
-
-        foreach ($securities as $security) {
-            if (strtoupper((string) ($security['symbol'] ?? '')) === $stock->symbol) {
-                $id = (int) $security['id'];
-                $stock->update(['nepse_security_id' => $id]);
-
-                return $id;
-            }
-        }
-
-        throw new RuntimeException("Could not find [{$stock->symbol}] in nepalstock.com's securities list.");
     }
 
     /**

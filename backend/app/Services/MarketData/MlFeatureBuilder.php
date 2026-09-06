@@ -13,7 +13,7 @@ class MlFeatureBuilder
 {
     public const FEATURE_NAMES = [
         'rsi_14', 'macd', 'macd_signal', 'macd_histogram',
-        'close_sma20_ratio', 'close_sma50_ratio', 'close_sma200_ratio',
+        'close_sma20_ratio', 'close_sma50_ratio', 'close_sma100_ratio', 'close_sma200_ratio',
         'bb_position', 'return_1d', 'return_5d', 'return_10d',
         'volume_ratio', 'atr_pct',
     ];
@@ -70,6 +70,7 @@ class MlFeatureBuilder
                     (float) $indicator->macd_histogram,
                     $close / max((float) $indicator->sma_20, 0.0001),
                     $close / max((float) $indicator->sma_50, 0.0001),
+                    $close / max((float) $indicator->sma_100, 0.0001),
                     $close / max((float) $indicator->sma_200, 0.0001),
                     $bbPosition,
                     $return1d,

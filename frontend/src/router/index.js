@@ -51,6 +51,8 @@ const routes = [
   { path: '/reports/stock/:symbol?', name: 'reports-stock', component: () => import('../views/ReportsStock.vue'), meta: { requiresAuth: true, title: 'Stock Report' } },
   { path: '/reports/rule-scanner', name: 'reports-rule-scanner', component: () => import('../views/ReportsRuleScanner.vue'), meta: { requiresAuth: true, title: 'Rule Scanner' } },
   { path: '/reports/technical/:symbol?', name: 'reports-technical', component: () => import('../views/ReportsTechnical.vue'), meta: { requiresAuth: true, title: 'Technical Analysis' } },
+  { path: '/reports/dividends', name: 'reports-dividends', component: () => import('../views/ReportsDividend.vue'), meta: { requiresAuth: true, title: 'Dividend Report' } },
+  { path: '/reports/analyst/:symbol?', name: 'reports-analyst', component: () => import('../views/ReportsAnalyst.vue'), meta: { requiresAuth: true, title: 'Analyst Report' } },
   { path: '/reports/digest', name: 'reports-digest', component: () => import('../views/DailyDigest.vue'), meta: { requiresAuth: true, title: 'Daily Digest' } },
   { path: '/reports/beginner', name: 'reports-beginner', component: () => import('../views/BeginnerReport.vue'), meta: { requiresAuth: true, title: "Beginner's Report" } },
 

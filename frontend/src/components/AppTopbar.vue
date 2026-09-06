@@ -186,6 +186,10 @@ onUnmounted(() => {
   padding: 14px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03), 0 2px 8px rgba(15, 23, 42, 0.03);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .page-title {
@@ -212,7 +216,7 @@ onUnmounted(() => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+  box-shadow: var(--shadow-lg);
   z-index: 20;
   overflow: hidden;
 }
@@ -260,6 +264,7 @@ onUnmounted(() => {
   cursor: pointer;
   display: flex;
   align-items: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .bell-btn:hover {
@@ -289,7 +294,7 @@ onUnmounted(() => {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+  box-shadow: var(--shadow-lg);
   z-index: 20;
   overflow: hidden;
 }

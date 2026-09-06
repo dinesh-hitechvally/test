@@ -1,11 +1,14 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import client from '../api/client'
 import { useStocksStore } from '../stores/stocks'
 import ComparisonChart from '../components/ComparisonChart.vue'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const stocksStore = useStocksStore()
 const indices = ref([])
+const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.symbol, label: `${s.symbol} — ${s.company_name}` })))
+const indexOptions = computed(() => indices.value.map((idx) => ({ value: idx.index_name, label: idx.index_name })))
 const selectedStock = ref('')
 const selectedIndex = ref('')
 const loading = ref(false)
@@ -80,13 +83,8 @@ onMounted(async () => {
 
     <div class="card">
       <div class="picker-row">
-        <select v-model="selectedStock" class="input" style="max-width: 280px">
-          <option value="" disabled>Select a stock…</option>
-          <option v-for="s in stocksStore.stocks" :key="s.id" :value="s.symbol">{{ s.symbol }} — {{ s.company_name }}</option>
-        </select>
-        <select v-model="selectedIndex" class="input" style="max-width: 220px">
-          <option v-for="idx in indices" :key="idx.index_name" :value="idx.index_name">{{ idx.index_name }}</option>
-        </select>
+        <SearchableSelect v-model="selectedStock" :options="stockOptions" style="max-width: 280px" placeholder="Select a stock…" />
+        <SearchableSelect v-model="selectedIndex" :options="indexOptions" style="max-width: 220px" />
         <button class="btn" :disabled="!selectedStock || loading" @click="compare">{{ loading ? 'Comparing…' : 'Compare' }}</button>
       </div>
     </div>

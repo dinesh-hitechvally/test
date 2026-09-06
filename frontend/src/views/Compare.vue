@@ -4,6 +4,7 @@ import client from '../api/client'
 import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
 import ComparisonChart from '../components/ComparisonChart.vue'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const stocksStore = useStocksStore()
 const selected = ref([])
@@ -20,6 +21,10 @@ let requestSeq = 0
 
 const availableToAdd = computed(() =>
   stocksStore.stocks.filter((s) => !selected.value.includes(s.symbol))
+)
+
+const availableOptions = computed(() =>
+  availableToAdd.value.map((s) => ({ value: s.symbol, label: `${s.symbol} — ${s.company_name}` }))
 )
 
 function addStock() {
@@ -118,10 +123,13 @@ onMounted(async () => {
 
     <div class="card" style="margin-bottom: 20px">
       <div class="picker-row">
-        <select v-model="picker" class="input" style="max-width: 320px" :disabled="selected.length >= 4">
-          <option value="" disabled>{{ selected.length >= 4 ? 'Maximum 4 stocks' : 'Select a stock…' }}</option>
-          <option v-for="s in availableToAdd" :key="s.id" :value="s.symbol">{{ s.symbol }} — {{ s.company_name }}</option>
-        </select>
+        <SearchableSelect
+          v-model="picker"
+          :options="availableOptions"
+          style="max-width: 320px"
+          :disabled="selected.length >= 4"
+          :placeholder="selected.length >= 4 ? 'Maximum 4 stocks' : 'Select a stock…'"
+        />
         <button class="btn" :disabled="!picker" @click="addStock">Add</button>
       </div>
       <div class="chips" v-if="selected.length">

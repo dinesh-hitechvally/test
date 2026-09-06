@@ -1,11 +1,55 @@
 <script setup>
 import { reactive, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import NavIcon from './NavIcon.vue'
 
 const route = useRoute()
 
+// Ordered for a retail investor's mental model first: their own money
+// (Portfolio, Watchlist), the app's core value prop (Signals), casual
+// browsing (Market), and Learn — all visible with no extra click. The
+// deeper/expert tooling (Screener, Technical Analysis, Compare, the full
+// Reports suite) still has every route it always did, just grouped under
+// one clearly-labeled "Analyst Tools" section instead of competing for
+// top-billing with 10 other equally-weighted menus.
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: 'grid' },
+  { to: '/', label: 'Dashboard', icon: 'home' },
+  { to: '/reports/digest', label: 'Daily Digest', icon: 'sparkle' },
+  { to: '/reports/beginner', label: "Beginner's Report", icon: 'book' },
+  {
+    label: 'My Portfolio',
+    icon: 'wallet',
+    base: '/portfolio',
+    children: [
+      { to: '/portfolio', label: 'Overview' },
+      { to: '/portfolio/holdings', label: 'Holdings' },
+      { to: '/portfolio/performance', label: 'Performance' },
+      { to: '/portfolio/transactions', label: 'Transactions' },
+      { to: '/portfolio/diversification', label: 'Diversification' },
+      { to: '/portfolio/reports', label: 'Realized P/L / Tax Report' },
+      { to: '/portfolio/statements', label: 'Statements' },
+    ],
+  },
+  {
+    label: 'Watchlist',
+    icon: 'star',
+    base: '/watchlist',
+    children: [
+      { to: '/watchlist', label: 'My Watchlist(s)' },
+      { to: '/watchlist/alerts', label: 'Price Alerts' },
+    ],
+  },
+  {
+    label: 'Signals',
+    icon: 'target',
+    base: '/signals',
+    children: [
+      { to: '/signals/buy', label: 'Buy Signals' },
+      { to: '/signals/sell', label: 'Sell Signals' },
+      { to: '/signals/history', label: 'Signal History / Accuracy' },
+      { to: '/signals/how-it-works', label: 'How Signals Work' },
+    ],
+  },
   {
     label: 'Market',
     icon: 'chart',
@@ -24,39 +68,17 @@ const navItems = [
     ],
   },
   {
-    label: 'Watchlist',
-    icon: 'star',
-    base: '/watchlist',
+    label: 'Learn',
+    icon: 'book',
+    base: '/learn',
     children: [
-      { to: '/watchlist', label: 'My Watchlist(s)' },
-      { to: '/watchlist/alerts', label: 'Price Alerts' },
+      { to: '/learn/basics', label: 'Stock Market Basics' },
+      { to: '/learn/reading-signals', label: 'How to Read Signals' },
+      { to: '/learn/indicators', label: 'Understanding Technical Indicators' },
+      { to: '/learn/glossary', label: 'Glossary of Terms' },
     ],
   },
-  {
-    label: 'Portfolio',
-    icon: 'wallet',
-    base: '/portfolio',
-    children: [
-      { to: '/portfolio', label: 'Overview' },
-      { to: '/portfolio/holdings', label: 'Holdings' },
-      { to: '/portfolio/transactions', label: 'Transactions' },
-      { to: '/portfolio/performance', label: 'Performance' },
-      { to: '/portfolio/diversification', label: 'Diversification' },
-      { to: '/portfolio/reports', label: 'Realized P/L / Tax Report' },
-      { to: '/portfolio/statements', label: 'Statements' },
-    ],
-  },
-  {
-    label: 'Signals & Recommendations',
-    icon: 'target',
-    base: '/signals',
-    children: [
-      { to: '/signals/buy', label: 'Buy Signals' },
-      { to: '/signals/sell', label: 'Sell Signals' },
-      { to: '/signals/history', label: 'Signal History / Accuracy' },
-      { to: '/signals/how-it-works', label: 'How Signals Work' },
-    ],
-  },
+  { section: 'Analyst Tools' },
   {
     label: 'Screener',
     icon: 'filter',
@@ -96,23 +118,13 @@ const navItems = [
       { to: '/reports/market', label: 'Market' },
       { to: '/reports/sector', label: 'By Sector' },
       { to: '/reports/stock', label: 'By Stock' },
+      { to: '/reports/analyst', label: 'Analyst Report' },
       { to: '/reports/rule-scanner', label: 'Rule Scanner' },
       { to: '/reports/technical', label: 'Technical Analysis' },
-      { to: '/reports/digest', label: 'Daily Digest' },
-      { to: '/reports/beginner', label: "Beginner's Report" },
+      { to: '/reports/dividends', label: 'Dividend Report' },
     ],
   },
-  {
-    label: 'Learn',
-    icon: 'book',
-    base: '/learn',
-    children: [
-      { to: '/learn/basics', label: 'Stock Market Basics' },
-      { to: '/learn/reading-signals', label: 'How to Read Signals' },
-      { to: '/learn/indicators', label: 'Understanding Technical Indicators' },
-      { to: '/learn/glossary', label: 'Glossary of Terms' },
-    ],
-  },
+  { section: 'Account' },
   {
     label: 'Settings',
     icon: 'gear',
@@ -163,48 +175,17 @@ function toggle(item) {
     </div>
 
     <nav class="nav">
-      <template v-for="item in navItems" :key="item.label">
-        <RouterLink v-if="!item.children" :to="item.to" class="nav-link" :class="{ active: isActive(item.to) }">
-          <svg v-if="item.icon === 'grid'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
-            <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
-          </svg>
+      <template v-for="item in navItems" :key="item.section || item.label">
+        <div v-if="item.section" class="section-label">{{ item.section }}</div>
+
+        <RouterLink v-else-if="!item.children" :to="item.to" class="nav-link" :class="{ active: isActive(item.to) }">
+          <NavIcon :name="item.icon" />
           <span>{{ item.label }}</span>
         </RouterLink>
 
         <div v-else class="nav-group">
           <button class="nav-link nav-group-header" :class="{ active: inGroup(item) && !expanded[item.label] }" @click="toggle(item)">
-            <svg v-if="item.icon === 'chart'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" />
-            </svg>
-            <svg v-else-if="item.icon === 'wallet'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="7" width="20" height="13" rx="2" /><path d="M2 10h20" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-            <svg v-else-if="item.icon === 'report'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 2h9l5 5v15H6z" /><path d="M9 13v4M12 10v7M15 13v4" />
-            </svg>
-            <svg v-else-if="item.icon === 'star'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-            </svg>
-            <svg v-else-if="item.icon === 'filter'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 4h16l-6 8v6l-4 2v-8L4 4z" />
-            </svg>
-            <svg v-else-if="item.icon === 'compare'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M8 3v18M16 3v18M4 8l4-4 4 4M20 16l-4 4-4-4" />
-            </svg>
-            <svg v-else-if="item.icon === 'target'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" />
-            </svg>
-            <svg v-else-if="item.icon === 'pulse'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M2 12h4l2-7 4 14 3-9 2 5h5" />
-            </svg>
-            <svg v-else-if="item.icon === 'book'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5v-17z" /><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-            </svg>
-            <svg v-else-if="item.icon === 'gear'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
+            <NavIcon :name="item.icon" />
             <span class="group-label">{{ item.label }}</span>
             <svg class="chevron" :class="{ open: expanded[item.label] }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6" />
@@ -270,6 +251,17 @@ function toggle(item) {
   padding: 14px 10px;
 }
 
+.section-label {
+  margin: 14px 6px 4px;
+  padding-top: 10px;
+  border-top: 1px solid #1f2937;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+}
+
 .nav-link {
   display: flex;
   align-items: center;
@@ -286,6 +278,7 @@ function toggle(item) {
   cursor: pointer;
   font-family: inherit;
   text-align: left;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .nav-link:hover {
@@ -328,6 +321,7 @@ function toggle(item) {
   font-size: 0.82rem;
   padding: 7px 10px;
   border-radius: 6px;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .sub-link:hover {

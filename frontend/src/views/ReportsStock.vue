@@ -6,6 +6,7 @@ import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
 import StatCard from '../components/StatCard.vue'
 import PriceChart from '../components/PriceChart.vue'
+import SearchableSelect from '../components/SearchableSelect.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +14,7 @@ const stocksStore = useStocksStore()
 
 const selected = ref(route.params.symbol || '')
 const report = ref(null)
+const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.symbol, label: `${s.symbol} — ${s.company_name}` })))
 const prices = ref([])
 const loading = ref(false)
 const error = ref('')
@@ -78,10 +80,7 @@ onMounted(async () => {
     <p class="muted">Pick a stock to see its returns over standard lookback periods, recent signal activity, and price trend.</p>
 
     <div class="card">
-      <select v-model="selected" class="input" style="max-width: 340px" @change="onSelect">
-        <option value="" disabled>Select a stock…</option>
-        <option v-for="s in stocksStore.stocks" :key="s.id" :value="s.symbol">{{ s.symbol }} — {{ s.company_name }}</option>
-      </select>
+      <SearchableSelect v-model="selected" :options="stockOptions" style="max-width: 340px" placeholder="Select a stock…" @change="onSelect" />
     </div>
 
     <p v-if="loading" class="muted" style="margin-top: 16px">Loading…</p>

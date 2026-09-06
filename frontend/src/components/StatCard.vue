@@ -18,21 +18,29 @@ defineProps({
 <style scoped>
 .stat-card {
   padding: 16px 18px;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .label {
   margin: 0 0 6px;
   font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   color: var(--text-muted);
   font-weight: 600;
 }
 
 .value {
   margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
 }
 
 .value.positive {
