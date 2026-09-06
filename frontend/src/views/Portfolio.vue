@@ -7,12 +7,23 @@ import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
 import StatCard from '../components/StatCard.vue'
 import SearchableSelect from '../components/SearchableSelect.vue'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
 const stocksStore = useStocksStore()
 
 const portfolioOptions = computed(() => store.portfolios.map((p) => ({ value: p.id, label: p.name })))
 const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.id, label: `${s.symbol} — ${s.company_name}` })))
+
+const { sorted: sortedHoldings, toggleSort, sortIndicator } = useSortableTable(
+  computed(() => store.detail?.holdings ?? []),
+  {
+    valueGetters: {
+      signal: (h) => h.latest_signal?.signal ?? null,
+      position_status: (h) => h.position_status ?? null,
+    },
+  }
+)
 
 const showNewPortfolioForm = ref(false)
 const newPortfolioName = ref('')
@@ -285,13 +296,21 @@ onMounted(async () => {
         <table class="table" v-if="store.detail.holdings.length">
           <thead>
             <tr>
-              <th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Invested</th>
-              <th>Current Price</th><th>Current Value</th><th>Unrealized P&L</th><th>Signal</th>
-              <th>Stop-Loss / Target</th><th>Status</th><th></th>
+              <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+              <th class="sortable" @click="toggleSort('quantity')">Qty {{ sortIndicator('quantity') }}</th>
+              <th class="sortable" @click="toggleSort('avg_cost')">Avg Cost {{ sortIndicator('avg_cost') }}</th>
+              <th class="sortable" @click="toggleSort('invested')">Invested {{ sortIndicator('invested') }}</th>
+              <th class="sortable" @click="toggleSort('current_price')">Current Price {{ sortIndicator('current_price') }}</th>
+              <th class="sortable" @click="toggleSort('current_value')">Current Value {{ sortIndicator('current_value') }}</th>
+              <th class="sortable" @click="toggleSort('unrealized_pnl')">Unrealized P&L {{ sortIndicator('unrealized_pnl') }}</th>
+              <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+              <th>Stop-Loss / Target</th>
+              <th class="sortable" @click="toggleSort('position_status')">Status {{ sortIndicator('position_status') }}</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="h in store.detail.holdings" :key="h.stock_id">
+            <tr v-for="h in sortedHoldings" :key="h.stock_id">
               <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: h.symbol } }">{{ h.symbol }}</RouterLink></td>
               <td>
                 {{ h.quantity }}

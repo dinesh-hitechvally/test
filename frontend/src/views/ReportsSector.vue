@@ -7,6 +7,7 @@ import StatCard from '../components/StatCard.vue'
 import SignalDistributionChart from '../components/SignalDistributionChart.vue'
 import TrendChart from '../components/TrendChart.vue'
 import SearchableSelect from '../components/SearchableSelect.vue'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,6 +16,16 @@ const sectors = ref([])
 const selected = ref(route.query.name || '')
 const report = ref(null)
 const sectorOptions = computed(() => sectors.value.map((s) => ({ value: s.sector, label: `${s.sector} (${s.stock_count})` })))
+
+const { sorted: sortedStocks, toggleSort, sortIndicator } = useSortableTable(
+  computed(() => report.value?.stocks ?? []),
+  {
+    valueGetters: {
+      close: (s) => (s.latest_price?.close_price !== undefined ? Number(s.latest_price.close_price) : null),
+      signal: (s) => s.latest_signal?.signal ?? null,
+    },
+  }
+)
 const loading = ref(false)
 const error = ref('')
 
@@ -137,10 +148,16 @@ onMounted(async () => {
         <h3>All Stocks in {{ report.sector }}</h3>
         <table class="table">
           <thead>
-            <tr><th>Symbol</th><th>Company</th><th>Price</th><th>Change</th><th>Signal</th></tr>
+            <tr>
+              <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+              <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
+              <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
+              <th class="sortable" @click="toggleSort('change_pct')">Change {{ sortIndicator('change_pct') }}</th>
+              <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+            </tr>
           </thead>
           <tbody>
-            <tr v-for="s in report.stocks" :key="s.id">
+            <tr v-for="s in sortedStocks" :key="s.id">
               <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
               <td class="muted">{{ s.company_name }}</td>
               <td>Rs. {{ formatPrice(s.latest_price?.close_price) }}</td>

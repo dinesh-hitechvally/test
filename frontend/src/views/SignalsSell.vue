@@ -3,9 +3,21 @@ import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import client from '../api/client'
 import { formatPrice } from '../utils/format'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const rows = ref([])
 const loading = ref(true)
+
+const { sorted, toggleSort, sortIndicator } = useSortableTable(rows, {
+  defaultKey: 'score',
+  defaultDir: 'asc',
+  valueGetters: {
+    close: (s) => (s.close !== null ? Number(s.close) : null),
+    target: (s) => s.trade_setup?.target ?? null,
+    stop_loss: (s) => s.trade_setup?.stop_loss ?? null,
+    risk_reward_ratio: (s) => s.trade_setup?.risk_reward_ratio ?? null,
+  },
+})
 
 async function load() {
   loading.value = true
@@ -36,12 +48,18 @@ onMounted(load)
       <table class="table" v-if="rows.length">
         <thead>
           <tr>
-            <th>Symbol</th><th>Company</th><th>Price</th><th>Signal</th>
-            <th>Target</th><th>Invalidation</th><th>R:R</th><th>Reasons</th>
+            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
+            <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
+            <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+            <th class="sortable" @click="toggleSort('target')">Target {{ sortIndicator('target') }}</th>
+            <th class="sortable" @click="toggleSort('stop_loss')">Invalidation {{ sortIndicator('stop_loss') }}</th>
+            <th class="sortable" @click="toggleSort('risk_reward_ratio')">R:R {{ sortIndicator('risk_reward_ratio') }}</th>
+            <th>Reasons</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="s in rows" :key="s.stock_id">
+          <tr v-for="s in sorted" :key="s.stock_id">
             <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
             <td class="muted">{{ s.company_name }}</td>
             <td>Rs. {{ formatPrice(s.close) }}</td>

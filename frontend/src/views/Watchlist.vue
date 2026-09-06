@@ -5,6 +5,7 @@ import client from '../api/client'
 import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
 import SearchableSelect from '../components/SearchableSelect.vue'
+import WatchlistTable from '../components/WatchlistTable.vue'
 
 const stocksStore = useStocksStore()
 const watchlists = ref([])
@@ -74,15 +75,6 @@ async function clearAlert() {
   await saveAlert()
 }
 
-function formatSignal(label) {
-  return label.replace('_', ' ')
-}
-
-function changeTone(pct) {
-  if (pct === null || pct === undefined) return ''
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
-}
-
 onMounted(load)
 </script>
 
@@ -101,36 +93,12 @@ onMounted(load)
 
     <div v-for="wl in watchlists" :key="wl.id" class="card" style="margin-bottom: 16px">
       <h3>{{ wl.name }}</h3>
-      <table class="table" v-if="wl.stocks.length">
-        <thead>
-          <tr><th>Symbol</th><th>Company</th><th>Sector</th><th>Last Close</th><th>% Change</th><th>Signal</th><th>Price Alert</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="stock in wl.stocks" :key="stock.id">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: stock.symbol } }">{{ stock.symbol }}</RouterLink></td>
-            <td>{{ stock.company_name || '—' }}</td>
-            <td>{{ stock.sector || 'Other' }}</td>
-            <td>{{ formatPrice(stock.latest_price?.close_price) }}</td>
-            <td :class="changeTone(stock.change_pct)">
-              {{ stock.change_pct !== null && stock.change_pct !== undefined ? `${stock.change_pct > 0 ? '+' : ''}${stock.change_pct}%` : '—' }}
-            </td>
-            <td>
-              <span v-if="stock.latest_signal" class="badge" :class="stock.latest_signal.signal">
-                {{ formatSignal(stock.latest_signal.signal) }}
-              </span>
-              <span v-else class="muted">No data</span>
-            </td>
-            <td class="muted">
-              <span v-if="stock.pivot?.alert_price">Alert when {{ stock.pivot.alert_direction }} Rs. {{ formatPrice(stock.pivot.alert_price) }}</span>
-              <span v-else>Not set</span>
-            </td>
-            <td class="row-actions">
-              <button class="btn-secondary btn" @click="openAlertEditor(wl.id, stock)">Set Alert</button>
-              <button class="btn-secondary btn" @click="removeFromWatchlist(wl.id, stock.id)">Remove</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <WatchlistTable
+        v-if="wl.stocks.length"
+        :stocks="wl.stocks"
+        @set-alert="(stock) => openAlertEditor(wl.id, stock)"
+        @remove="(stockId) => removeFromWatchlist(wl.id, stockId)"
+      />
       <p v-else class="muted">No stocks yet.</p>
     </div>
 
@@ -160,19 +128,6 @@ onMounted(load)
 .add-row .input {
   width: auto;
   flex: 1;
-}
-
-.positive {
-  color: var(--strong-buy);
-}
-
-.negative {
-  color: var(--strong-sell);
-}
-
-.row-actions {
-  display: flex;
-  gap: 8px;
 }
 
 .picker-row {

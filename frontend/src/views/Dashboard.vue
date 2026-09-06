@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import client from '../api/client'
 import { useStocksStore } from '../stores/stocks'
@@ -8,8 +8,21 @@ import StatCard from '../components/StatCard.vue'
 import SignalDistributionChart from '../components/SignalDistributionChart.vue'
 import MarketBreadthChart from '../components/MarketBreadthChart.vue'
 import SectorBreakdownChart from '../components/SectorBreakdownChart.vue'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const store = useStocksStore()
+
+const { sorted: sortedSignals, toggleSort, sortIndicator } = useSortableTable(
+  computed(() => store.todaySignals),
+  {
+    valueGetters: {
+      symbol: (s) => s.symbol,
+      company_name: (s) => s.company_name,
+      price: (s) => s.latest_price?.close_price !== undefined ? Number(s.latest_price.close_price) : null,
+      signal: (s) => s.latest_signal?.signal ?? null,
+    },
+  }
+)
 const router = useRouter()
 const activeFilter = ref('')
 const report = ref(null)
@@ -150,16 +163,16 @@ onMounted(async () => {
       <table class="table signal-table">
         <thead>
           <tr>
-            <th>Symbol</th>
-            <th>Company</th>
-            <th>Price</th>
-            <th>Signal</th>
+            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
+            <th class="sortable" @click="toggleSort('price')">Price {{ sortIndicator('price') }}</th>
+            <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
             <th>Reasons</th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="stock in store.todaySignals"
+            v-for="stock in sortedSignals"
             :key="stock.id"
             class="signal-row"
             @click="router.push({ name: 'stock-detail', params: { symbol: stock.symbol } })"

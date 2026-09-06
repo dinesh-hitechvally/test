@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { formatPrice } from '../utils/format'
 import SearchableSelect from './SearchableSelect.vue'
+import Pagination from './Pagination.vue'
 
 const SIGNAL_OPTIONS = [
   { value: '', label: 'All signals' },
@@ -164,11 +165,7 @@ function formatInt(value) {
       </tbody>
     </table>
 
-    <div v-if="pageCount > 1" class="pagination">
-      <button class="btn-secondary btn" :disabled="page === 1" @click="page--">Prev</button>
-      <span class="muted">Page {{ page }} of {{ pageCount }}</span>
-      <button class="btn-secondary btn" :disabled="page === pageCount" @click="page++">Next</button>
-    </div>
+    <Pagination v-model="page" :total-pages="pageCount" />
   </div>
 </template>
 
@@ -193,14 +190,6 @@ function formatInt(value) {
 
 .sortable:hover {
   color: var(--text);
-}
-
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  justify-content: center;
-  margin-top: 16px;
 }
 
 .positive {

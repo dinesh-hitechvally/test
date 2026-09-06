@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import client from '../api/client'
 import { formatPrice } from '../utils/format'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const watchlists = ref([])
 const loading = ref(true)
@@ -19,6 +20,13 @@ const alertRows = computed(() => {
     })
   })
   return rows
+})
+
+const { sorted, toggleSort, sortIndicator } = useSortableTable(alertRows, {
+  valueGetters: {
+    symbol: (r) => r.stock.symbol,
+    status: (r) => (r.triggered ? 1 : 0),
+  },
 })
 
 async function load() {
@@ -43,9 +51,17 @@ onMounted(load)
 
     <div v-else class="card">
       <table class="table" v-if="alertRows.length">
-        <thead><tr><th>Symbol</th><th>Watchlist</th><th>Current Price</th><th>Alert Condition</th><th>Status</th></tr></thead>
+        <thead>
+          <tr>
+            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+            <th class="sortable" @click="toggleSort('watchlist')">Watchlist {{ sortIndicator('watchlist') }}</th>
+            <th class="sortable" @click="toggleSort('current')">Current Price {{ sortIndicator('current') }}</th>
+            <th class="sortable" @click="toggleSort('target')">Alert Condition {{ sortIndicator('target') }}</th>
+            <th class="sortable" @click="toggleSort('status')">Status {{ sortIndicator('status') }}</th>
+          </tr>
+        </thead>
         <tbody>
-          <tr v-for="row in alertRows" :key="`${row.watchlist}-${row.stock.id}`">
+          <tr v-for="row in sorted" :key="`${row.watchlist}-${row.stock.id}`">
             <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: row.stock.symbol } }">{{ row.stock.symbol }}</RouterLink></td>
             <td class="muted">{{ row.watchlist }}</td>
             <td>{{ row.current !== null ? `Rs. ${formatPrice(row.current)}` : '—' }}</td>

@@ -1,11 +1,17 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import client from '../api/client'
 import { useStocksStore } from '../stores/stocks'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const store = useStocksStore()
 const schedule = ref([])
 const loading = ref(true)
+
+const { sorted: sortedLogs, toggleSort, sortIndicator } = useSortableTable(
+  computed(() => store.scrapeLogs),
+  { defaultKey: 'created_at', defaultDir: 'desc' }
+)
 
 async function load() {
   loading.value = true
@@ -46,9 +52,17 @@ onMounted(load)
       <h3>Recent Scrape Activity</h3>
       <p v-if="loading" class="muted">Loading…</p>
       <table class="table" v-else-if="store.scrapeLogs.length">
-        <thead><tr><th>Source</th><th>Status</th><th>Records</th><th>Message</th><th>When</th></tr></thead>
+        <thead>
+          <tr>
+            <th class="sortable" @click="toggleSort('source')">Source {{ sortIndicator('source') }}</th>
+            <th class="sortable" @click="toggleSort('status')">Status {{ sortIndicator('status') }}</th>
+            <th class="sortable" @click="toggleSort('records_processed')">Records {{ sortIndicator('records_processed') }}</th>
+            <th>Message</th>
+            <th class="sortable" @click="toggleSort('created_at')">When {{ sortIndicator('created_at') }}</th>
+          </tr>
+        </thead>
         <tbody>
-          <tr v-for="log in store.scrapeLogs" :key="log.id">
+          <tr v-for="log in sortedLogs" :key="log.id">
             <td>{{ log.source }}</td>
             <td><span class="badge" :class="log.status === 'success' ? 'buy' : 'sell'">{{ log.status }}</span></td>
             <td>{{ log.records_processed }}</td>

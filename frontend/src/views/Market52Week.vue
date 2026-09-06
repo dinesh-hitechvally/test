@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import client from '../api/client'
 import { formatPrice } from '../utils/format'
+import Pagination from '../components/Pagination.vue'
 
 const rows = ref([])
 const loading = ref(true)
@@ -92,11 +93,7 @@ onMounted(load)
       </tbody>
     </table>
 
-    <div v-if="pageCount > 1" class="pagination">
-      <button class="btn-secondary btn" :disabled="page === 1" @click="page--">Prev</button>
-      <span class="muted">Page {{ page }} of {{ pageCount }}</span>
-      <button class="btn-secondary btn" :disabled="page === pageCount" @click="page++">Next</button>
-    </div>
+    <Pagination v-model="page" :total-pages="pageCount" />
   </div>
 </template>
 
@@ -119,11 +116,4 @@ onMounted(load)
   color: var(--strong-sell);
 }
 
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  justify-content: center;
-  margin-top: 16px;
-}
 </style>

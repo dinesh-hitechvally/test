@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import client from '../api/client'
 import { formatPrice } from '../utils/format'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const allRules = ref([])
 const selected = ref([])
@@ -37,6 +38,10 @@ function changeTone(pct) {
   if (pct === null || pct === undefined) return ''
   return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
 }
+
+const { sorted: sortedResults, toggleSort, sortIndicator } = useSortableTable(
+  computed(() => results.value?.stocks ?? [])
+)
 
 async function loadRules() {
   loadingRules.value = true
@@ -125,10 +130,18 @@ onMounted(loadRules)
         <h3>{{ results.matched_count }} stock{{ results.matched_count === 1 ? '' : 's' }} matched</h3>
         <table class="table">
           <thead>
-            <tr><th>Symbol</th><th>Company</th><th>Sector</th><th>Price</th><th>Change</th><th>Signal</th><th>Matched Rules</th></tr>
+            <tr>
+              <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+              <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
+              <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
+              <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
+              <th class="sortable" @click="toggleSort('change_pct')">Change {{ sortIndicator('change_pct') }}</th>
+              <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+              <th>Matched Rules</th>
+            </tr>
           </thead>
           <tbody>
-            <tr v-for="s in results.stocks" :key="s.stock_id">
+            <tr v-for="s in sortedResults" :key="s.stock_id">
               <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
               <td class="muted">{{ s.company_name }}</td>
               <td>{{ s.sector || 'Other' }}</td>

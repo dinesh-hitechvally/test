@@ -5,10 +5,10 @@ import client from '../api/client'
 import { formatPrice } from '../utils/format'
 import StatCard from '../components/StatCard.vue'
 import SearchableSelect from '../components/SearchableSelect.vue'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const sectors = ref([])
 const selectedSector = ref('')
-const sortKey = ref('dividend_yield_pct')
 const report = ref(null)
 const loading = ref(true)
 const error = ref('')
@@ -47,10 +47,23 @@ async function loadReport() {
   }
 }
 
-const sortedStocks = computed(() => {
-  if (!report.value) return []
-  return [...report.value.stocks].sort((a, b) => (b[sortKey.value] ?? -Infinity) - (a[sortKey.value] ?? -Infinity))
-})
+const {
+  sorted: sortedStocks,
+  sortKey,
+  sortDir,
+  toggleSort,
+  sortIndicator,
+} = useSortableTable(
+  computed(() => report.value?.stocks ?? []),
+  { defaultKey: 'dividend_yield_pct', defaultDir: 'desc' }
+)
+
+// The "Sort by ..." dropdown is a shortcut into the same sort state that
+// clicking a column header drives — picking an option here always sorts
+// descending (matching what it always did), while header clicks toggle.
+function onSortOptionChange() {
+  sortDir.value = 'desc'
+}
 
 watch(selectedSector, loadReport)
 
@@ -71,7 +84,7 @@ onMounted(async () => {
     <div class="card">
       <div style="display: flex; gap: 16px; flex-wrap: wrap">
         <SearchableSelect v-model="selectedSector" :options="sectorOptions" style="max-width: 280px" />
-        <SearchableSelect v-model="sortKey" :options="sortOptions" style="max-width: 240px" />
+        <SearchableSelect v-model="sortKey" :options="sortOptions" style="max-width: 240px" @change="onSortOptionChange" />
       </div>
     </div>
 
@@ -127,8 +140,17 @@ onMounted(async () => {
         <table class="table" v-if="sortedStocks.length">
           <thead>
             <tr>
-              <th>Symbol</th><th>Sector</th><th>Price</th><th>Latest FY</th>
-              <th>Cash</th><th>Bonus</th><th>Declared Total</th><th>Cash Yield</th><th>Actual Total Yield</th><th>Years</th><th>Avg Total (history)</th>
+              <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+              <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
+              <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
+              <th class="sortable" @click="toggleSort('latest_fiscal_year')">Latest FY {{ sortIndicator('latest_fiscal_year') }}</th>
+              <th class="sortable" @click="toggleSort('latest_cash_pct')">Cash {{ sortIndicator('latest_cash_pct') }}</th>
+              <th class="sortable" @click="toggleSort('latest_bonus_pct')">Bonus {{ sortIndicator('latest_bonus_pct') }}</th>
+              <th class="sortable" @click="toggleSort('latest_total_pct')">Declared Total {{ sortIndicator('latest_total_pct') }}</th>
+              <th class="sortable" @click="toggleSort('dividend_yield_pct')">Cash Yield {{ sortIndicator('dividend_yield_pct') }}</th>
+              <th class="sortable" @click="toggleSort('actual_total_yield_pct')">Actual Total Yield {{ sortIndicator('actual_total_yield_pct') }}</th>
+              <th class="sortable" @click="toggleSort('years_recorded')">Years {{ sortIndicator('years_recorded') }}</th>
+              <th class="sortable" @click="toggleSort('avg_total_dividend_pct')">Avg Total (history) {{ sortIndicator('avg_total_dividend_pct') }}</th>
             </tr>
           </thead>
           <tbody>

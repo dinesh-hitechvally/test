@@ -4,6 +4,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import client from '../api/client'
 import { formatPrice } from '../utils/format'
 import SearchableSelect from '../components/SearchableSelect.vue'
+import Pagination from '../components/Pagination.vue'
 
 const route = useRoute()
 
@@ -287,11 +288,7 @@ onMounted(async () => {
         </tbody>
       </table>
 
-      <div v-if="pageCount > 1" class="pagination">
-        <button class="btn-secondary btn" :disabled="page === 1" @click="page--">Prev</button>
-        <span class="muted">Page {{ page }} of {{ pageCount }}</span>
-        <button class="btn-secondary btn" :disabled="page === pageCount" @click="page++">Next</button>
-      </div>
+      <Pagination v-model="page" :total-pages="pageCount" />
     </template>
   </div>
 </template>
@@ -341,11 +338,4 @@ onMounted(async () => {
   color: var(--strong-sell);
 }
 
-.pagination {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  justify-content: center;
-  margin-top: 16px;
-}
 </style>

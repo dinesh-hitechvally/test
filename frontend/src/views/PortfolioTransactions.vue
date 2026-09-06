@@ -1,10 +1,27 @@
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
+
+function txTotal(tx) {
+  return tx.quantity * tx.price + (tx.type === 'buy' ? Number(tx.fees) : -Number(tx.fees))
+}
+
+const { sorted, toggleSort, sortIndicator } = useSortableTable(
+  computed(() => store.transactions),
+  {
+    defaultKey: 'transaction_date',
+    defaultDir: 'desc',
+    valueGetters: {
+      symbol: (tx) => tx.stock?.symbol ?? null,
+      total: txTotal,
+    },
+  }
+)
 
 onMounted(async () => {
   await store.fetchPortfolios()
@@ -23,10 +40,19 @@ onMounted(async () => {
     <div class="card">
       <table class="table" v-if="store.transactions.length">
         <thead>
-          <tr><th>Date</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th><th>Fees</th><th>Total</th><th>Notes</th></tr>
+          <tr>
+            <th class="sortable" @click="toggleSort('transaction_date')">Date {{ sortIndicator('transaction_date') }}</th>
+            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+            <th class="sortable" @click="toggleSort('type')">Type {{ sortIndicator('type') }}</th>
+            <th class="sortable" @click="toggleSort('quantity')">Qty {{ sortIndicator('quantity') }}</th>
+            <th class="sortable" @click="toggleSort('price')">Price {{ sortIndicator('price') }}</th>
+            <th class="sortable" @click="toggleSort('fees')">Fees {{ sortIndicator('fees') }}</th>
+            <th class="sortable" @click="toggleSort('total')">Total {{ sortIndicator('total') }}</th>
+            <th>Notes</th>
+          </tr>
         </thead>
         <tbody>
-          <tr v-for="tx in store.transactions" :key="tx.id">
+          <tr v-for="tx in sorted" :key="tx.id">
             <td>{{ tx.transaction_date }}</td>
             <td>
               <RouterLink v-if="tx.stock" :to="{ name: 'stock-detail', params: { symbol: tx.stock.symbol } }">{{ tx.stock.symbol }}</RouterLink>
@@ -35,7 +61,7 @@ onMounted(async () => {
             <td>{{ tx.quantity }}</td>
             <td>{{ formatPrice(tx.price) }}</td>
             <td>{{ formatPrice(tx.fees) }}</td>
-            <td>{{ formatPrice(tx.quantity * tx.price + (tx.type === 'buy' ? Number(tx.fees) : -Number(tx.fees))) }}</td>
+            <td>{{ formatPrice(txTotal(tx)) }}</td>
             <td class="muted">{{ tx.notes || '—' }}</td>
           </tr>
         </tbody>

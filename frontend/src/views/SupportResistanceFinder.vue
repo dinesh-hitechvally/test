@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import client from '../api/client'
 import { formatPrice } from '../utils/format'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const rows = ref([])
 const loading = ref(true)
@@ -13,6 +14,14 @@ const filtered = computed(() =>
     .filter((r) => (mode.value === 'resistance' ? r.pct_from_high >= -5 : r.pct_from_low <= 5))
     .sort((a, b) => (mode.value === 'resistance' ? b.pct_from_high - a.pct_from_high : a.pct_from_low - b.pct_from_low))
 )
+
+// No default sort key — starts showing `filtered`'s own mode-based ordering
+// (closest to the level being tested first) until a column header is clicked.
+const { sorted, toggleSort, sortIndicator } = useSortableTable(filtered, {
+  valueGetters: {
+    close: (r) => (r.current_price !== null ? Number(r.current_price) : null),
+  },
+})
 
 async function load() {
   loading.value = true
@@ -43,10 +52,18 @@ onMounted(load)
     <div v-else class="card" style="margin-top: 12px">
       <table class="table">
         <thead>
-          <tr><th>Symbol</th><th>Company</th><th>Price</th><th>52W High</th><th>52W Low</th><th>% From High</th><th>% From Low</th></tr>
+          <tr>
+            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
+            <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
+            <th class="sortable" @click="toggleSort('high_52w')">52W High {{ sortIndicator('high_52w') }}</th>
+            <th class="sortable" @click="toggleSort('low_52w')">52W Low {{ sortIndicator('low_52w') }}</th>
+            <th class="sortable" @click="toggleSort('pct_from_high')">% From High {{ sortIndicator('pct_from_high') }}</th>
+            <th class="sortable" @click="toggleSort('pct_from_low')">% From Low {{ sortIndicator('pct_from_low') }}</th>
+          </tr>
         </thead>
         <tbody>
-          <tr v-for="r in filtered" :key="r.stock_id">
+          <tr v-for="r in sorted" :key="r.stock_id">
             <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: r.symbol } }">{{ r.symbol }}</RouterLink></td>
             <td class="muted">{{ r.company_name }}</td>
             <td>{{ formatPrice(r.current_price) }}</td>

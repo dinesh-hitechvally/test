@@ -2,12 +2,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import client from '../api/client'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const matches = ref([])
 const loading = ref(true)
 const filter = ref('')
 
 const filtered = computed(() => (filter.value ? matches.value.filter((m) => m.signal === filter.value) : matches.value))
+const { sorted, toggleSort, sortIndicator } = useSortableTable(filtered)
 
 function biasClass(signal) {
   return signal === 'bullish' ? 'buy' : signal === 'bearish' ? 'sell' : 'hold'
@@ -43,9 +45,17 @@ onMounted(load)
 
     <div v-else class="card" style="margin-top: 12px">
       <table class="table">
-        <thead><tr><th>Symbol</th><th>Company</th><th>Date</th><th>Pattern</th><th>Bias</th></tr></thead>
+        <thead>
+          <tr>
+            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
+            <th class="sortable" @click="toggleSort('trade_date')">Date {{ sortIndicator('trade_date') }}</th>
+            <th class="sortable" @click="toggleSort('pattern')">Pattern {{ sortIndicator('pattern') }}</th>
+            <th class="sortable" @click="toggleSort('signal')">Bias {{ sortIndicator('signal') }}</th>
+          </tr>
+        </thead>
         <tbody>
-          <tr v-for="m in filtered" :key="m.stock_id">
+          <tr v-for="m in sorted" :key="m.stock_id">
             <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>
             <td class="muted">{{ m.company_name }}</td>
             <td>{{ m.trade_date }}</td>

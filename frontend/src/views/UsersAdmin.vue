@@ -1,9 +1,12 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import client from '../api/client'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const users = ref([])
 const loading = ref(true)
+
+const { sorted, toggleSort, sortIndicator } = useSortableTable(users)
 
 async function load() {
   loading.value = true
@@ -24,9 +27,15 @@ onMounted(load)
 
     <div v-else class="card">
       <table class="table">
-        <thead><tr><th>Name</th><th>Email</th><th>Joined</th></tr></thead>
+        <thead>
+          <tr>
+            <th class="sortable" @click="toggleSort('name')">Name {{ sortIndicator('name') }}</th>
+            <th class="sortable" @click="toggleSort('email')">Email {{ sortIndicator('email') }}</th>
+            <th class="sortable" @click="toggleSort('created_at')">Joined {{ sortIndicator('created_at') }}</th>
+          </tr>
+        </thead>
         <tbody>
-          <tr v-for="u in users" :key="u.id">
+          <tr v-for="u in sorted" :key="u.id">
             <td>{{ u.name }}</td>
             <td class="muted">{{ u.email }}</td>
             <td class="muted">{{ new Date(u.created_at).toLocaleDateString() }}</td>

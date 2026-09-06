@@ -217,6 +217,16 @@ textarea:focus-visible {
   background: #f8fafc;
 }
 
+.table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.table th.sortable:hover {
+  color: var(--text);
+}
+
 .table tbody tr:last-child td {
   border-bottom: none;
 }

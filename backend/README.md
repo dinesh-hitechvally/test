@@ -1,3 +1,15 @@
+# Share Market Signals
+
+A NEPSE (Nepal Stock Exchange) investment platform — daily price sync, technical analysis, rule-based buy/sell signals with honest backtested accuracy, dividend/bonus tracking, portfolio P&L, and an ML direction predictor. Backend: Laravel 13. Frontend: Vue 3 + Vite (`../frontend`).
+
+## Development Log — 2026-09-06
+
+- **Dividend/corporate actions**: built a nepalstock.com fallback for when ShareSansar's dividend/right-share endpoints are blocked (`NepalStockCorporateActionsService`, `CorporateActionsRefreshService`); bulk-backfilled dividend history from 7 → 188 stocks; fixed a face-value bug that showed 200%+ "yields" for mutual fund units (added `stocks.face_value`, captured per-security from NEPSE's own API); reconciled bonus shares into portfolio holdings (`PortfolioValuationService`) so quantity/avg cost/P&L are no longer silently wrong for long-term holders.
+- **Signal/ML accuracy**: raised the buy/sell confluence threshold (now requires ≥2 rules agreeing) — buy signals now measurably beat their baseline; retrained the ML direction model on all 309 eligible stocks (was stale at 10) and fixed a real production bug where the resulting model file grew too large to load under normal PHP memory limits (capped tree depth/leaf size, 27MB → 4MB, no accuracy cost).
+- **New reports**: Analyst Report (`/reports/analyst/{symbol}`) synthesizing technical + dividend + signal + ML + forecast into one page with a cross-lens consensus check; Dividend Report with a transparent "Top Dividend Picks" ranking; Buy/Sell Signals pages now show real target/stop-loss/risk-reward per stock, not just a bare ticker list.
+- **UX**: reorganized the sidebar around customer priority (Portfolio/Watchlist/Signals up top, deeper tools under an "Analyst Tools" section); design-system pass (Inter font, shadows, focus states); replaced every `<select>` with a searchable combobox (`SearchableSelect`); numbered pagination with a "Go to page" jumper (`Pagination`); click-to-sort added across every real data table (`useSortableTable`).
+- **Infrastructure**: found and fixed a ~2-day silent outage — the Windows Scheduled Task driving the whole automation pipeline had been failing every minute because its target `run-scheduler.bat` had been deleted; fixed log rotation (was writing one unbounded file).
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

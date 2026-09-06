@@ -4,7 +4,9 @@ import { useRoute } from 'vue-router'
 import client from '../api/client'
 import PriceChart from '../components/PriceChart.vue'
 import IndicatorChart from '../components/IndicatorChart.vue'
+import Pagination from '../components/Pagination.vue'
 import { formatPrice } from '../utils/format'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const route = useRoute()
 
@@ -22,6 +24,18 @@ const mlPrediction = ref(null)
 const mlModel = ref(null)
 const dividends = ref([])
 const rightShares = ref([])
+
+const {
+  sorted: sortedDividends,
+  toggleSort: toggleDividendSort,
+  sortIndicator: dividendSortIndicator,
+} = useSortableTable(dividends, { defaultKey: 'fiscal_year', defaultDir: 'desc' })
+
+const {
+  sorted: sortedRightShares,
+  toggleSort: toggleRightShareSort,
+  sortIndicator: rightShareSortIndicator,
+} = useSortableTable(rightShares, { defaultKey: 'opening_date', defaultDir: 'desc' })
 const loading = ref(true)
 const fetchingHistory = ref(false)
 const fetchHistoryResult = ref('')
@@ -273,10 +287,17 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 
       <table class="table" v-if="dividends.length">
         <thead>
-          <tr><th>Fiscal Year</th><th>Bonus Share</th><th>Cash Dividend</th><th>Total Dividend</th><th>Book Closure</th><th>Bonus Listing</th></tr>
+          <tr>
+            <th class="sortable" @click="toggleDividendSort('fiscal_year')">Fiscal Year {{ dividendSortIndicator('fiscal_year') }}</th>
+            <th class="sortable" @click="toggleDividendSort('bonus_share_pct')">Bonus Share {{ dividendSortIndicator('bonus_share_pct') }}</th>
+            <th class="sortable" @click="toggleDividendSort('cash_dividend_pct')">Cash Dividend {{ dividendSortIndicator('cash_dividend_pct') }}</th>
+            <th class="sortable" @click="toggleDividendSort('total_dividend_pct')">Total Dividend {{ dividendSortIndicator('total_dividend_pct') }}</th>
+            <th class="sortable" @click="toggleDividendSort('book_closure_date')">Book Closure {{ dividendSortIndicator('book_closure_date') }}</th>
+            <th class="sortable" @click="toggleDividendSort('bonus_listing_date')">Bonus Listing {{ dividendSortIndicator('bonus_listing_date') }}</th>
+          </tr>
         </thead>
         <tbody>
-          <tr v-for="d in dividends" :key="d.id">
+          <tr v-for="d in sortedDividends" :key="d.id">
             <td>{{ d.fiscal_year }}</td>
             <td>{{ d.bonus_share_pct !== null ? `${d.bonus_share_pct}%` : '—' }}</td>
             <td>{{ d.cash_dividend_pct !== null ? `${d.cash_dividend_pct}%` : '—' }}</td>
@@ -296,10 +317,17 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         <h4>Right Share History</h4>
         <table class="table">
           <thead>
-            <tr><th>Ratio</th><th>Units</th><th>Issue Price</th><th>Opening</th><th>Closing</th><th>Status</th></tr>
+            <tr>
+              <th class="sortable" @click="toggleRightShareSort('ratio')">Ratio {{ rightShareSortIndicator('ratio') }}</th>
+              <th class="sortable" @click="toggleRightShareSort('total_units')">Units {{ rightShareSortIndicator('total_units') }}</th>
+              <th class="sortable" @click="toggleRightShareSort('issue_price')">Issue Price {{ rightShareSortIndicator('issue_price') }}</th>
+              <th class="sortable" @click="toggleRightShareSort('opening_date')">Opening {{ rightShareSortIndicator('opening_date') }}</th>
+              <th class="sortable" @click="toggleRightShareSort('closing_date')">Closing {{ rightShareSortIndicator('closing_date') }}</th>
+              <th class="sortable" @click="toggleRightShareSort('status')">Status {{ rightShareSortIndicator('status') }}</th>
+            </tr>
           </thead>
           <tbody>
-            <tr v-for="r in rightShares" :key="r.id">
+            <tr v-for="r in sortedRightShares" :key="r.id">
               <td>{{ r.ratio || '—' }}</td>
               <td>{{ r.total_units !== null ? Number(r.total_units).toLocaleString() : '—' }}</td>
               <td>{{ r.issue_price !== null ? `Rs. ${formatPrice(r.issue_price)}` : '—' }}</td>
@@ -356,15 +384,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       </table>
       <p v-if="!signalsLoading && signals.length === 0" class="muted">No signals yet.</p>
 
-      <div class="pagination">
-        <button class="btn-secondary btn" :disabled="signalsLoading || signalsPage >= signalsTotalPages" @click="loadSignalsPage(signalsPage + 1)">
-          ← Older
-        </button>
-        <span class="muted small">Page {{ signalsPage }} of {{ signalsTotalPages }}</span>
-        <button class="btn-secondary btn" :disabled="signalsLoading || signalsPage <= 1" @click="loadSignalsPage(signalsPage - 1)">
-          Newer →
-        </button>
-      </div>
+      <Pagination :model-value="signalsPage" :total-pages="signalsTotalPages" :disabled="signalsLoading" @update:model-value="loadSignalsPage" />
     </div>
   </div>
 </template>
@@ -382,14 +402,6 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-  margin-top: 12px;
 }
 
 .small {

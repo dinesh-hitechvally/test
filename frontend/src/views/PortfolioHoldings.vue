@@ -1,10 +1,20 @@
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
+
+const { sorted, toggleSort, sortIndicator } = useSortableTable(
+  computed(() => store.detail?.holdings ?? []),
+  {
+    valueGetters: {
+      signal: (h) => h.latest_signal?.signal ?? null,
+    },
+  }
+)
 
 function changeTone(value) {
   if (value === null || value === undefined) return ''
@@ -35,12 +45,19 @@ onMounted(async () => {
       <table class="table" v-if="store.detail.holdings.length">
         <thead>
           <tr>
-            <th>Symbol</th><th>Sector</th><th>Qty</th><th>Avg Cost</th><th>Invested</th>
-            <th>Current Price</th><th>Current Value</th><th>Unrealized P&L</th><th>Signal</th>
+            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
+            <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
+            <th class="sortable" @click="toggleSort('quantity')">Qty {{ sortIndicator('quantity') }}</th>
+            <th class="sortable" @click="toggleSort('avg_cost')">Avg Cost {{ sortIndicator('avg_cost') }}</th>
+            <th class="sortable" @click="toggleSort('invested')">Invested {{ sortIndicator('invested') }}</th>
+            <th class="sortable" @click="toggleSort('current_price')">Current Price {{ sortIndicator('current_price') }}</th>
+            <th class="sortable" @click="toggleSort('current_value')">Current Value {{ sortIndicator('current_value') }}</th>
+            <th class="sortable" @click="toggleSort('unrealized_pnl')">Unrealized P&L {{ sortIndicator('unrealized_pnl') }}</th>
+            <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="h in store.detail.holdings" :key="h.stock_id">
+          <tr v-for="h in sorted" :key="h.stock_id">
             <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: h.symbol } }">{{ h.symbol }}</RouterLink></td>
             <td class="muted">{{ h.sector || 'Other' }}</td>
             <td>

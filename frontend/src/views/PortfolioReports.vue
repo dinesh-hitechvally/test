@@ -4,10 +4,29 @@ import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
 import { apiBaseUrl } from '../api/client'
 import StatCard from '../components/StatCard.vue'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
 
 const exportUrl = computed(() => `${apiBaseUrl}/api/portfolios/${store.activePortfolioId}/export`)
+
+const {
+  sorted: sortedHoldings,
+  toggleSort: toggleHoldingsSort,
+  sortIndicator: holdingsSortIndicator,
+} = useSortableTable(
+  computed(() => store.detail?.holdings ?? []),
+  { valueGetters: { signal: (h) => h.latest_signal?.signal ?? null } }
+)
+
+const {
+  sorted: sortedRealized,
+  toggleSort: toggleRealizedSort,
+  sortIndicator: realizedSortIndicator,
+} = useSortableTable(
+  computed(() => store.detail?.realized ?? []),
+  { defaultKey: 'transaction_date', defaultDir: 'desc' }
+)
 
 function changeTone(value) {
   if (value === null || value === undefined) return ''
@@ -56,10 +75,18 @@ onMounted(load)
         <h3>Holdings Summary</h3>
         <table class="table" v-if="store.detail.holdings.length">
           <thead>
-            <tr><th>Symbol</th><th>Qty</th><th>Avg Cost</th><th>Invested</th><th>Current Value</th><th>Unrealized P&L</th><th>Signal</th></tr>
+            <tr>
+              <th class="sortable" @click="toggleHoldingsSort('symbol')">Symbol {{ holdingsSortIndicator('symbol') }}</th>
+              <th class="sortable" @click="toggleHoldingsSort('quantity')">Qty {{ holdingsSortIndicator('quantity') }}</th>
+              <th class="sortable" @click="toggleHoldingsSort('avg_cost')">Avg Cost {{ holdingsSortIndicator('avg_cost') }}</th>
+              <th class="sortable" @click="toggleHoldingsSort('invested')">Invested {{ holdingsSortIndicator('invested') }}</th>
+              <th class="sortable" @click="toggleHoldingsSort('current_value')">Current Value {{ holdingsSortIndicator('current_value') }}</th>
+              <th class="sortable" @click="toggleHoldingsSort('unrealized_pnl')">Unrealized P&L {{ holdingsSortIndicator('unrealized_pnl') }}</th>
+              <th class="sortable" @click="toggleHoldingsSort('signal')">Signal {{ holdingsSortIndicator('signal') }}</th>
+            </tr>
           </thead>
           <tbody>
-            <tr v-for="h in store.detail.holdings" :key="h.stock_id">
+            <tr v-for="h in sortedHoldings" :key="h.stock_id">
               <td>{{ h.symbol }}</td>
               <td>{{ h.quantity }}</td>
               <td>{{ formatPrice(h.avg_cost) }}</td>
@@ -80,10 +107,17 @@ onMounted(load)
         <h3>Realized Gains/Losses</h3>
         <table class="table" v-if="store.detail.realized.length">
           <thead>
-            <tr><th>Date</th><th>Symbol</th><th>Qty Sold</th><th>Sell Price</th><th>Avg Cost</th><th>Realized P&L</th></tr>
+            <tr>
+              <th class="sortable" @click="toggleRealizedSort('transaction_date')">Date {{ realizedSortIndicator('transaction_date') }}</th>
+              <th class="sortable" @click="toggleRealizedSort('symbol')">Symbol {{ realizedSortIndicator('symbol') }}</th>
+              <th class="sortable" @click="toggleRealizedSort('quantity')">Qty Sold {{ realizedSortIndicator('quantity') }}</th>
+              <th class="sortable" @click="toggleRealizedSort('sell_price')">Sell Price {{ realizedSortIndicator('sell_price') }}</th>
+              <th class="sortable" @click="toggleRealizedSort('avg_cost_at_time')">Avg Cost {{ realizedSortIndicator('avg_cost_at_time') }}</th>
+              <th class="sortable" @click="toggleRealizedSort('realized_pnl')">Realized P&L {{ realizedSortIndicator('realized_pnl') }}</th>
+            </tr>
           </thead>
           <tbody>
-            <tr v-for="line in store.detail.realized" :key="line.transaction_id">
+            <tr v-for="line in sortedRealized" :key="line.transaction_id">
               <td>{{ line.transaction_date }}</td>
               <td>{{ line.symbol }}</td>
               <td>{{ line.quantity }}</td>

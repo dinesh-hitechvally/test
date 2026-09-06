@@ -8,9 +8,14 @@ import MarketBreadthChart from '../components/MarketBreadthChart.vue'
 import SignalDistributionChart from '../components/SignalDistributionChart.vue'
 import SectorPerformanceChart from '../components/SectorPerformanceChart.vue'
 import TrendChart from '../components/TrendChart.vue'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const report = ref(null)
 const loading = ref(true)
+
+const { sorted: sortedSectors, toggleSort, sortIndicator } = useSortableTable(
+  computed(() => report.value?.sector_performance ?? [])
+)
 
 function changeTone(pct) {
   if (pct === null || pct === undefined) return ''
@@ -83,10 +88,15 @@ onMounted(load)
           <h3>Sector Breakdown</h3>
           <table class="table">
             <thead>
-              <tr><th>Sector</th><th>Stocks</th><th>Adv/Dec</th><th>Avg %</th></tr>
+              <tr>
+                <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
+                <th class="sortable" @click="toggleSort('stock_count')">Stocks {{ sortIndicator('stock_count') }}</th>
+                <th class="sortable" @click="toggleSort('advancing')">Adv/Dec {{ sortIndicator('advancing') }}</th>
+                <th class="sortable" @click="toggleSort('avg_change_pct')">Avg % {{ sortIndicator('avg_change_pct') }}</th>
+              </tr>
             </thead>
             <tbody>
-              <tr v-for="s in report.sector_performance" :key="s.sector">
+              <tr v-for="s in sortedSectors" :key="s.sector">
                 <td>
                   <RouterLink :to="{ name: 'reports-sector', query: { name: s.sector } }">{{ s.sector }}</RouterLink>
                 </td>

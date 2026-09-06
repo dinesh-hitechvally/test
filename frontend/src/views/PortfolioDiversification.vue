@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
 import DiversificationChart from '../components/DiversificationChart.vue'
+import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
 
@@ -28,6 +29,14 @@ function byStock(holdings) {
 const sectorSlices = computed(() => (store.detail ? bySector(store.detail.holdings) : []))
 const stockSlices = computed(() => (store.detail ? byStock(store.detail.holdings) : []))
 const total = computed(() => sectorSlices.value.reduce((sum, s) => sum + s.value, 0))
+
+const { sorted: sortedSectorSlices, toggleSort, sortIndicator } = useSortableTable(sectorSlices, {
+  defaultKey: 'value',
+  defaultDir: 'desc',
+  valueGetters: {
+    pct: (s) => (total.value > 0 ? (s.value / total.value) * 100 : 0),
+  },
+})
 
 onMounted(async () => {
   await store.fetchPortfolios()
@@ -57,9 +66,15 @@ onMounted(async () => {
       <div class="card" style="margin-top: 16px">
         <h3>Sector Allocation</h3>
         <table class="table">
-          <thead><tr><th>Sector</th><th>Value</th><th>% of Portfolio</th></tr></thead>
+          <thead>
+            <tr>
+              <th class="sortable" @click="toggleSort('label')">Sector {{ sortIndicator('label') }}</th>
+              <th class="sortable" @click="toggleSort('value')">Value {{ sortIndicator('value') }}</th>
+              <th class="sortable" @click="toggleSort('pct')">% of Portfolio {{ sortIndicator('pct') }}</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr v-for="s in sectorSlices" :key="s.label">
+            <tr v-for="s in sortedSectorSlices" :key="s.label">
               <td>{{ s.label }}</td>
               <td>Rs. {{ formatPrice(s.value) }}</td>
               <td>{{ total > 0 ? ((s.value / total) * 100).toFixed(1) : '0' }}%</td>
