@@ -19,6 +19,8 @@ class NepalStockSecurityResolver
 
     private const SECURITIES_PATH = '/api/nots/security?nonDelisted=true';
 
+    private const SECURITY_DETAIL_PATH = '/api/nots/security/%d';
+
     private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
 
     public function __construct(private readonly NepalStockTokenService $tokens) {}
@@ -53,5 +55,28 @@ class NepalStockSecurityResolver
         }
 
         throw new RuntimeException("Could not find [{$stock->symbol}] in nepalstock.com's securities list.");
+    }
+
+    /**
+     * The plain securities list has no sector field — only the richer
+     * per-security detail endpoint carries it (as `securityData.sector`),
+     * confirmed live against the real API.
+     */
+    public function fetchSector(Stock $stock): ?string
+    {
+        $securityId = $this->resolve($stock);
+        $token = $this->tokens->getAccessToken();
+
+        $response = Http::withHeaders([
+            'User-Agent' => self::USER_AGENT,
+            'Referer' => self::BASE_URL.'/',
+            'Authorization' => 'Salter '.$token,
+        ])->timeout(20)->get(self::BASE_URL.sprintf(self::SECURITY_DETAIL_PATH, $securityId));
+
+        $response->throw();
+
+        $sector = $response->json('securityData.sector');
+
+        return $sector !== null && $sector !== '' ? $sector : null;
     }
 }

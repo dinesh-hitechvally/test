@@ -12,11 +12,10 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Scrapes today's NEPSE snapshot from the official nepalstock.com API
- * (via NepalStockTokenService for auth) — a drop-in alternative to
- * SharesansarScraperService with the same return shape. One clean JSON call
- * covers every security (open/high/low/last traded/volume/turnover/previous
- * close), no HTML parsing needed.
+ * Scrapes today's NEPSE snapshot from the official nepalstock.com API (via
+ * NepalStockTokenService for auth) — this app's one and only daily price
+ * source. One clean JSON call covers every security (open/high/low/last
+ * traded/volume/turnover/previous close), no HTML parsing needed.
  */
 class NepalStockScraperService
 {

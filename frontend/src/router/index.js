@@ -18,8 +18,6 @@ const routes = [
   { path: '/market/52-week', name: 'market-52-week', component: () => import('../views/Market52Week.vue'), meta: { requiresAuth: true, title: '52 Week High/Low' } },
   { path: '/market/sector-overview', name: 'market-sector-overview', component: () => import('../views/MarketSectorOverview.vue'), meta: { requiresAuth: true, title: 'Sector Overview' } },
   { path: '/market/indices', name: 'market-indices', component: () => import('../views/Indices.vue'), meta: { requiresAuth: true, title: 'Indices' } },
-  { path: '/market/ipo', name: 'market-ipo', component: () => import('../views/MarketIpo.vue'), meta: { requiresAuth: true, title: 'IPO / New Listings' } },
-  { path: '/market/news', name: 'market-news', component: () => import('../views/MarketNews.vue'), meta: { requiresAuth: true, title: 'Market News' } },
 
   { path: '/watchlist/alerts', name: 'watchlist-alerts', component: () => import('../views/WatchlistAlerts.vue'), meta: { requiresAuth: true, title: 'Price Alerts' } },
 

@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 use Throwable;
 
 #[Signature('stocks:backfill-corporate-actions {--all : Re-fetch every stock, not just ones with zero dividend rows}')]
-#[Description('Backfill dividend/bonus-share and right-share history for stocks that don\'t have any yet — ShareSansar first, falling back to the official nepalstock.com dividend feed if that comes back empty')]
+#[Description('Backfill dividend/bonus-share history for stocks that don\'t have any yet, from the official nepalstock.com dividend feed')]
 class BackfillCorporateActions extends Command
 {
     public function handle(CorporateActionsRefreshService $refresher): int

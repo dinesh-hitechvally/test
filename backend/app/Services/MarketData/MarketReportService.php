@@ -228,19 +228,6 @@ class MarketReportService
         $declining = $changes->where('change_pct', '<', 0)->count();
         $unchanged = $changes->filter(fn ($c) => $c['change_pct'] === 0.0)->count();
 
-        $sectorBreakdown = $stocks->groupBy(fn ($s) => $s->sector ?: 'Other')
-            ->map(function ($group, $sector) {
-                $scores = $group->pluck('latestSignal.score')->filter(fn ($v) => $v !== null)->map(fn ($v) => (float) $v);
-
-                return [
-                    'sector' => $sector,
-                    'count' => $group->count(),
-                    'avg_score' => $scores->isNotEmpty() ? round($scores->avg(), 3) : null,
-                ];
-            })
-            ->sortByDesc('count')
-            ->values();
-
         $withSymbols = $changes->map(function ($c) use ($stocks) {
             $stock = $stocks->firstWhere('id', $c['stock_id']);
 
@@ -264,7 +251,11 @@ class MarketReportService
                 'declining' => $declining,
                 'unchanged' => $unchanged,
             ],
-            'sector_breakdown' => $sectorBreakdown,
+            // Today's real per-sector move (avg % change, advancing/declining
+            // counts) — same data as the Market Report's sector table, not a
+            // stock-count tally, so this actually changes day to day instead
+            // of sitting nearly static until a stock gets added/removed.
+            'sector_breakdown' => $this->sectorPerformance(),
             'movers' => [
                 'gainers' => $ranked->take(5)->values(),
                 'losers' => $ranked->reverse()->take(5)->values(),
@@ -284,7 +275,11 @@ class MarketReportService
      */
     public function dividendReport(?string $sector = null): array
     {
-        $query = Stock::query()->with(['latestPrice', 'latestSignal', 'dividends' => fn ($q) => $q->orderByDesc('fiscal_year')]);
+        $query = Stock::query()->with([
+            'latestPrice', 'latestSignal',
+            'dividends' => fn ($q) => $q->orderByDesc('fiscal_year'),
+            'rightShares' => fn ($q) => $q->orderByDesc('opening_date'),
+        ]);
 
         if ($sector) {
             $query->where('sector', $sector);
@@ -303,6 +298,7 @@ class MarketReportService
                 'stocks_with_dividends' => $rows->count(),
                 'avg_yield_pct' => $yields->isNotEmpty() ? round($yields->avg(), 2) : null,
                 'top_yield_pct' => $yields->isNotEmpty() ? $yields->max() : null,
+                'stocks_with_right_shares' => $rows->filter(fn ($r) => $r['right_share_count'] > 0)->count(),
             ],
             'top_picks' => $this->rankDividendPicks($rows),
             'stocks' => $rows,
@@ -317,7 +313,11 @@ class MarketReportService
      */
     public function stockDividendSummary(Stock $stock): ?array
     {
-        $stock->loadMissing(['latestPrice', 'latestSignal', 'dividends' => fn ($q) => $q->orderByDesc('fiscal_year')]);
+        $stock->loadMissing([
+            'latestPrice', 'latestSignal',
+            'dividends' => fn ($q) => $q->orderByDesc('fiscal_year'),
+            'rightShares' => fn ($q) => $q->orderByDesc('opening_date'),
+        ]);
 
         if ($stock->dividends->isEmpty()) {
             return null;
@@ -353,6 +353,8 @@ class MarketReportService
             ? round(($cashYieldPct ?? 0) + ($bonusPct ?? 0), 2)
             : null;
 
+        $latestRightShare = $stock->rightShares->first();
+
         return [
             'stock_id' => $stock->id,
             'symbol' => $stock->symbol,
@@ -369,6 +371,21 @@ class MarketReportService
             'avg_total_dividend_pct' => $totals->isNotEmpty() ? round($totals->avg(), 2) : null,
             'latest_signal' => $stock->latestSignal?->signal,
             'history' => $stock->dividends->values(),
+            'right_share_count' => $stock->rightShares->count(),
+            'latest_right_share_ratio' => $latestRightShare?->ratio,
+            'latest_right_share_pct' => $latestRightShare?->percent(),
+            'latest_right_share_year' => $latestRightShare?->opening_date?->format('Y') ?? $latestRightShare?->listing_date?->format('Y'),
+            'right_share_history' => $stock->rightShares->map(fn ($rs) => [
+                'id' => $rs->id,
+                'year' => $rs->opening_date?->format('Y') ?? $rs->listing_date?->format('Y'),
+                'ratio' => $rs->ratio,
+                'pct' => $rs->percent(),
+                'issue_price' => $rs->issue_price !== null ? (float) $rs->issue_price : null,
+                'opening_date' => $rs->opening_date,
+                'closing_date' => $rs->closing_date,
+                'listing_date' => $rs->listing_date,
+                'status' => $rs->status,
+            ])->values(),
         ];
     }
 

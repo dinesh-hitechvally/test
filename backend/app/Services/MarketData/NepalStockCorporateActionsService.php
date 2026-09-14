@@ -10,15 +10,17 @@ use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Fetches dividend declarations from the official nepalstock.com API —
- * used as a fallback source when ShareSansar's dividend/right-share AJAX
- * endpoints are blocked (they've returned empty results persistently).
+ * Fetches dividend declarations from the official nepalstock.com API — this
+ * app's only dividend source. (ShareSansar is used again elsewhere, for full
+ * price history specifically — see SharesansarHistoryService — but not for
+ * dividends/right-shares/sector, which stay on this official API.)
  *
  * Only covers the `dividends` table: NEPSE's dividend-application endpoint
- * gives clean cash-dividend/bonus-share percentages per fiscal year, but
- * none of the right-share-specific fields (ratio, issue price, open/close
- * dates, issue manager) that the `right_shares` table expects — those
- * remain ShareSansar-only for now.
+ * gives clean cash-dividend/bonus-share percentages per fiscal year, but has
+ * no equivalent for the right-share-specific fields (ratio, issue price,
+ * open/close dates, issue manager) the `right_shares` table expects — no
+ * official NEPSE endpoint for that data has been found, so `right_shares`
+ * stays whatever was captured historically and won't get new rows.
  */
 class NepalStockCorporateActionsService
 {

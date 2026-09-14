@@ -6,17 +6,18 @@ use App\Models\Stock;
 use Throwable;
 
 /**
- * Single entry point for refreshing one stock's dividend/right-share data —
- * tries ShareSansar first, and only if it comes back completely empty (its
- * dividend/right-share AJAX endpoints have been persistently blocked), falls
- * back to the official nepalstock.com dividend feed. Shared by the HTTP
- * "Refresh Dividend/Bonus Data" button and the bulk backfill command so the
- * fallback logic can't drift between the two call sites.
+ * Single entry point for refreshing one stock's dividend data — shared by the
+ * HTTP "Refresh Dividend/Bonus Data" button and the bulk backfill command.
+ *
+ * Dividends come from nepalstock.com's official dividend-application feed —
+ * the app's one and only data source. `right_shares` stays in the return
+ * shape (both call sites already expect it) but is always 0: NEPSE has no
+ * official right-share endpoint, and ShareSansar (the only place that data
+ * was ever available) is intentionally not used here.
  */
 class CorporateActionsRefreshService
 {
     public function __construct(
-        private readonly SharesansarHistoryService $sharesansar,
         private readonly NepalStockCorporateActionsService $nepse,
     ) {}
 
@@ -25,29 +26,16 @@ class CorporateActionsRefreshService
      */
     public function refresh(Stock $stock): array
     {
-        $sources = [];
-
         try {
-            $result = $this->sharesansar->fetchCorporateActions($stock);
-            if ($result['dividends'] > 0 || $result['right_shares'] > 0) {
-                $sources[] = 'sharesansar.com';
-            }
+            $result = $this->nepse->fetchDividends($stock);
+
+            return [
+                'dividends' => $result['dividends'],
+                'right_shares' => 0,
+                'sources' => $result['dividends'] > 0 ? ['nepalstock.com'] : [],
+            ];
         } catch (Throwable $e) {
-            $result = ['dividends' => 0, 'right_shares' => 0];
+            return ['dividends' => 0, 'right_shares' => 0, 'sources' => []];
         }
-
-        if ($result['dividends'] === 0) {
-            try {
-                $nepse = $this->nepse->fetchDividends($stock);
-                if ($nepse['dividends'] > 0) {
-                    $result['dividends'] = $nepse['dividends'];
-                    $sources[] = 'nepalstock.com';
-                }
-            } catch (Throwable $e) {
-                // Both sources failing is reported via an empty $sources list.
-            }
-        }
-
-        return [...$result, 'sources' => $sources];
     }
 }

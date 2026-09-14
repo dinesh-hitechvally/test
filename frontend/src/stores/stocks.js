@@ -30,10 +30,9 @@ export const useStocksStore = defineStore('stocks', {
       const { data } = await client.get('/scrape/logs')
       this.scrapeLogs = data
     },
-    // Official nepalstock.com source — see NepalStockScraperService. ShareSansar
-    // (/scrape/run) is kept server-side only as a manual fallback, and as the
-    // sole source for full-history backfills (the official API caps out at
-    // ~1 year of history no matter what).
+    // Official nepalstock.com source — see NepalStockScraperService, the
+    // app's only daily price source (ShareSansar is used again, but only for
+    // full price-history backfills — see StockDetail's "Fetch Full History").
     async runScrape() {
       this.lastError = null
       try {

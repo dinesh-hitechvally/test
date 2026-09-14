@@ -257,6 +257,11 @@ const summary = computed(() => {
                 </tr>
               </tbody>
             </table>
+            <p v-if="data.dividend.latest_right_share_pct !== null" class="muted" style="margin-top: 8px">
+              Latest right share: <strong>{{ data.dividend.latest_right_share_pct }}%</strong>
+              ({{ data.dividend.latest_right_share_ratio }}<template v-if="data.dividend.latest_right_share_year"> · {{ data.dividend.latest_right_share_year }}</template>)
+              — {{ data.dividend.right_share_count }} issue(s) recorded.
+            </p>
             <RouterLink :to="{ name: 'reports-dividends' }">Full Dividend Report →</RouterLink>
           </template>
           <p v-else class="muted">No dividend history recorded yet — visit the stock's detail page to fetch it.</p>

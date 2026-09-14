@@ -3,8 +3,6 @@
 use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\IndexController;
-use App\Http\Controllers\Api\IpoController;
-use App\Http\Controllers\Api\NewsController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\PatternScanController;
 use App\Http\Controllers\Api\SavedScreenController;
@@ -54,12 +52,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/signals/accuracy', [SignalAccuracyController::class, 'index']);
 
-    Route::get('/ipo', [IpoController::class, 'index']);
-    Route::post('/ipo/sync', [IpoController::class, 'sync']);
-
-    Route::get('/news', [NewsController::class, 'index']);
-    Route::post('/news/sync', [NewsController::class, 'sync']);
-
     Route::get('/schedule', [ScheduleController::class, 'index']);
 
     Route::get('/saved-screens', [SavedScreenController::class, 'index']);
@@ -82,7 +74,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/market/screener', [MarketController::class, 'screener']);
     Route::get('/market/52-week', [MarketController::class, 'fiftyTwoWeek']);
 
-    Route::post('/scrape/run', [ScrapeController::class, 'run']);
     Route::post('/scrape/run-nepse', [ScrapeController::class, 'runNepse']);
     Route::get('/scrape/logs', [ScrapeController::class, 'logs']);
 

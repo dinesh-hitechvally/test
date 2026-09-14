@@ -13,12 +13,13 @@ use Throwable;
 
 /**
  * Fetches one stock's price history from the official nepalstock.com API.
- * NOT a full-history replacement for SharesansarHistoryService::fetchFullHistory()
- * — empirically this source only returns roughly the trailing ~1 year no
- * matter how far back it's asked, confirmed against the live site. It's a
- * secondary, official, cross-check source: same-day data is more precise
- * (real open price included), but depth is far shallower than ShareSansar's
- * multi-year archive. Positioned in the UI accordingly, not as a swap-in.
+ * NOT the app's primary history source — SharesansarHistoryService::fetchFullHistory()
+ * is, precisely because this one empirically only returns roughly the
+ * trailing ~1 year no matter how far back it's asked (confirmed against the
+ * live site), which isn't enough for a real price chart on an established
+ * stock. Kept as a secondary, official cross-check option (same-day data is
+ * more precise — a real open price is included), reachable via
+ * StockController::fetchNepseHistory() but not wired to any button.
  */
 class NepalStockHistoryService
 {
@@ -52,6 +53,12 @@ class NepalStockHistoryService
             }
 
             $result = $this->persist($stock, $rows);
+
+            // Marks the stock as "history fetched" the same way
+            // SharesansarHistoryService::fetchFullHistory() does, so a manual
+            // call through this service also stops stocks:queue-missing-history
+            // from re-queueing it.
+            $stock->update(['history_fetched_at' => now()]);
 
             ScrapeLog::create([
                 'source' => self::SOURCE_NAME,

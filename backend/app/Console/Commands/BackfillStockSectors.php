@@ -3,17 +3,17 @@
 namespace App\Console\Commands;
 
 use App\Models\Stock;
-use App\Services\MarketData\SharesansarHistoryService;
+use App\Services\MarketData\NepalStockSecurityResolver;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Throwable;
 
 #[Signature('stocks:backfill-sectors {--all : Re-fetch every stock, not just ones missing a sector}')]
-#[Description('Fetch and store each stock\'s sector from its ShareSansar company page')]
+#[Description('Fetch and store each stock\'s sector from the official nepalstock.com API')]
 class BackfillStockSectors extends Command
 {
-    public function handle(SharesansarHistoryService $history): int
+    public function handle(NepalStockSecurityResolver $resolver): int
     {
         $stocks = $this->option('all')
             ? Stock::orderBy('symbol')->get()
@@ -34,13 +34,18 @@ class BackfillStockSectors extends Command
 
         foreach ($stocks as $stock) {
             try {
-                $sector = $history->fetchSector($stock);
+                $sector = $resolver->fetchSector($stock);
+
+                if ($sector !== null) {
+                    $stock->update(['sector' => $sector]);
+                }
+
                 $sector ? $found++ : $missing[] = $stock->symbol;
             } catch (Throwable $e) {
                 $missing[] = $stock->symbol;
             }
 
-            usleep(300_000); // same polite pacing as fetchFullHistory()
+            usleep(300_000); // polite pacing, same as the other per-stock NEPSE fetches
             $bar->advance();
         }
 

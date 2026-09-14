@@ -2,19 +2,23 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Stock;
 use App\Services\MarketData\NepalStockScraperService;
-use App\Services\MarketData\RecalculationPipeline;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Throwable;
 
+/**
+ * Fetch-only — deliberately does not touch indicators/signals/ML/forecast.
+ * That recalculation is `market:recalculate`, run as its own scheduled step
+ * right after this one, so a slow or failing recalculation can never block
+ * (or be blamed on) today's price fetch, and either half can be re-run alone.
+ */
 #[Signature('market:sync')]
-#[Description('Scrape today\'s prices from the official nepalstock.com API and recalculate indicators/signals/forecasts for every affected stock')]
+#[Description('Scrape today\'s prices from the official nepalstock.com API — the only data source this app uses')]
 class DailyMarketSync extends Command
 {
-    public function handle(NepalStockScraperService $scraper, RecalculationPipeline $pipeline): int
+    public function handle(NepalStockScraperService $scraper): int
     {
         $this->info('Scraping latest prices from nepalstock.com (official)...');
 
@@ -32,12 +36,7 @@ class DailyMarketSync extends Command
             $result['created_stocks']
         ));
 
-        $stocks = Stock::whereIn('id', $result['affected_stock_ids'])->get();
-        $this->info("Recalculating indicators/signals/forecasts for {$stocks->count()} stock(s)...");
-
-        $pipeline->runForMany($stocks);
-
-        $this->info('Done.');
+        $this->info('Done. Run `market:recalculate` to update indicators/signals/forecasts.');
 
         return self::SUCCESS;
     }

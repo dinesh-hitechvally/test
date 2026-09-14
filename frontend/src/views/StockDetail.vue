@@ -49,8 +49,12 @@ async function loadAll(symbol) {
   signalsPage.value = 1
   const [stockRes, pricesRes, indicatorsRes, forecastRes, mlRes, dividendsRes, rightSharesRes] = await Promise.all([
     client.get(`/stocks/${symbol}`),
-    client.get(`/stocks/${symbol}/prices`, { params: { days: 180 } }),
-    client.get(`/stocks/${symbol}/indicators`, { params: { days: 180 } }),
+    // A large-enough number to just mean "everything on record" — the
+    // Price & Moving Averages chart zooms/pans over this full range, and a
+    // SQL LIMIT bigger than the actual row count is harmless (just returns
+    // however many rows really exist, no error).
+    client.get(`/stocks/${symbol}/prices`, { params: { days: 10000 } }),
+    client.get(`/stocks/${symbol}/indicators`, { params: { days: 10000 } }),
     client.get(`/stocks/${symbol}/forecast`),
     client.get(`/stocks/${symbol}/ml-prediction`),
     client.get(`/stocks/${symbol}/dividends`),
@@ -157,7 +161,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       <div class="header-right">
         <div class="price">Rs. {{ formatPrice(stock.latest_price?.close_price) }}</div>
         <button class="btn-secondary btn" :disabled="fetchingHistory" @click="handleFetchFullHistory">
-          {{ fetchingHistory ? 'Fetching full history…' : 'Fetch Full History' }}
+          {{ fetchingHistory ? 'Fetching history…' : 'Fetch Full History' }}
         </button>
       </div>
     </div>
@@ -171,8 +175,8 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 
     <p v-if="!fetchingHistory && prices.length < 20" class="muted card">
       Not enough price history yet to compute indicators (need at least 20 trading days). Click "Fetch Full History"
-      above to pull everything back to listing date in one go, import a CSV from the Stocks page, or keep using
-      "Scrape Latest Data" daily to build up history.
+      above (covers roughly the trailing year), import a CSV from the Stocks page, or keep using "Scrape Latest Data"
+      daily to build up history.
     </p>
 
     <template v-else>

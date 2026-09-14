@@ -273,7 +273,7 @@ class StockController extends Controller
 
         if ($result['sources'] === []) {
             return response()->json([
-                'message' => 'No dividend/right-share data available right now from either ShareSansar or nepalstock.com.',
+                'message' => 'No dividend data available right now from nepalstock.com.',
             ], 502);
         }
 

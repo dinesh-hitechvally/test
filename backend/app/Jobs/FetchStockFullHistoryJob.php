@@ -15,6 +15,12 @@ use Throwable;
  * by stocks:queue-missing-history for any stock that has never had a
  * successful full-history fetch, so new stocks (discovered by daily scrapes)
  * get their history filled in automatically without per-stock manual action.
+ *
+ * Sourced from ShareSansar (not nepalstock.com's official API) specifically
+ * because NEPSE's own history endpoint only returns roughly the trailing
+ * ~1 year no matter how far back it's asked — not enough for a real price
+ * chart on an established stock. Daily sync and dividends/right-shares/
+ * sector stay on the official API; this is the one deliberate exception.
  */
 class FetchStockFullHistoryJob implements ShouldQueue
 {

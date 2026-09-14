@@ -63,8 +63,6 @@ const navItems = [
       { to: '/market/52-week', label: '52 Week High/Low' },
       { to: '/market/sector-overview', label: 'Sector Overview' },
       { to: '/market/indices', label: 'Indices' },
-      { to: '/market/ipo', label: 'IPO / New Listings' },
-      { to: '/market/news', label: 'Market News' },
     ],
   },
   {

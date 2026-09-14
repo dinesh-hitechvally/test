@@ -24,6 +24,8 @@ const sortOptions = [
   { value: 'latest_total_pct', label: 'Sort by latest declared total %' },
   { value: 'avg_total_dividend_pct', label: 'Sort by avg total % (history)' },
   { value: 'years_recorded', label: 'Sort by years recorded' },
+  { value: 'latest_right_share_pct', label: 'Sort by latest right share %' },
+  { value: 'right_share_count', label: 'Sort by right share issues' },
 ]
 
 async function loadSectors() {
@@ -78,7 +80,9 @@ onMounted(async () => {
     <h1>Dividend Report</h1>
     <p class="muted">
       Every stock with recorded dividend/bonus history, ranked by trailing dividend yield (cash dividend as a % of
-      market price — bonus shares aren't included since they're not a cash return).
+      market price — bonus shares aren't included since they're not a cash return). Also shows each company's right
+      share history — extra shares existing holders were offered to buy (at a set issue price), separate from a
+      bonus/dividend.
     </p>
 
     <div class="card">
@@ -103,6 +107,7 @@ onMounted(async () => {
           :value="report.totals.top_yield_pct !== null ? `${report.totals.top_yield_pct}%` : '—'"
           tone="positive"
         />
+        <StatCard label="Stocks with Right Share History" :value="report.totals.stocks_with_right_shares" />
       </div>
 
       <div class="card" style="margin-top: 16px">
@@ -151,6 +156,14 @@ onMounted(async () => {
               <th class="sortable" @click="toggleSort('actual_total_yield_pct')">Actual Total Yield {{ sortIndicator('actual_total_yield_pct') }}</th>
               <th class="sortable" @click="toggleSort('years_recorded')">Years {{ sortIndicator('years_recorded') }}</th>
               <th class="sortable" @click="toggleSort('avg_total_dividend_pct')">Avg Total (history) {{ sortIndicator('avg_total_dividend_pct') }}</th>
+              <th
+                class="sortable"
+                title="Most recent right (rights) share offer — extra shares an existing holder could subscribe for, at a set issue price, separate from a bonus/dividend"
+                @click="toggleSort('latest_right_share_pct')"
+              >
+                Latest Right Share {{ sortIndicator('latest_right_share_pct') }}
+              </th>
+              <th class="sortable" @click="toggleSort('right_share_count')">Right Share Issues {{ sortIndicator('right_share_count') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -172,6 +185,12 @@ onMounted(async () => {
               </td>
               <td class="muted">{{ s.years_recorded }}</td>
               <td class="muted">{{ s.avg_total_dividend_pct !== null ? `${s.avg_total_dividend_pct}%` : '—' }}</td>
+              <td v-if="s.latest_right_share_pct !== null">
+                {{ s.latest_right_share_pct }}%
+                <span class="muted">({{ s.latest_right_share_ratio }}<template v-if="s.latest_right_share_year"> · {{ s.latest_right_share_year }}</template>)</span>
+              </td>
+              <td v-else class="muted">—</td>
+              <td class="muted">{{ s.right_share_count || '—' }}</td>
             </tr>
           </tbody>
         </table>
@@ -183,7 +202,12 @@ onMounted(async () => {
           "Declared Total" is the raw % against face value as announced (Rs. 100 for most equities, but some
           instruments like mutual fund units use a different face value). "Actual Total Yield" converts that to what
           it's really worth at today's market price — the two can differ a lot once price has moved far from face
-          value.
+          value. "Latest Right Share" is the % of extra shares offered in the most recent issue (e.g. a "10:5" ratio
+          means 5 new shares per 10 already held, i.e. 50%) — unlike a bonus share, holders pay the issue price for
+          these, so it's not a free return; it's shown here so you can see how often and how much a company dilutes
+          via rights rather than rewards via bonus/cash. Right-share history is a historical snapshot rather than
+          something that updates automatically — the official nepalstock.com API (this app's only data source) has
+          no right-share endpoint, so nothing here gets newer once issued after this was last refreshed.
         </p>
       </div>
     </template>
