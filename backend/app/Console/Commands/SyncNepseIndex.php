@@ -22,6 +22,12 @@ class SyncNepseIndex extends Command
             return self::FAILURE;
         }
 
+        if (! $result['market_open']) {
+            $this->info('Market is closed today — nothing synced.');
+
+            return self::SUCCESS;
+        }
+
         $this->info("{$result['indices_updated']} index snapshot(s) updated.");
 
         return self::SUCCESS;

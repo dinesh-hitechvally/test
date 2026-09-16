@@ -10,9 +10,11 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Recalculates indicators/signals/ML/forecasts — split out of market:sync so
- * a fetch failure can't silently skip recalculation (and vice versa), and so
- * either half can be re-run on its own without re-hitting nepalstock.com.
+ * Recalculates indicators/signals — split out of market:sync so a fetch
+ * failure can't silently skip recalculation (and vice versa), and so either
+ * half can be re-run on its own without re-hitting nepalstock.com. (ML
+ * predictions are computed on-demand per request, not part of this
+ * pipeline; there's no statistical forecast anymore.)
  *
  * Scoped to stocks with a price row dated today rather than being handed a
  * stock list in-process (the two commands run as separate scheduled steps,
@@ -20,7 +22,7 @@ use Illuminate\Support\Facades\DB;
  * — {--all} re-scores every stock regardless, for a manual full refresh.
  */
 #[Signature('market:recalculate {--all : Recalculate every stock, not just ones with a price row from today}')]
-#[Description('Recompute indicators/signals/ML predictions/forecasts for stocks priced today')]
+#[Description('Recompute indicators/signals for stocks priced today')]
 class RecalculateMarketData extends Command
 {
     public function handle(RecalculationPipeline $pipeline): int
@@ -35,7 +37,7 @@ class RecalculateMarketData extends Command
             return self::SUCCESS;
         }
 
-        $this->info("Recalculating indicators/signals/forecasts for {$stocks->count()} stock(s)...");
+        $this->info("Recalculating indicators/signals for {$stocks->count()} stock(s)...");
 
         $pipeline->runForMany($stocks);
 

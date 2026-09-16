@@ -9,9 +9,9 @@ use App\Models\Stock;
  * Honest backtest of the rule-based signal engine: for every historical
  * buy/sell signal ever generated, look forward N trading days and check
  * whether price actually moved the direction the signal implied. Same
- * walk-forward, no-peeking spirit as the ML predictor and Holt forecast
- * backtests — a signal's "accuracy" here is measured against what actually
- * happened next, not fitted after the fact.
+ * walk-forward, no-peeking spirit as the ML predictor's own backtest — a
+ * signal's "accuracy" here is measured against what actually happened
+ * next, not fitted after the fact.
  */
 class SignalAccuracyService
 {

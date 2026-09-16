@@ -31,19 +31,7 @@ class NepalStockSecurityResolver
             return $stock->nepse_security_id;
         }
 
-        $securities = Cache::remember('nepse_securities_list', now()->addHours(6), function () {
-            $token = $this->tokens->getAccessToken();
-
-            $response = Http::withHeaders([
-                'User-Agent' => self::USER_AGENT,
-                'Referer' => self::BASE_URL.'/',
-                'Authorization' => 'Salter '.$token,
-            ])->timeout(20)->get(self::BASE_URL.self::SECURITIES_PATH);
-
-            $response->throw();
-
-            return $response->json();
-        });
+        $securities = Cache::remember('nepse_securities_list', now()->addHours(6), fn () => $this->fetchSecuritiesList());
 
         foreach ($securities as $security) {
             if (strtoupper((string) ($security['symbol'] ?? '')) === $stock->symbol) {
@@ -78,5 +66,78 @@ class NepalStockSecurityResolver
         $sector = $response->json('securityData.sector');
 
         return $sector !== null && $sector !== '' ? $sector : null;
+    }
+
+    /**
+     * Creates a `stocks` row for every security nepalstock.com knows about —
+     * not just the ones that happen to trade on a given day. market:sync
+     * (NepalStockScraperService) only ever creates a stock as a byproduct of
+     * seeing it trade today, so an illiquid, suspended, or brand-new listing
+     * that hasn't traded yet would otherwise never appear in this app at
+     * all. Always fetches live (bypasses resolve()'s 6h cache — this is the
+     * one place freshness actually matters, since the whole point is
+     * noticing new listings promptly).
+     *
+     * @return array{total: int, created: int, existing: int}
+     */
+    public function syncAllSecurities(): array
+    {
+        $securities = $this->fetchSecuritiesList();
+        $created = 0;
+        $existing = 0;
+
+        foreach ($securities as $security) {
+            $symbol = strtoupper((string) ($security['symbol'] ?? ''));
+
+            if ($symbol === '') {
+                continue;
+            }
+
+            $stock = Stock::firstOrNew(['symbol' => $symbol]);
+            $isNew = ! $stock->exists;
+
+            if ($isNew) {
+                $stock->company_name = $security['securityName'] ?? null;
+                $stock->is_active = ($security['activeStatus'] ?? 'A') === 'A';
+            }
+
+            if (isset($security['id']) && $stock->nepse_security_id === null) {
+                $stock->nepse_security_id = (int) $security['id'];
+            }
+
+            if ($isNew || $stock->isDirty()) {
+                $stock->save();
+            }
+
+            $isNew ? $created++ : $existing++;
+        }
+
+        // The cache resolve() reads is now stale the moment a new stock is
+        // created above (it wouldn't have this symbol yet) — clear it so
+        // the very next resolve() call re-fetches instead of missing it
+        // for up to 6 hours.
+        Cache::forget('nepse_securities_list');
+
+        return [
+            'total' => count($securities),
+            'created' => $created,
+            'existing' => $existing,
+        ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function fetchSecuritiesList(): array
+    {
+        $token = $this->tokens->getAccessToken();
+
+        $response = Http::withHeaders([
+            'User-Agent' => self::USER_AGENT,
+            'Referer' => self::BASE_URL.'/',
+            'Authorization' => 'Salter '.$token,
+        ])->timeout(20)->get(self::BASE_URL.self::SECURITIES_PATH);
+
+        $response->throw();
+
+        return $response->json() ?? [];
     }
 }

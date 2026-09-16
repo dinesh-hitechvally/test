@@ -38,10 +38,12 @@ class BackfillStockSectors extends Command
 
                 if ($sector !== null) {
                     $stock->update(['sector' => $sector]);
+                    $stock->clearScrapeError();
                 }
 
                 $sector ? $found++ : $missing[] = $stock->symbol;
             } catch (Throwable $e) {
+                $stock->flagScrapeError('sector', $e->getMessage());
                 $missing[] = $stock->symbol;
             }
 

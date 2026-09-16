@@ -99,6 +99,15 @@ class NepalStockCorporateActionsService
                 $stock->update(['face_value' => (float) $faceValue]);
             }
 
+            // Same payload also carries NEPSE's own listing tier (A/B/N —
+            // based on paid-up capital, listing age, profit history and
+            // credit rating) — a cheap, real "is this an established
+            // company" signal, captured here rather than a separate fetch.
+            $shareGroup = $application['companyNews']['security']['shareGroupId']['name'] ?? null;
+            if ($shareGroup !== null && $stock->share_group === null) {
+                $stock->update(['share_group' => $shareGroup]);
+            }
+
             if ($notice === null || $fiscalYear === null) {
                 continue;
             }

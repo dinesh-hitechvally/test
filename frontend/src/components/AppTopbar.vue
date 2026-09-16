@@ -87,7 +87,9 @@ async function handleScrape() {
   scrapeMessage.value = ''
   try {
     const result = await stocksStore.runScrape()
-    scrapeMessage.value = `Updated ${result.updated_prices} (${result.created_stocks} new)`
+    scrapeMessage.value = result.market_open === false
+      ? 'Market is closed today — nothing synced.'
+      : `Updated ${result.updated_prices} (${result.created_stocks} new)`
     await stocksStore.fetchScrapeLogs()
   } catch {
     scrapeMessage.value = stocksStore.lastError

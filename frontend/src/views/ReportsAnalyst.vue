@@ -64,23 +64,10 @@ onMounted(async () => {
   if (selected.value) await load()
 })
 
-// Forecast direction from the model's own last vs. current predicted close —
-// the only one of the four lenses below that isn't already a labeled field.
-const forecastDirection = computed(() => {
-  const f = data.value?.forecast?.forecasts
-  const close = data.value?.latest_price?.close_price
-  if (!f?.length || close == null) return null
-  const last = Number(f[f.length - 1].predicted_close)
-  const cur = Number(close)
-  if (last > cur * 1.005) return 'up'
-  if (last < cur * 0.995) return 'down'
-  return 'flat'
-})
-
-// Tallies the app's 4 independent lenses on direction — technical read,
-// rule-based signal, ML model, statistical forecast — so a reader sees at a
-// glance whether the evidence agrees or conflicts, rather than having to
-// mentally cross-reference 4 separate cards themselves.
+// Tallies the app's 3 independent lenses on direction — technical read,
+// rule-based signal, ML model — so a reader sees at a glance whether the
+// evidence agrees or conflicts, rather than having to mentally
+// cross-reference 3 separate cards themselves.
 const consensus = computed(() => {
   if (!data.value) return null
   const votes = []
@@ -96,10 +83,6 @@ const consensus = computed(() => {
 
   if (data.value.ml_prediction) {
     votes.push({ label: 'ML model', lean: data.value.ml_prediction.direction })
-  }
-
-  if (forecastDirection.value) {
-    votes.push({ label: 'Statistical forecast', lean: forecastDirection.value === 'flat' ? 'neutral' : forecastDirection.value })
   }
 
   const up = votes.filter((v) => v.lean === 'up').length
@@ -128,7 +111,7 @@ const summary = computed(() => {
   if (consensus.value && consensus.value.total > 0) {
     const c = consensus.value
     lines.push(
-      `Across the ${c.total} independent lenses this report checks (technical read, rule-based signal, ML model, statistical forecast — whichever are available), the evidence is ${c.verdict}: ${c.up} lean bullish, ${c.down} lean bearish` +
+      `Across the ${c.total} independent lenses this report checks (technical read, rule-based signal, ML model — whichever are available), the evidence is ${c.verdict}: ${c.up} lean bullish, ${c.down} lean bearish` +
         (c.total - c.up - c.down > 0 ? `, ${c.total - c.up - c.down} neutral.` : '.')
     )
   }
@@ -179,8 +162,8 @@ const summary = computed(() => {
     <h1>Analyst Report</h1>
     <p class="muted">
       Every lens this app has on one stock, synthesized in one place — price performance, technical read, dividend
-      history, rule-based signal (with its own honest track record), ML direction call, and statistical forecast.
-      Not financial advice — a merge of already-computed data, not a new prediction of its own.
+      history, rule-based signal (with its own honest track record), and ML direction call. Not financial advice —
+      a merge of already-computed data, not a new prediction of its own.
     </p>
 
     <div class="card">
@@ -299,27 +282,6 @@ const summary = computed(() => {
           </template>
           <p v-else class="muted">Not enough price history for this stock yet, or the model hasn't been trained.</p>
         </div>
-      </div>
-
-      <div class="card" style="margin-top: 16px">
-        <h3>Statistical Forecast</h3>
-        <template v-if="data.forecast.forecasts.length">
-          <table class="table">
-            <thead><tr><th>Target Date</th><th>Predicted Close</th></tr></thead>
-            <tbody>
-              <tr v-for="f in data.forecast.forecasts" :key="f.target_date">
-                <td>{{ f.target_date }}</td>
-                <td>Rs. {{ fmt(f.predicted_close) }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p v-if="data.forecast.accuracy" class="muted" style="margin-top: 8px">
-            MAPE {{ (data.forecast.accuracy.mape * 100).toFixed(1) }}%, directional accuracy
-            {{ Math.round(data.forecast.accuracy.directional_accuracy * 100) }}% —
-            {{ data.forecast.accuracy.beats_coin_flip ? 'beats' : "doesn't beat" }} a coin flip.
-          </p>
-        </template>
-        <p v-else class="muted">No forecast generated yet.</p>
       </div>
 
       <div class="card" style="margin-top: 16px">

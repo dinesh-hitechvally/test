@@ -27,15 +27,33 @@ class NepalStockScraperService
 
     private const SOURCE_NAME = 'nepalstock.com';
 
-    public function __construct(private readonly NepalStockTokenService $tokens) {}
+    public function __construct(
+        private readonly NepalStockTokenService $tokens,
+        private readonly NepalStockMarketStatusService $marketStatus,
+    ) {}
 
     /**
-     * @return array{created_stocks: int, updated_prices: int, affected_stock_ids: int[]}
+     * @return array{created_stocks: int, updated_prices: int, affected_stock_ids: int[], market_open: bool}
      */
     public function scrape(): array
     {
         try {
             $token = $this->tokens->getAccessToken();
+
+            // Skipping (rather than writing whatever the live-market endpoint
+            // happens to return while closed — often stale or empty) means a
+            // stray ping on a non-trading day can never leave today's
+            // daily_prices wrong.
+            if (! $this->marketStatus->isOpen()) {
+                ScrapeLog::create([
+                    'source' => self::SOURCE_NAME,
+                    'status' => 'success',
+                    'records_processed' => 0,
+                    'message' => 'Market is closed today — nothing synced.',
+                ]);
+
+                return ['created_stocks' => 0, 'updated_prices' => 0, 'affected_stock_ids' => [], 'market_open' => false];
+            }
 
             $response = Http::withHeaders([
                 'User-Agent' => self::USER_AGENT,
@@ -63,7 +81,7 @@ class NepalStockScraperService
                 ),
             ]);
 
-            return $result;
+            return [...$result, 'market_open' => true];
         } catch (Throwable $e) {
             Log::warning('NEPSE official scrape failed', ['error' => $e->getMessage()]);
 

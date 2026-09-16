@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector', 'face_value', 'is_active', 'history_fetched_at'])]
+#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector', 'share_group', 'face_value', 'is_active', 'history_fetched_at', 'scrape_error', 'scrape_error_source', 'scrape_error_at'])]
 class Stock extends Model
 {
     protected function casts(): array
@@ -16,7 +16,30 @@ class Stock extends Model
             'is_active' => 'boolean',
             'face_value' => 'decimal:2',
             'history_fetched_at' => 'datetime',
+            'scrape_error_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Marks this stock as currently having a data issue — set on a failed
+     * per-stock fetch, cleared by clearScrapeError() the next time that
+     * kind of fetch succeeds. Not a retry mechanism, just a visible flag
+     * instead of a failure sitting silently in a log file.
+     */
+    public function flagScrapeError(string $source, string $message): void
+    {
+        $this->update([
+            'scrape_error' => $message,
+            'scrape_error_source' => $source,
+            'scrape_error_at' => now(),
+        ]);
+    }
+
+    public function clearScrapeError(): void
+    {
+        if ($this->scrape_error !== null) {
+            $this->update(['scrape_error' => null, 'scrape_error_source' => null, 'scrape_error_at' => null]);
+        }
     }
 
     /**
@@ -42,12 +65,6 @@ class Stock extends Model
     public function signals(): HasMany
     {
         return $this->hasMany(Signal::class);
-    }
-
-    /** @return HasMany<Forecast, $this> */
-    public function forecasts(): HasMany
-    {
-        return $this->hasMany(Forecast::class);
     }
 
     /** @return HasMany<Dividend, $this> */

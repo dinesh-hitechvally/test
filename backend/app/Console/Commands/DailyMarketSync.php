@@ -9,7 +9,7 @@ use Illuminate\Console\Command;
 use Throwable;
 
 /**
- * Fetch-only — deliberately does not touch indicators/signals/ML/forecast.
+ * Fetch-only — deliberately does not touch indicators/signals.
  * That recalculation is `market:recalculate`, run as its own scheduled step
  * right after this one, so a slow or failing recalculation can never block
  * (or be blamed on) today's price fetch, and either half can be re-run alone.
@@ -30,13 +30,19 @@ class DailyMarketSync extends Command
             return self::FAILURE;
         }
 
+        if (! $result['market_open']) {
+            $this->info('Market is closed today — nothing synced.');
+
+            return self::SUCCESS;
+        }
+
         $this->info(sprintf(
             '%d stocks updated (%d new).',
             $result['updated_prices'],
             $result['created_stocks']
         ));
 
-        $this->info('Done. Run `market:recalculate` to update indicators/signals/forecasts.');
+        $this->info('Done. Run `market:recalculate` to update indicators/signals.');
 
         return self::SUCCESS;
     }

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\ForecastModel;
 use App\Models\Stock;
 use App\Services\MarketData\CsvPriceImportService;
 use App\Services\MarketData\MarketReportService;
@@ -114,22 +113,6 @@ class StockController extends Controller
             ->reverse()
             ->values();
 
-        $dates = $signals->pluck('trade_date')->map(fn ($d) => $d->toDateString())->all();
-
-        // For each signal's date, the nearest-lead-time forecast that targeted it (the most
-        // recent prior prediction made for that day), so actual vs. predicted can be compared.
-        $forecastByTargetDate = $stock->forecasts()
-            ->whereIn('target_date', $dates)
-            ->orderBy('generated_date')
-            ->get()
-            ->groupBy(fn ($f) => $f->target_date->toDateString())
-            ->map(fn ($group) => $group->last());
-
-        $signals->each(function ($signal) use ($forecastByTargetDate) {
-            $key = $signal->trade_date->toDateString();
-            $signal->predicted_close = $forecastByTargetDate[$key]->predicted_close ?? null;
-        });
-
         return response()->json([
             'data' => $signals,
             'page' => $page,
@@ -139,39 +122,6 @@ class StockController extends Controller
         ]);
     }
 
-    public function forecast(string $symbol)
-    {
-        $stock = $this->findStock($symbol);
-
-        $latestGeneratedDate = $stock->forecasts()->max('generated_date');
-        $accuracyModel = ForecastModel::latest('computed_at')->first();
-
-        $accuracy = $accuracyModel ? [
-            'method' => $accuracyModel->method,
-            'computed_at' => $accuracyModel->computed_at,
-            'horizon_days' => $accuracyModel->horizon_days,
-            'mape' => (float) $accuracyModel->mape,
-            'directional_accuracy' => (float) $accuracyModel->directional_accuracy,
-            'beats_coin_flip' => $accuracyModel->beatsCoinFlip(),
-            'test_points' => $accuracyModel->test_points,
-            'stocks_used' => $accuracyModel->stocks_used,
-        ] : null;
-
-        if ($latestGeneratedDate === null) {
-            return response()->json(['forecasts' => [], 'accuracy' => $accuracy]);
-        }
-
-        $forecasts = $stock->forecasts()
-            ->where('generated_date', $latestGeneratedDate)
-            ->orderBy('target_date')
-            ->get();
-
-        return response()->json([
-            'disclaimer' => "Statistical trend estimate (Holt's exponential smoothing) for the next ~1 month of trading days — not financial advice.",
-            'forecasts' => $forecasts,
-            'accuracy' => $accuracy,
-        ]);
-    }
 
     public function mlPrediction(string $symbol, MlDirectionPredictorService $predictor)
     {

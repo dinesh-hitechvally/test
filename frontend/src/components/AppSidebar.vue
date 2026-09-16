@@ -6,16 +6,14 @@ import NavIcon from './NavIcon.vue'
 const route = useRoute()
 
 // Ordered for a retail investor's mental model first: their own money
-// (Portfolio, Watchlist), the app's core value prop (Signals), casual
-// browsing (Market), and Learn — all visible with no extra click. The
-// deeper/expert tooling (Screener, Technical Analysis, Compare, the full
-// Reports suite) still has every route it always did, just grouped under
-// one clearly-labeled "Analyst Tools" section instead of competing for
+// (Portfolio, Watchlist), the app's core value prop (Signals), and casual
+// browsing (Market) — all visible with no extra click. The deeper/expert
+// tooling (Screener, Technical Analysis, Compare, the full Reports suite)
+// still has every route it always did, just grouped under one
+// clearly-labeled "Analyst Tools" section instead of competing for
 // top-billing with 10 other equally-weighted menus.
 const navItems = [
   { to: '/', label: 'Dashboard', icon: 'home' },
-  { to: '/reports/digest', label: 'Daily Digest', icon: 'sparkle' },
-  { to: '/reports/beginner', label: "Beginner's Report", icon: 'book' },
   {
     label: 'My Portfolio',
     icon: 'wallet',
@@ -47,7 +45,6 @@ const navItems = [
       { to: '/signals/buy', label: 'Buy Signals' },
       { to: '/signals/sell', label: 'Sell Signals' },
       { to: '/signals/history', label: 'Signal History / Accuracy' },
-      { to: '/signals/how-it-works', label: 'How Signals Work' },
     ],
   },
   {
@@ -63,17 +60,6 @@ const navItems = [
       { to: '/market/52-week', label: '52 Week High/Low' },
       { to: '/market/sector-overview', label: 'Sector Overview' },
       { to: '/market/indices', label: 'Indices' },
-    ],
-  },
-  {
-    label: 'Learn',
-    icon: 'book',
-    base: '/learn',
-    children: [
-      { to: '/learn/basics', label: 'Stock Market Basics' },
-      { to: '/learn/reading-signals', label: 'How to Read Signals' },
-      { to: '/learn/indicators', label: 'Understanding Technical Indicators' },
-      { to: '/learn/glossary', label: 'Glossary of Terms' },
     ],
   },
   { section: 'Analyst Tools' },
@@ -96,7 +82,6 @@ const navItems = [
       { to: '/technical/dashboard', label: 'Indicator Dashboard' },
       { to: '/technical/support-resistance', label: 'Support & Resistance Finder' },
       { to: '/technical/patterns', label: 'Chart Patterns' },
-      { to: '/technical/glossary', label: 'Technical Glossary' },
     ],
   },
   {
@@ -116,6 +101,7 @@ const navItems = [
       { to: '/reports/market', label: 'Market' },
       { to: '/reports/sector', label: 'By Sector' },
       { to: '/reports/stock', label: 'By Stock' },
+      { to: '/reports/horizon', label: 'Investment Horizon' },
       { to: '/reports/analyst', label: 'Analyst Report' },
       { to: '/reports/rule-scanner', label: 'Rule Scanner' },
       { to: '/reports/technical', label: 'Technical Analysis' },

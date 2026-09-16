@@ -25,14 +25,31 @@ class NepalStockIndexService
 
     private const SOURCE_NAME = 'nepalstock.com/index';
 
-    public function __construct(private readonly NepalStockTokenService $tokens) {}
+    public function __construct(
+        private readonly NepalStockTokenService $tokens,
+        private readonly NepalStockMarketStatusService $marketStatus,
+    ) {}
 
     /**
-     * @return array{indices_updated: int}
+     * @return array{indices_updated: int, market_open: bool}
      */
     public function sync(): array
     {
         try {
+            // Same guard as NepalStockScraperService::scrape() — the index
+            // value NEPSE returns while closed is often just yesterday's
+            // stale close repeated, not a real "today" snapshot worth storing.
+            if (! $this->marketStatus->isOpen()) {
+                ScrapeLog::create([
+                    'source' => self::SOURCE_NAME,
+                    'status' => 'success',
+                    'records_processed' => 0,
+                    'message' => 'Market is closed today — nothing synced.',
+                ]);
+
+                return ['indices_updated' => 0, 'market_open' => false];
+            }
+
             $token = $this->tokens->getAccessToken();
 
             $response = Http::withHeaders([
@@ -87,7 +104,7 @@ class NepalStockIndexService
                 'message' => count($snapshots).' index snapshot(s) updated.',
             ]);
 
-            return ['indices_updated' => count($snapshots)];
+            return ['indices_updated' => count($snapshots), 'market_open' => true];
         } catch (Throwable $e) {
             Log::warning('NEPSE index sync failed', ['error' => $e->getMessage()]);
 

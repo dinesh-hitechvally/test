@@ -29,7 +29,6 @@ const routes = [
   { path: '/signals/buy', name: 'signals-buy', component: () => import('../views/SignalsBuy.vue'), meta: { requiresAuth: true, title: 'Buy Signals' } },
   { path: '/signals/sell', name: 'signals-sell', component: () => import('../views/SignalsSell.vue'), meta: { requiresAuth: true, title: 'Sell Signals' } },
   { path: '/signals/history', name: 'signals-history', component: () => import('../views/SignalHistory.vue'), meta: { requiresAuth: true, title: 'Signal History / Accuracy' } },
-  { path: '/signals/how-it-works', name: 'signals-how-it-works', component: () => import('../views/LearnTopic.vue'), meta: { requiresAuth: true, title: 'How Signals Work', topic: 'signals-explainer' } },
 
   { path: '/screener/presets', name: 'screener-presets', component: () => import('../views/ScreenerPresets.vue'), meta: { requiresAuth: true, title: 'Preset Screens' } },
   { path: '/screener/saved', name: 'screener-saved', component: () => import('../views/ScreenerSaved.vue'), meta: { requiresAuth: true, title: 'Saved Screens' } },
@@ -38,7 +37,6 @@ const routes = [
   { path: '/technical/dashboard', name: 'technical-dashboard', component: () => import('../views/IndicatorDashboard.vue'), meta: { requiresAuth: true, title: 'Indicator Dashboard' } },
   { path: '/technical/support-resistance', name: 'technical-support-resistance', component: () => import('../views/SupportResistanceFinder.vue'), meta: { requiresAuth: true, title: 'Support & Resistance Finder' } },
   { path: '/technical/patterns', name: 'technical-patterns', component: () => import('../views/ChartPatterns.vue'), meta: { requiresAuth: true, title: 'Chart Patterns' } },
-  { path: '/technical/glossary', name: 'technical-glossary', component: () => import('../views/LearnTopic.vue'), meta: { requiresAuth: true, title: 'Technical Glossary', topic: 'indicators' } },
 
   { path: '/screener', name: 'screener', component: () => import('../views/Screener.vue'), meta: { requiresAuth: true, title: 'Screener' } },
   { path: '/compare', name: 'compare', component: () => import('../views/Compare.vue'), meta: { requiresAuth: true, title: 'Compare' } },
@@ -50,14 +48,8 @@ const routes = [
   { path: '/reports/rule-scanner', name: 'reports-rule-scanner', component: () => import('../views/ReportsRuleScanner.vue'), meta: { requiresAuth: true, title: 'Rule Scanner' } },
   { path: '/reports/technical/:symbol?', name: 'reports-technical', component: () => import('../views/ReportsTechnical.vue'), meta: { requiresAuth: true, title: 'Technical Analysis' } },
   { path: '/reports/dividends', name: 'reports-dividends', component: () => import('../views/ReportsDividend.vue'), meta: { requiresAuth: true, title: 'Dividend Report' } },
+  { path: '/reports/horizon', name: 'reports-horizon', component: () => import('../views/InvestmentHorizon.vue'), meta: { requiresAuth: true, title: 'Investment Horizon' } },
   { path: '/reports/analyst/:symbol?', name: 'reports-analyst', component: () => import('../views/ReportsAnalyst.vue'), meta: { requiresAuth: true, title: 'Analyst Report' } },
-  { path: '/reports/digest', name: 'reports-digest', component: () => import('../views/DailyDigest.vue'), meta: { requiresAuth: true, title: 'Daily Digest' } },
-  { path: '/reports/beginner', name: 'reports-beginner', component: () => import('../views/BeginnerReport.vue'), meta: { requiresAuth: true, title: "Beginner's Report" } },
-
-  { path: '/learn/basics', name: 'learn-basics', component: () => import('../views/LearnTopic.vue'), meta: { requiresAuth: true, title: 'Stock Market Basics', topic: 'basics' } },
-  { path: '/learn/reading-signals', name: 'learn-reading-signals', component: () => import('../views/LearnTopic.vue'), meta: { requiresAuth: true, title: 'How to Read Signals', topic: 'reading-signals' } },
-  { path: '/learn/indicators', name: 'learn-indicators', component: () => import('../views/LearnTopic.vue'), meta: { requiresAuth: true, title: 'Understanding Technical Indicators', topic: 'indicators' } },
-  { path: '/learn/glossary', name: 'learn-glossary', component: () => import('../views/LearnTopic.vue'), meta: { requiresAuth: true, title: 'Glossary of Terms', topic: 'glossary' } },
 
   { path: '/settings', name: 'settings', component: () => import('../views/SettingsOverview.vue'), meta: { requiresAuth: true, title: 'Settings' } },
   { path: '/settings/profile', name: 'settings-profile', component: () => import('../views/Profile.vue'), meta: { requiresAuth: true, title: 'Profile' } },

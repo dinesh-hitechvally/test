@@ -34,7 +34,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/stocks/{symbol}/prices', [StockController::class, 'prices']);
     Route::get('/stocks/{symbol}/indicators', [StockController::class, 'indicators']);
     Route::get('/stocks/{symbol}/signals', [StockController::class, 'signals']);
-    Route::get('/stocks/{symbol}/forecast', [StockController::class, 'forecast']);
     Route::post('/stocks/{symbol}/fetch-full-history', [StockController::class, 'fetchFullHistory']);
     Route::post('/stocks/{symbol}/fetch-nepse-history', [StockController::class, 'fetchNepseHistory']);
     Route::get('/stocks/{symbol}/ml-prediction', [StockController::class, 'mlPrediction']);
@@ -69,6 +68,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/rule-scan', [ReportController::class, 'ruleScan']);
     Route::get('/reports/technical/{symbol}', [ReportController::class, 'technical']);
     Route::get('/reports/dividends', [ReportController::class, 'dividends']);
+    Route::get('/reports/long-term', [ReportController::class, 'longTerm']);
+    Route::get('/reports/mid-term', [ReportController::class, 'midTerm']);
+    Route::get('/reports/short-term', [ReportController::class, 'shortTerm']);
     Route::get('/reports/analyst/{symbol}', [ReportController::class, 'analyst']);
 
     Route::get('/market/screener', [MarketController::class, 'screener']);

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\ForecastModel;
 use App\Models\SignalAccuracyStat;
 use App\Models\Stock;
 use App\Services\MarketData\MarketReportService;
@@ -129,6 +128,27 @@ class ReportController extends Controller
         return response()->json($reports->dividendReport($request->query('sector')));
     }
 
+    public function longTerm(Request $request, MarketReportService $reports)
+    {
+        return response()->json([
+            'candidates' => $reports->rankLongTermCandidates($request->query('sector')),
+        ]);
+    }
+
+    public function midTerm(Request $request, MarketReportService $reports)
+    {
+        return response()->json([
+            'candidates' => $reports->rankMidTermCandidates($request->query('sector')),
+        ]);
+    }
+
+    public function shortTerm(Request $request, MarketReportService $reports)
+    {
+        return response()->json([
+            'candidates' => $reports->rankShortTermCandidates($request->query('sector')),
+        ]);
+    }
+
     public function technical(string $symbol, TechnicalAnalysisReportService $reports)
     {
         $stock = Stock::where('symbol', strtoupper($symbol))->firstOrFail();
@@ -146,11 +166,11 @@ class ReportController extends Controller
     /**
      * The "Analyst Report" — one stock, every lens the app has on it (price
      * performance, technical read, dividend history, rule-based signal with
-     * its own honest backtest context, ML direction call, statistical
-     * forecast) assembled in one response. No new computation happens here;
-     * it's a merge of what TechnicalAnalysisReportService, MarketReportService,
-     * MlDirectionPredictorService and the forecast/signal tables already
-     * produce elsewhere, so nothing here can drift from those other pages.
+     * its own honest backtest context, ML direction call) assembled in one
+     * response. No new computation happens here; it's a merge of what
+     * TechnicalAnalysisReportService, MarketReportService,
+     * MlDirectionPredictorService and the signal tables already produce
+     * elsewhere, so nothing here can drift from those other pages.
      */
     public function analyst(string $symbol, MarketReportService $reports, TechnicalAnalysisReportService $technical, MlDirectionPredictorService $predictor)
     {
@@ -174,12 +194,6 @@ class ReportController extends Controller
             // failing the whole report over one section.
             $mlPrediction = null;
         }
-
-        $latestForecastDate = $stock->forecasts()->max('generated_date');
-        $forecastAccuracy = ForecastModel::latest('computed_at')->first();
-        $forecasts = $latestForecastDate
-            ? $stock->forecasts()->where('generated_date', $latestForecastDate)->orderBy('target_date')->get()
-            : collect();
 
         return response()->json([
             'stock' => [
@@ -213,14 +227,6 @@ class ReportController extends Controller
                 'model_baseline_accuracy' => (float) $mlModel->baseline_accuracy,
                 'beats_baseline' => $mlModel->beatsBaseline(),
             ] : null,
-            'forecast' => [
-                'forecasts' => $forecasts,
-                'accuracy' => $forecastAccuracy ? [
-                    'mape' => (float) $forecastAccuracy->mape,
-                    'directional_accuracy' => (float) $forecastAccuracy->directional_accuracy,
-                    'beats_coin_flip' => $forecastAccuracy->beatsCoinFlip(),
-                ] : null,
-            ],
         ]);
     }
 

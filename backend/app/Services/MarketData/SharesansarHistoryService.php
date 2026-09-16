@@ -71,6 +71,7 @@ class SharesansarHistoryService
 
             $result = $this->persist($stock, $rows);
             $stock->update(['history_fetched_at' => now()]);
+            $stock->clearScrapeError();
 
             ScrapeLog::create([
                 'source' => self::SOURCE_NAME,
@@ -97,6 +98,8 @@ class SharesansarHistoryService
                 'records_processed' => 0,
                 'message' => $this->truncatedMessage($stock->symbol, $e),
             ]);
+
+            $stock->flagScrapeError('history', $e->getMessage());
 
             throw $e;
         }

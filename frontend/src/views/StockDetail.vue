@@ -19,7 +19,6 @@ const signalsTotalPages = ref(1)
 const signalsLoading = ref(false)
 const signalsFromFilter = ref('')
 const signalsToFilter = ref('')
-const forecast = ref({ forecasts: [], disclaimer: '' })
 const mlPrediction = ref(null)
 const mlModel = ref(null)
 const dividends = ref([])
@@ -47,7 +46,7 @@ const corporateActionsError = ref('')
 async function loadAll(symbol) {
   loading.value = true
   signalsPage.value = 1
-  const [stockRes, pricesRes, indicatorsRes, forecastRes, mlRes, dividendsRes, rightSharesRes] = await Promise.all([
+  const [stockRes, pricesRes, indicatorsRes, mlRes, dividendsRes, rightSharesRes] = await Promise.all([
     client.get(`/stocks/${symbol}`),
     // A large-enough number to just mean "everything on record" — the
     // Price & Moving Averages chart zooms/pans over this full range, and a
@@ -55,7 +54,6 @@ async function loadAll(symbol) {
     // however many rows really exist, no error).
     client.get(`/stocks/${symbol}/prices`, { params: { days: 10000 } }),
     client.get(`/stocks/${symbol}/indicators`, { params: { days: 10000 } }),
-    client.get(`/stocks/${symbol}/forecast`),
     client.get(`/stocks/${symbol}/ml-prediction`),
     client.get(`/stocks/${symbol}/dividends`),
     client.get(`/stocks/${symbol}/right-shares`),
@@ -64,7 +62,6 @@ async function loadAll(symbol) {
   stock.value = stockRes.data
   prices.value = pricesRes.data
   indicators.value = indicatorsRes.data
-  forecast.value = forecastRes.data.forecasts ? forecastRes.data : { forecasts: [], disclaimer: '' }
   mlPrediction.value = mlRes.data.prediction
   mlModel.value = mlRes.data.model
   dividends.value = dividendsRes.data
@@ -182,7 +179,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
     <template v-else>
       <div class="card">
         <h3>Price &amp; Moving Averages</h3>
-        <PriceChart :prices="prices" :indicators="indicators" :forecasts="forecast.forecasts" />
+        <PriceChart :prices="prices" :indicators="indicators" />
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
@@ -207,43 +204,6 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         </div>
       </div>
 
-      <div v-if="forecast.forecasts?.length" class="card" style="margin-top: 16px">
-        <h3>Statistical Forecast — Holt's Exponential Smoothing</h3>
-        <p class="muted">{{ forecast.disclaimer }}</p>
-
-        <div v-if="forecast.accuracy" class="accuracy-box" :class="{ warn: !forecast.accuracy.beats_coin_flip }">
-          <strong>{{ forecast.accuracy.beats_coin_flip ? 'Beats a coin flip' : "Doesn't beat a coin flip" }}:</strong>
-          backtested directional accuracy {{ (forecast.accuracy.directional_accuracy * 100).toFixed(1) }}% (vs. 50%
-          for a random guess), average error (MAPE) {{ (forecast.accuracy.mape * 100).toFixed(1) }}%, measured across
-          {{ forecast.accuracy.test_points }} walk-forward test points on {{ forecast.accuracy.stocks_used }} stocks
-          (backtested {{ new Date(forecast.accuracy.computed_at).toLocaleDateString() }}, {{ forecast.accuracy.horizon_days }}-day horizon).
-          <span v-if="!forecast.accuracy.beats_coin_flip">
-            In its current form this isn't reliably calling direction — shown for transparency, not as a recommendation.
-          </span>
-        </div>
-
-        <p class="note">
-          This can disagree with the Signal above — they use opposite logic on purpose. The Signal is
-          <strong>mean-reversion</strong>: it flags Buy when the price has fallen enough to look oversold (RSI, Bollinger
-          Bands) and Sell when it's risen enough to look overbought, betting on a reversal. The Forecast is pure
-          <strong>trend continuation</strong> (Holt's method: a smoothed level + trend, weighted toward recent prices),
-          with no concept of overbought/oversold — it just assumes the recent direction keeps going. Seeing "price
-          trending down" here alongside a "Buy" signal (or "trending up" alongside "Sell") is expected, not a bug.
-        </p>
-        <div class="scroll-table">
-          <table class="table">
-            <thead>
-              <tr><th>Target Date</th><th>Predicted Close</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="f in forecast.forecasts" :key="f.id">
-                <td>{{ f.target_date }}</td>
-                <td>Rs. {{ formatPrice(f.predicted_close) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
     </template>
 
     <div class="card" style="margin-top: 16px">
@@ -346,10 +306,6 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 
     <div class="card" style="margin-top: 16px">
       <h3>Signal History</h3>
-      <p class="muted" style="margin-top: -6px">
-        "Predicted" is what an earlier trend forecast projected for that date, so you can compare it against what the
-        price actually did.
-      </p>
 
       <div class="signal-filters">
         <label class="filter-field">
@@ -373,13 +329,12 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 
       <table class="table">
         <thead>
-          <tr><th>Date</th><th>Price</th><th>Predicted</th><th>Signal</th><th>Score</th><th>Reasons</th></tr>
+          <tr><th>Date</th><th>Price</th><th>Signal</th><th>Score</th><th>Reasons</th></tr>
         </thead>
         <tbody>
           <tr v-for="s in signals" :key="s.id">
             <td>{{ s.trade_date }}</td>
             <td>Rs. {{ formatPrice(s.price_at_signal) }}</td>
-            <td>{{ s.predicted_close ? `Rs. ${formatPrice(s.predicted_close)}` : '—' }}</td>
             <td><span class="badge" :class="s.signal">{{ formatSignal(s.signal) }}</span></td>
             <td>{{ s.score }}</td>
             <td class="muted">{{ s.reasons.join('; ') }}</td>
@@ -452,21 +407,5 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.scroll-table {
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-.note {
-  background: #f8fafc;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 0.83rem;
-  color: var(--text-muted);
-  line-height: 1.5;
-  margin: 10px 0 16px;
 }
 </style>
