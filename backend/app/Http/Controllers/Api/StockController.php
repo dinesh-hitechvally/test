@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Stock;
+use App\Services\AiStockOpinionService;
 use App\Services\MarketData\CsvPriceImportService;
 use App\Services\MarketData\MarketReportService;
 use App\Services\MarketData\MlDirectionPredictorService;
@@ -155,6 +156,13 @@ class StockController extends Controller
                 'stocks_used' => $model->stocks_used,
             ],
         ]);
+    }
+
+    public function aiOpinion(string $symbol, AiStockOpinionService $ai)
+    {
+        $stock = $this->findStock($symbol, ['latestSignal']);
+
+        return response()->json($ai->opinion($stock));
     }
 
     public function importCsv(Request $request, CsvPriceImportService $importer, RecalculationPipeline $pipeline)

@@ -33,6 +33,11 @@ const SECTIONS = [
     description: 'The real scraping schedule and recent scrape activity.',
   },
   {
+    to: 'settings-login-history',
+    label: 'Login History',
+    description: 'Recent sign-ins to your account — IP, location, and device.',
+  },
+  {
     to: 'settings-admin',
     label: 'Users',
     description: 'Everyone with an account on this instance.',

@@ -118,6 +118,7 @@ const navItems = [
       { to: '/settings/profile', label: 'Profile' },
       { to: '/settings/notifications', label: 'Notification Preferences' },
       { to: '/settings/data-source', label: 'Data Source / Scrape Settings' },
+      { to: '/settings/login-history', label: 'Login History' },
       { to: '/settings/admin', label: 'Users / Admin' },
     ],
   },

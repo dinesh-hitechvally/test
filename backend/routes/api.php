@@ -27,6 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::put('/user/profile', [AuthController::class, 'updateProfile']);
     Route::put('/user/password', [AuthController::class, 'updatePassword']);
+    Route::get('/user/login-history', [AuthController::class, 'loginHistory']);
     Route::get('/users', [UserController::class, 'index']);
 
     Route::get('/stocks', [StockController::class, 'index']);
@@ -39,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/stocks/{symbol}/fetch-full-history', [StockController::class, 'fetchFullHistory']);
     Route::post('/stocks/{symbol}/fetch-nepse-history', [StockController::class, 'fetchNepseHistory']);
     Route::get('/stocks/{symbol}/ml-prediction', [StockController::class, 'mlPrediction']);
+    Route::get('/stocks/{symbol}/ai-opinion', [StockController::class, 'aiOpinion']);
     Route::get('/stocks/{symbol}/dividends', [StockController::class, 'dividends']);
     Route::get('/stocks/{symbol}/right-shares', [StockController::class, 'rightShares']);
     Route::post('/stocks/{symbol}/fetch-corporate-actions', [StockController::class, 'fetchCorporateActions']);

@@ -23,6 +23,9 @@ const mlPrediction = ref(null)
 const mlModel = ref(null)
 const dividends = ref([])
 const rightShares = ref([])
+const aiOpinion = ref(null)
+const loadingAiOpinion = ref(false)
+const aiOpinionError = ref('')
 
 const {
   sorted: sortedDividends,
@@ -46,6 +49,8 @@ const corporateActionsError = ref('')
 async function loadAll(symbol) {
   loading.value = true
   signalsPage.value = 1
+  aiOpinion.value = null
+  aiOpinionError.value = ''
   const [stockRes, pricesRes, indicatorsRes, mlRes, dividendsRes, rightSharesRes] = await Promise.all([
     client.get(`/stocks/${symbol}`),
     // Most recent 1000 trading days (~4 years) — the Price & Moving
@@ -87,6 +92,23 @@ async function loadSignalsPage(page) {
     signalsTotalPages.value = data.total_pages
   } finally {
     signalsLoading.value = false
+  }
+}
+
+async function loadAiOpinion() {
+  loadingAiOpinion.value = true
+  aiOpinionError.value = ''
+  try {
+    const { data } = await client.get(`/stocks/${route.params.symbol}/ai-opinion`)
+    if (data.available) {
+      aiOpinion.value = data
+    } else {
+      aiOpinionError.value = data.message
+    }
+  } catch (e) {
+    aiOpinionError.value = e.response?.data?.message || 'Could not get an AI opinion right now.'
+  } finally {
+    loadingAiOpinion.value = false
   }
 }
 
@@ -237,6 +259,29 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
           Not enough price history for this stock yet (needs 260+ days) — use "Fetch Full History" above.
         </p>
       </template>
+    </div>
+
+    <div class="card" style="margin-top: 16px">
+      <h3>AI Opinion</h3>
+      <p class="muted">
+        A 4th independent lens, generated on demand — fed the exact same technical/dividend/signal/ML data shown
+        above, not new information. Not financial advice.
+      </p>
+
+      <button v-if="!aiOpinion" class="btn-secondary btn" :disabled="loadingAiOpinion" @click="loadAiOpinion">
+        {{ loadingAiOpinion ? 'Asking AI…' : 'Get AI Opinion' }}
+      </button>
+
+      <p v-if="aiOpinionError" class="muted" style="margin-top: 8px">{{ aiOpinionError }}</p>
+
+      <div v-if="aiOpinion" class="ai-opinion">
+        <span class="badge" :class="aiOpinion.verdict === 'buy' ? 'buy' : aiOpinion.verdict === 'sell' ? 'sell' : 'hold'">
+          {{ aiOpinion.verdict }}
+        </span>
+        <span class="muted">{{ aiOpinion.confidence }} confidence</span>
+        <p style="margin-top: 8px">{{ aiOpinion.reasoning }}</p>
+        <button class="btn-secondary btn small" :disabled="loadingAiOpinion" @click="loadAiOpinion">Refresh</button>
+      </div>
     </div>
 
     <div class="card" style="margin-top: 16px">
@@ -407,5 +452,13 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.ai-opinion {
+  margin-top: 12px;
+}
+
+.ai-opinion .small {
+  margin-top: 10px;
 }
 </style>

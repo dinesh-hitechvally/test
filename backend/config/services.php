@@ -54,4 +54,13 @@ return [
         'alert_email' => env('CRON_ALERT_EMAIL'),
     ],
 
+    'gemini' => [
+        // Free-tier Google AI Studio key (https://aistudio.google.com/apikey)
+        // — powers the "AI Opinion" buy/sell/hold lens on the Stock Detail
+        // and Analyst Report pages. Leave unset to skip the feature entirely
+        // (the endpoint just returns "not configured", no error).
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.6-flash'),
+    ],
+
 ];

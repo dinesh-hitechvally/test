@@ -43,6 +43,12 @@ class User extends Authenticatable
         return $this->hasMany(SavedScreen::class);
     }
 
+    /** @return HasMany<LoginHistory, $this> */
+    public function loginHistories(): HasMany
+    {
+        return $this->hasMany(LoginHistory::class);
+    }
+
     /**
      * Get the attributes that should be cast.
      *

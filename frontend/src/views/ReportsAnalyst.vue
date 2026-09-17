@@ -17,6 +17,9 @@ const selected = ref(route.params.symbol || '')
 const data = ref(null)
 const loading = ref(false)
 const error = ref('')
+const aiOpinion = ref(null)
+const loadingAiOpinion = ref(false)
+const aiOpinionError = ref('')
 
 function fmt(v) {
   return v === null || v === undefined ? '—' : formatPrice(v)
@@ -29,6 +32,9 @@ function toneOf(word) {
 }
 
 async function load() {
+  aiOpinion.value = null
+  aiOpinionError.value = ''
+
   if (!selected.value) {
     data.value = null
     return
@@ -44,6 +50,23 @@ async function load() {
     data.value = null
   } finally {
     loading.value = false
+  }
+}
+
+async function loadAiOpinion() {
+  loadingAiOpinion.value = true
+  aiOpinionError.value = ''
+  try {
+    const { data: res } = await client.get(`/stocks/${selected.value}/ai-opinion`)
+    if (res.available) {
+      aiOpinion.value = res
+    } else {
+      aiOpinionError.value = res.message
+    }
+  } catch (e) {
+    aiOpinionError.value = e.response?.data?.message || 'Could not get an AI opinion right now.'
+  } finally {
+    loadingAiOpinion.value = false
   }
 }
 
@@ -64,10 +87,10 @@ onMounted(async () => {
   if (selected.value) await load()
 })
 
-// Tallies the app's 3 independent lenses on direction — technical read,
-// rule-based signal, ML model — so a reader sees at a glance whether the
-// evidence agrees or conflicts, rather than having to mentally
-// cross-reference 3 separate cards themselves.
+// Tallies the app's independent lenses on direction — technical read,
+// rule-based signal, ML model, and (once fetched) the on-demand AI opinion —
+// so a reader sees at a glance whether the evidence agrees or conflicts,
+// rather than having to mentally cross-reference each card themselves.
 const consensus = computed(() => {
   if (!data.value) return null
   const votes = []
@@ -83,6 +106,11 @@ const consensus = computed(() => {
 
   if (data.value.ml_prediction) {
     votes.push({ label: 'ML model', lean: data.value.ml_prediction.direction })
+  }
+
+  if (aiOpinion.value) {
+    const lean = aiOpinion.value.verdict === 'buy' ? 'up' : aiOpinion.value.verdict === 'sell' ? 'down' : 'neutral'
+    votes.push({ label: 'AI opinion', lean })
   }
 
   const up = votes.filter((v) => v.lean === 'up').length
@@ -111,7 +139,7 @@ const summary = computed(() => {
   if (consensus.value && consensus.value.total > 0) {
     const c = consensus.value
     lines.push(
-      `Across the ${c.total} independent lenses this report checks (technical read, rule-based signal, ML model — whichever are available), the evidence is ${c.verdict}: ${c.up} lean bullish, ${c.down} lean bearish` +
+      `Across the ${c.total} independent lenses this report checks (technical read, rule-based signal, ML model, and the AI opinion if you've fetched it — whichever are available), the evidence is ${c.verdict}: ${c.up} lean bullish, ${c.down} lean bearish` +
         (c.total - c.up - c.down > 0 ? `, ${c.total - c.up - c.down} neutral.` : '.')
     )
   }
@@ -212,6 +240,29 @@ const summary = computed(() => {
           Overall: <strong>{{ consensus.verdict }}</strong> ({{ consensus.up }} bullish / {{ consensus.down }} bearish
           out of {{ consensus.total }}).
         </p>
+      </div>
+
+      <div class="card" style="margin-top: 16px">
+        <h3>AI Opinion</h3>
+        <p class="muted">
+          A 4th independent lens, generated on demand — fed the same technical/dividend/signal/ML data above, not
+          new information. Not financial advice.
+        </p>
+
+        <button v-if="!aiOpinion" class="btn-secondary btn" :disabled="loadingAiOpinion" @click="loadAiOpinion">
+          {{ loadingAiOpinion ? 'Asking AI…' : 'Get AI Opinion' }}
+        </button>
+
+        <p v-if="aiOpinionError" class="muted" style="margin-top: 8px">{{ aiOpinionError }}</p>
+
+        <div v-if="aiOpinion" style="margin-top: 12px">
+          <span class="badge" :class="aiOpinion.verdict === 'buy' ? 'buy' : aiOpinion.verdict === 'sell' ? 'sell' : 'hold'">
+            {{ aiOpinion.verdict }}
+          </span>
+          <span class="muted">{{ aiOpinion.confidence }} confidence</span>
+          <p style="margin-top: 8px">{{ aiOpinion.reasoning }}</p>
+          <button class="btn-secondary btn small" :disabled="loadingAiOpinion" @click="loadAiOpinion">Refresh</button>
+        </div>
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">

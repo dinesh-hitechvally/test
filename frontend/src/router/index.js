@@ -56,6 +56,7 @@ const routes = [
   { path: '/settings/profile', name: 'settings-profile', component: () => import('../views/Profile.vue'), meta: { requiresAuth: true, title: 'Profile' } },
   { path: '/settings/notifications', name: 'settings-notifications', component: () => import('../views/NotificationPreferences.vue'), meta: { requiresAuth: true, title: 'Notification Preferences' } },
   { path: '/settings/data-source', name: 'settings-data-source', component: () => import('../views/DataSourceSettings.vue'), meta: { requiresAuth: true, title: 'Data Source / Scrape Settings' } },
+  { path: '/settings/login-history', name: 'settings-login-history', component: () => import('../views/LoginHistory.vue'), meta: { requiresAuth: true, title: 'Login History' } },
   { path: '/settings/admin', name: 'settings-admin', component: () => import('../views/UsersAdmin.vue'), meta: { requiresAuth: true, title: 'Users' } },
 ]
 
