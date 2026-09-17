@@ -3,14 +3,26 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import client from '../api/client'
 import { useStocksStore } from '../stores/stocks'
+import { useAuthStore } from '../stores/auth'
 import { formatPrice } from '../utils/format'
 import StatCard from '../components/StatCard.vue'
 import SignalDistributionChart from '../components/SignalDistributionChart.vue'
 import MarketBreadthChart from '../components/MarketBreadthChart.vue'
 import SectorBreakdownChart from '../components/SectorBreakdownChart.vue'
+import NavIcon from '../components/NavIcon.vue'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const store = useStocksStore()
+const auth = useAuthStore()
+
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  const name = auth.user?.name?.split(' ')[0]
+  const time = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  return name ? `${time}, ${name}` : time
+})
+
+const todayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
 const { sorted: sortedSignals, toggleSort, sortIndicator } = useSortableTable(
   computed(() => store.todaySignals),
@@ -69,6 +81,11 @@ onMounted(async () => {
 
 <template>
   <div>
+    <div class="dash-greeting">
+      <h1>{{ greeting }}</h1>
+      <p class="muted">{{ todayLabel }}</p>
+    </div>
+
     <template v-if="report">
       <div class="grid grid-cards">
         <StatCard label="Stocks Tracked" :value="report.totals.stocks" :sub="`${report.totals.with_signals} have a signal`" />
@@ -93,22 +110,22 @@ onMounted(async () => {
 
       <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top: 16px">
         <div class="card">
-          <h3>Signal Distribution</h3>
+          <h3 class="card-heading"><span class="card-icon"><NavIcon name="target" /></span>Signal Distribution</h3>
           <SignalDistributionChart :counts="report.signal_counts" />
         </div>
         <div class="card">
-          <h3>Market Breadth</h3>
+          <h3 class="card-heading"><span class="card-icon"><NavIcon name="pulse" /></span>Market Breadth</h3>
           <MarketBreadthChart :breadth="report.breadth" />
         </div>
         <div class="card">
-          <h3>Sector Breakdown</h3>
+          <h3 class="card-heading"><span class="card-icon"><NavIcon name="chart" /></span>Sector Breakdown</h3>
           <SectorBreakdownChart :sectors="report.sector_breakdown" />
         </div>
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
         <div class="card">
-          <h3>Top Gainers</h3>
+          <h3 class="card-heading positive-heading"><span class="card-icon positive-icon"><NavIcon name="target" /></span>Top Gainers</h3>
           <table class="table">
             <tbody>
               <tr v-for="m in report.movers.gainers" :key="m.stock_id">
@@ -122,7 +139,7 @@ onMounted(async () => {
           <p v-if="report.movers.gainers.length === 0" class="muted">Not enough data yet.</p>
         </div>
         <div class="card">
-          <h3>Top Losers</h3>
+          <h3 class="card-heading negative-heading"><span class="card-icon negative-icon"><NavIcon name="target" /></span>Top Losers</h3>
           <table class="table">
             <tbody>
               <tr v-for="m in report.movers.losers" :key="m.stock_id">
@@ -196,6 +213,47 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.dash-greeting {
+  margin-bottom: 20px;
+}
+
+.dash-greeting h1 {
+  margin-bottom: 2px;
+}
+
+.card-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.card-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.positive-heading .card-icon.positive-icon {
+  background: var(--strong-buy-bg);
+  color: var(--strong-buy);
+}
+
+.negative-heading .card-icon.negative-icon {
+  background: var(--strong-sell-bg);
+  color: var(--strong-sell);
+}
+
 .filters {
   display: flex;
   gap: 8px;

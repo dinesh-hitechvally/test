@@ -188,7 +188,7 @@ onUnmounted(() => {
   padding: 14px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03), 0 2px 8px rgba(15, 23, 42, 0.03);
+  box-shadow: var(--shadow-sm);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -217,7 +217,7 @@ onUnmounted(() => {
   right: 0;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   z-index: 20;
   overflow: hidden;
@@ -261,7 +261,7 @@ onUnmounted(() => {
   background: none;
   border: 1px solid var(--border);
   color: var(--text-muted);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 7px 9px;
   cursor: pointer;
   display: flex;
@@ -295,7 +295,7 @@ onUnmounted(() => {
   width: 320px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   z-index: 20;
   overflow: hidden;
@@ -367,9 +367,10 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   color: var(--text-muted);
   padding: 5px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 0.82rem;
+  transition: background-color 0.15s ease;
 }
 
 .link-btn:hover {

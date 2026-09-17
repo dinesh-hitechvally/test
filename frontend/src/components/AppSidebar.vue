@@ -154,7 +154,7 @@ function toggle(item) {
 <template>
   <aside class="sidebar">
     <div class="brand">
-      <span class="brand-mark">SM</span>
+      <span class="brand-mark"><NavIcon name="pulse" /></span>
       <span class="brand-name">Share Market Signals</span>
     </div>
 
@@ -211,8 +211,8 @@ function toggle(item) {
 .brand-mark {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
-  background: #2563eb;
+  border-radius: 9px;
+  background: var(--primary-gradient);
   color: #fff;
   display: flex;
   align-items: center;
@@ -220,6 +220,7 @@ function toggle(item) {
   font-weight: 700;
   font-size: 0.8rem;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
 }
 
 .brand-name {
@@ -251,27 +252,29 @@ function toggle(item) {
   align-items: center;
   gap: 10px;
   padding: 9px 12px;
-  border-radius: 8px;
+  border-radius: 9px;
   color: #cbd5e1;
   text-decoration: none;
   font-size: 0.88rem;
   font-weight: 500;
   width: 100%;
   border: none;
+  border-left: 3px solid transparent;
   background: none;
   cursor: pointer;
   font-family: inherit;
   text-align: left;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
 .nav-link:hover {
-  background: #1e293b;
+  background: #1a2333;
   color: #fff;
 }
 
 .nav-link.active {
-  background: #2563eb;
+  background: rgba(37, 99, 235, 0.18);
+  border-left-color: #5b8def;
   color: #fff;
 }
 
@@ -304,17 +307,18 @@ function toggle(item) {
   text-decoration: none;
   font-size: 0.82rem;
   padding: 7px 10px;
-  border-radius: 6px;
+  border-radius: 7px;
   transition: background-color 0.12s ease, color 0.12s ease;
 }
 
 .sub-link:hover {
-  background: #1e293b;
+  background: #1a2333;
   color: #fff;
 }
 
 .sub-link.active {
-  background: #1e3a8a;
-  color: #fff;
+  background: rgba(37, 99, 235, 0.22);
+  color: #a9c6ff;
+  font-weight: 600;
 }
 </style>

@@ -2,25 +2,32 @@
   color-scheme: light;
   --bg: #f4f6fb;
   --surface: #ffffff;
-  --border: #e6eaf1;
+  --border: #e7eaf2;
   --text: #0f172a;
   --text-muted: #64748b;
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
   --primary-soft: #eff4ff;
+  --primary-gradient: linear-gradient(135deg, #2f6fed, #1d4ed8);
   --strong-buy: #15803d;
-  --buy: #4d9e6c;
-  --hold: #94a3b8;
-  --sell: #dc7a4d;
+  --strong-buy-bg: #dcfce7;
+  --buy: #3f8a5c;
+  --buy-bg: #e7f6ec;
+  --hold: #55637a;
+  --hold-bg: #eef1f6;
+  --sell: #b45309;
+  --sell-bg: #fdf1e2;
   --strong-sell: #b91c1c;
+  --strong-sell-bg: #fee2e2;
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
 
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.07);
-  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
+  --shadow-md: 0 8px 20px -6px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 24px 48px -16px rgba(15, 23, 42, 0.20), 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-focus: 0 0 0 3px var(--primary-soft);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -47,12 +54,13 @@ body {
 h1, h2, h3 {
   margin: 0 0 12px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   color: var(--text);
 }
 
 h1 {
-  font-size: 1.5rem;
+  font-size: 1.6rem;
+  font-weight: 800;
 }
 
 a {
@@ -76,7 +84,7 @@ textarea:focus-visible {
 }
 
 .btn {
-  background: var(--primary);
+  background: var(--primary-gradient);
   color: #fff;
   border: none;
   padding: 9px 16px;
@@ -85,16 +93,18 @@ textarea:focus-visible {
   font-size: 0.9rem;
   font-weight: 600;
   box-shadow: var(--shadow-sm);
-  transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+  transition: box-shadow 0.15s ease, transform 0.1s ease, filter 0.15s ease;
 }
 
 .btn:hover {
-  background: var(--primary-hover);
+  filter: brightness(1.06);
   box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .btn:active {
   transform: translateY(1px);
+  filter: brightness(0.98);
 }
 
 .btn:disabled {
@@ -103,18 +113,23 @@ textarea:focus-visible {
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+  filter: none;
 }
 
 .btn-secondary {
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
 .btn-secondary:hover {
   background: #f8fafc;
   border-color: #cbd5e1;
+}
+
+.btn-secondary:active {
+  transform: translateY(1px);
 }
 
 .btn-secondary.active,
@@ -211,23 +226,26 @@ textarea:focus-visible {
   font-size: 0.85rem;
 }
 
+/* Soft/tinted rather than solid-fill — a light tone of the signal color as
+   the background with the color itself as text, instead of a saturated pill
+   with white text. Reads calmer across dozens of tables at once, which a
+   full-color pill doesn't when repeated down a long column. */
 .badge {
   display: inline-block;
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #fff;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  box-shadow: var(--shadow-sm);
+  border: 1px solid transparent;
 }
 
-.badge.strong_buy { background: var(--strong-buy); }
-.badge.buy { background: var(--buy); }
-.badge.hold { background: var(--hold); }
-.badge.sell { background: var(--sell); }
-.badge.strong_sell { background: var(--strong-sell); }
+.badge.strong_buy { background: var(--strong-buy-bg); color: var(--strong-buy); }
+.badge.buy { background: var(--buy-bg); color: var(--buy); }
+.badge.hold { background: var(--hold-bg); color: var(--hold); }
+.badge.sell { background: var(--sell-bg); color: var(--sell); }
+.badge.strong_sell { background: var(--strong-sell-bg); color: var(--strong-sell); }
 
 .table {
   width: 100%;
@@ -236,7 +254,7 @@ textarea:focus-visible {
 
 .table th, .table td {
   text-align: left;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border-bottom: 1px solid var(--border);
   font-size: 0.88rem;
 }
@@ -247,6 +265,15 @@ textarea:focus-visible {
   text-transform: uppercase;
   font-size: 0.72rem;
   letter-spacing: 0.03em;
+  background: #fafbfd;
+}
+
+.table thead th:first-child {
+  border-top-left-radius: var(--radius-sm);
+}
+
+.table thead th:last-child {
+  border-top-right-radius: var(--radius-sm);
 }
 
 .table tbody tr {

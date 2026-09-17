@@ -14,6 +14,14 @@ class TrainMlPredictor extends Command
 {
     public function handle(MlDirectionPredictorService $predictor): int
     {
+        // The training set is every qualifying stock's full price/indicator
+        // history loaded into one in-memory Rubix ML dataset (not streamed) —
+        // this has grown from ~95 stocks to 500+ as full-history backfills
+        // completed, and now exceeds PHP's default 512M limit. Raised here
+        // rather than in php.ini since this is a one-off batch job, not a
+        // ceiling the web server's own request handling needs.
+        ini_set('memory_limit', '2048M');
+
         $this->info('Training direction predictor...');
 
         try {
