@@ -48,12 +48,12 @@ async function loadAll(symbol) {
   signalsPage.value = 1
   const [stockRes, pricesRes, indicatorsRes, mlRes, dividendsRes, rightSharesRes] = await Promise.all([
     client.get(`/stocks/${symbol}`),
-    // A large-enough number to just mean "everything on record" — the
-    // Price & Moving Averages chart zooms/pans over this full range, and a
-    // SQL LIMIT bigger than the actual row count is harmless (just returns
-    // however many rows really exist, no error).
-    client.get(`/stocks/${symbol}/prices`, { params: { days: 10000 } }),
-    client.get(`/stocks/${symbol}/indicators`, { params: { days: 10000 } }),
+    // Most recent 1000 trading days (~4 years) — the Price & Moving
+    // Averages chart zooms/pans within this range. Capped rather than
+    // "everything on record" so a stock with a decade of full history
+    // doesn't force a multi-thousand-row fetch on every page load.
+    client.get(`/stocks/${symbol}/prices`, { params: { days: 1000 } }),
+    client.get(`/stocks/${symbol}/indicators`, { params: { days: 1000 } }),
     client.get(`/stocks/${symbol}/ml-prediction`),
     client.get(`/stocks/${symbol}/dividends`),
     client.get(`/stocks/${symbol}/right-shares`),

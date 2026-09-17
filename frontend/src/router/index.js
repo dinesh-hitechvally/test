@@ -3,7 +3,8 @@ import { useAuthStore } from '../stores/auth'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/Login.vue'), meta: { guestOnly: true } },
-  { path: '/register', name: 'register', component: () => import('../views/Register.vue'), meta: { guestOnly: true } },
+  { path: '/forgot-password', name: 'forgot-password', component: () => import('../views/ForgotPassword.vue'), meta: { guestOnly: true } },
+  { path: '/reset-password', name: 'reset-password', component: () => import('../views/ResetPassword.vue'), meta: { guestOnly: true } },
   { path: '/', name: 'dashboard', component: () => import('../views/Dashboard.vue'), meta: { requiresAuth: true, title: 'Dashboard' } },
   { path: '/stocks', name: 'stocks', component: () => import('../views/Stocks.vue'), meta: { requiresAuth: true, title: 'Stocks' } },
   { path: '/stocks/:symbol', name: 'stock-detail', component: () => import('../views/StockDetail.vue'), meta: { requiresAuth: true, title: 'Stock Detail' } },

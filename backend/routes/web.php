@@ -39,10 +39,12 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
         Route::get('/sync-stock-list', [CronController::class, 'syncStockList']);
 
         // Fetches full history directly for stocks that don't have any yet
-        // (history_fetched_at IS NULL), a few at a time (?limit=, default 5)
-        // so one ping can't run long enough to hit a web server timeout.
-        // Safe to ping repeatedly (e.g. every 15 min) until "0 stock(s)
-        // still missing history".
+        // (stock_scrape_statuses.history_fetched_at IS NULL), a few at a
+        // time (?limit=, default 5) so one ping can't run long enough to hit
+        // a web server timeout. Safe to ping repeatedly (e.g. every 15 min)
+        // until "0 stock(s) still missing history" — a stock whose last
+        // attempt failed is skipped automatically instead of being retried
+        // forever; see fetch-history/{symbol} to retry one by hand.
         Route::get('/fetch-histories', [CronController::class, 'fetchHistories']);
 
         // On-demand, one stock at a time — no fixed timing. e.g.
@@ -59,8 +61,10 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
 
         // Same batched, timeout-proof shape as fetch-histories (?limit=,
         // default 5) — fetches dividend/bonus data (nepalstock.com's only
-        // source) for stocks that don't have any yet. Safe to ping
-        // repeatedly until "0 stock(s) still missing dividend data".
+        // source) for stocks that haven't had a successful fetch yet
+        // (stock_scrape_statuses.dividend_fetched_at IS NULL — genuinely
+        // having zero dividends counts as fetched, not pending). Safe to
+        // ping repeatedly until "0 stock(s) still missing dividend data".
         Route::get('/sync-dividends', [CronController::class, 'syncDividends']);
 
         // Daily prices and the index snapshot — ~30min after NEPSE's ~15:00

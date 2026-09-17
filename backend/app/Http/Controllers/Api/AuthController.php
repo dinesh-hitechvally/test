@@ -3,37 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'confirmed', Password::defaults()],
-        ]);
-
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-        ]);
-
-        $user->watchlists()->create(['name' => 'My Watchlist']);
-        $user->portfolios()->create(['name' => 'My Portfolio']);
-
-        Auth::login($user);
-        $request->session()->regenerate();
-
-        return response()->json(['user' => $user]);
-    }
-
     public function login(Request $request)
     {
         $credentials = $request->validate([
@@ -90,5 +67,42 @@ class AuthController extends Controller
         $user->update(['password' => Hash::make($validated['password'])]);
 
         return response()->json(['message' => 'Password updated.']);
+    }
+
+    /**
+     * Sends a reset link to the given email if an account exists for it —
+     * the actual link URL points at the frontend (see
+     * AppServiceProvider::boot()'s ResetPassword::createUrlUsing()), not a
+     * backend route, since this is an API-only backend behind a separate
+     * Vue SPA. Delivery goes through whatever MAIL_MAILER is configured
+     * (currently 'log' in dev, so the link lands in storage/logs/laravel.log
+     * instead of a real inbox until real SMTP is configured).
+     */
+    public function forgotPassword(Request $request)
+    {
+        $validated = $request->validate(['email' => ['required', 'email']]);
+
+        $status = PasswordBroker::sendResetLink($validated);
+
+        return $status === PasswordBroker::RESET_LINK_SENT
+            ? response()->json(['message' => __($status)])
+            : response()->json(['message' => __($status)], 422);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $validated = $request->validate([
+            'token' => ['required'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'confirmed', Password::defaults()],
+        ]);
+
+        $status = PasswordBroker::reset($validated, function ($user, $password) {
+            $user->update(['password' => Hash::make($password)]);
+        });
+
+        return $status === PasswordBroker::PASSWORD_RESET
+            ? response()->json(['message' => __($status)])
+            : response()->json(['message' => __($status)], 422);
     }
 }

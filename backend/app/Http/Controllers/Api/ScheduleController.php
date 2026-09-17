@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Stock;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The pipeline moved from the Laravel scheduler/server cron to URL-triggered
@@ -59,13 +59,33 @@ class ScheduleController extends Controller
             ];
         })->values();
 
-        // Stocks currently flagged with a failed per-stock fetch (history or
-        // sector — see Stock::flagScrapeError()) — not a retry mechanism,
-        // just visibility instead of a failure sitting silently in a log
-        // file. Cleared automatically the next time that fetch succeeds.
-        $flaggedStocks = Stock::whereNotNull('scrape_error')
+        // Stocks currently flagged with a failed per-stock fetch (history,
+        // sector, or dividend — see StockScrapeStatus) — not a retry
+        // mechanism, just visibility instead of a failure sitting silently
+        // in a log file. Cleared automatically the next time that same kind
+        // of fetch succeeds. Each source has its own error column on
+        // stock_scrape_statuses, so a stock failing on two sources at once
+        // appears as two rows here, one per source — unioned into the same
+        // flat shape the frontend has always expected.
+        $bySource = function (string $source) {
+            return DB::table('stock_scrape_statuses')
+                ->join('stocks', 'stocks.id', '=', 'stock_scrape_statuses.stock_id')
+                ->whereNotNull("stock_scrape_statuses.{$source}_error")
+                ->select(
+                    'stocks.id',
+                    'stocks.symbol',
+                    'stocks.company_name',
+                    DB::raw("'{$source}' as scrape_error_source"),
+                    "stock_scrape_statuses.{$source}_error as scrape_error",
+                    "stock_scrape_statuses.{$source}_error_at as scrape_error_at"
+                );
+        };
+
+        $flaggedStocks = $bySource('history')
+            ->unionAll($bySource('sector'))
+            ->unionAll($bySource('dividend'))
             ->orderByDesc('scrape_error_at')
-            ->get(['id', 'symbol', 'company_name', 'scrape_error', 'scrape_error_source', 'scrape_error_at']);
+            ->get();
 
         return response()->json([
             'secret_configured' => $secret !== null && $secret !== '',

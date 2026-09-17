@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector', 'share_group', 'face_value', 'is_active', 'history_fetched_at', 'scrape_error', 'scrape_error_source', 'scrape_error_at'])]
+#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector', 'share_group', 'face_value', 'is_active'])]
 class Stock extends Model
 {
     protected function casts(): array
@@ -15,31 +15,23 @@ class Stock extends Model
         return [
             'is_active' => 'boolean',
             'face_value' => 'decimal:2',
-            'history_fetched_at' => 'datetime',
-            'scrape_error_at' => 'datetime',
         ];
     }
 
-    /**
-     * Marks this stock as currently having a data issue — set on a failed
-     * per-stock fetch, cleared by clearScrapeError() the next time that
-     * kind of fetch succeeds. Not a retry mechanism, just a visible flag
-     * instead of a failure sitting silently in a log file.
-     */
-    public function flagScrapeError(string $source, string $message): void
+    /** @return HasOne<StockScrapeStatus, $this> */
+    public function scrapeStatus(): HasOne
     {
-        $this->update([
-            'scrape_error' => $message,
-            'scrape_error_source' => $source,
-            'scrape_error_at' => now(),
-        ]);
+        return $this->hasOne(StockScrapeStatus::class);
     }
 
-    public function clearScrapeError(): void
+    /**
+     * Every fetch-status call site needs a row to write to, but most stocks
+     * never had a scrape attempt yet — this creates it on first write
+     * instead of every caller repeating firstOrCreate() themselves.
+     */
+    public function ensureScrapeStatus(): StockScrapeStatus
     {
-        if ($this->scrape_error !== null) {
-            $this->update(['scrape_error' => null, 'scrape_error_source' => null, 'scrape_error_at' => null]);
-        }
+        return $this->scrapeStatus()->firstOrCreate([]);
     }
 
     /**

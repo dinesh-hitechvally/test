@@ -115,16 +115,27 @@ class CronController extends Controller
      * default 5). Deliberately batched small — a web request/reverse-proxy
      * timeout would otherwise kill a run partway through many stocks, each
      * needing several paginated ShareSansar requests. That's harmless here:
-     * fetchFullHistory() sets history_fetched_at as each stock finishes, so
-     * an interrupted run just picks up where it left off next time it's
-     * pinged. One stock's failure doesn't stop the rest in the batch.
+     * fetchFullHistory() sets history_fetched_at (on stock_scrape_statuses)
+     * as each stock finishes, so an interrupted run just picks up where it
+     * left off next time it's pinged.
+     *
+     * A stock whose last attempt failed (history_error set) is skipped here
+     * on purpose: without that, a permanently-failing stock (bad symbol,
+     * delisted, source layout changed) would get retried on every single
+     * ping forever. It stays visible on the Data Source Settings page
+     * either way, and clears itself the next time /fetch-history/{symbol}
+     * is run for it manually and succeeds.
      */
     public function fetchHistories(Request $request, SharesansarHistoryService $history)
     {
         set_time_limit(0);
 
         $limit = max(1, (int) $request->query('limit', 1));
-        $stocks = Stock::whereNull('history_fetched_at')->orderBy('id')->limit($limit)->get();
+        $pending = fn () => Stock::whereDoesntHave('scrapeStatus', function ($q) {
+            $q->whereNotNull('history_fetched_at')->orWhereNotNull('history_error');
+        });
+
+        $stocks = $pending()->orderBy('id')->limit($limit)->get();
 
         if ($stocks->isEmpty()) {
             return response("No stocks are missing full history.\n")->header('Content-Type', 'text/plain');
@@ -141,7 +152,7 @@ class CronController extends Controller
             }
         }
 
-        $remaining = Stock::whereNull('history_fetched_at')->count();
+        $remaining = $pending()->count();
         $lines[] = "{$remaining} stock(s) still missing history — re-ping this URL to continue.";
 
         return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
@@ -173,13 +184,13 @@ class CronController extends Controller
 
                 if ($sector !== null) {
                     $stock->update(['sector' => $sector]);
-                    $stock->clearScrapeError();
+                    $stock->ensureScrapeStatus()->clearSectorError();
                     $lines[] = "{$stock->symbol}: {$sector}";
                 } else {
                     $lines[] = "{$stock->symbol}: no sector returned";
                 }
             } catch (Throwable $e) {
-                $stock->flagScrapeError('sector', $e->getMessage());
+                $stock->ensureScrapeStatus()->flagSectorError($e->getMessage());
                 $lines[] = "{$stock->symbol}: failed — {$e->getMessage()}";
             }
 
@@ -198,17 +209,27 @@ class CronController extends Controller
      * Dividend/bonus data (nepalstock.com's only source for it) previously
      * had no cron path at all, only the manual
      * stocks:backfill-corporate-actions command or the per-stock "Refresh
-     * Dividend/Bonus Data" button. Targets stocks with zero dividend rows
-     * recorded yet; run stocks:backfill-corporate-actions --all from the
-     * CLI instead if you need to refresh a stock that already has rows
-     * (e.g. a newly-declared dividend).
+     * Dividend/Bonus Data" button.
+     *
+     * Pending is dividend_fetched_at IS NULL, NOT "zero dividend rows" —
+     * a stock can genuinely have never declared a dividend, which is a
+     * successful fetch, not a pending one. A stock whose last attempt
+     * failed (dividend_error set) is skipped the same way fetchHistories()
+     * skips a failed history fetch, so it isn't retried forever; run
+     * stocks:backfill-corporate-actions --all from the CLI instead if you
+     * need to refresh a stock that already succeeded (e.g. a newly-declared
+     * dividend).
      */
     public function syncDividends(Request $request, NepalStockCorporateActionsService $dividends)
     {
         set_time_limit(0);
 
         $limit = max(1, (int) $request->query('limit', 5));
-        $stocks = Stock::whereDoesntHave('dividends')->orderBy('id')->limit($limit)->get();
+        $pending = fn () => Stock::whereDoesntHave('scrapeStatus', function ($q) {
+            $q->whereNotNull('dividend_fetched_at');
+        });
+
+        $stocks = $pending()->orderBy('id')->limit($limit)->get();
 
         if ($stocks->isEmpty()) {
             return response("No stocks are missing dividend data.\n")->header('Content-Type', 'text/plain');
@@ -219,17 +240,17 @@ class CronController extends Controller
         foreach ($stocks as $stock) {
             try {
                 $result = $dividends->fetchDividends($stock);
-                $stock->clearScrapeError();
+                $stock->ensureScrapeStatus()->markDividendFetched();
                 $lines[] = "{$stock->symbol}: {$result['dividends']} dividend row(s) imported.";
             } catch (Throwable $e) {
-                $stock->flagScrapeError('dividend', $e->getMessage());
+                $stock->ensureScrapeStatus()->flagDividendError($e->getMessage());
                 $lines[] = "{$stock->symbol}: failed — {$e->getMessage()}";
             }
 
             usleep(500_000); // same polite pacing as stocks:backfill-corporate-actions
         }
 
-        $remaining = Stock::whereDoesntHave('dividends')->count();
+        $remaining = $pending()->count();
         $lines[] = "{$remaining} stock(s) still missing dividend data — re-ping this URL to continue.";
 
         return response(implode("\n", $lines))->header('Content-Type', 'text/plain');

@@ -56,9 +56,9 @@ class NepalStockHistoryService
 
             // Marks the stock as "history fetched" the same way
             // SharesansarHistoryService::fetchFullHistory() does, so a manual
-            // call through this service also stops stocks:queue-missing-history
-            // from re-queueing it.
-            $stock->update(['history_fetched_at' => now()]);
+            // call through this service also stops fetch-histories from
+            // picking it up again.
+            $stock->ensureScrapeStatus()->markHistoryFetched();
 
             ScrapeLog::create([
                 'source' => self::SOURCE_NAME,

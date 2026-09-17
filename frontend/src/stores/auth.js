@@ -25,10 +25,15 @@ export const useAuthStore = defineStore('auth', {
       await client.post('/login', credentials)
       await this.fetchUser()
     },
-    async register(payload) {
+    async forgotPassword(email) {
       await ensureCsrfCookie()
-      const { data } = await client.post('/register', payload)
-      this.user = data.user
+      const { data } = await client.post('/forgot-password', { email })
+      return data.message
+    },
+    async resetPassword(payload) {
+      await ensureCsrfCookie()
+      const { data } = await client.post('/reset-password', payload)
+      return data.message
     },
     async logout() {
       await client.post('/logout')
