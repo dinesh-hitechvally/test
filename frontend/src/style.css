@@ -161,6 +161,46 @@ textarea:focus-visible {
   max-width: 360px;
 }
 
+/* Icon-adorned inputs (email/lock glyph on the left, optional show/hide
+   password toggle on the right) — used by the auth pages. */
+.input-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon-wrap .input-icon {
+  position: absolute;
+  left: 12px;
+  display: flex;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.input-icon-wrap .input {
+  padding-left: 38px;
+}
+
+.input-icon-wrap:has(.input-toggle) .input {
+  padding-right: 38px;
+}
+
+.input-icon-wrap .input-toggle {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  padding: 4px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.input-icon-wrap .input-toggle:hover {
+  color: var(--text);
+}
+
 .error-text {
   color: var(--strong-sell);
   font-size: 0.85rem;

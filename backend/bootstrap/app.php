@@ -17,6 +17,18 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'cron.secret' => \App\Http\Middleware\VerifyCronSecret::class,
         ]);
+
+        // This is an API-only backend — no 'login' route exists (the SPA
+        // owns that). Left at the framework default, every unauthenticated
+        // request to an auth:sanctum route throws RouteNotFoundException
+        // while building the redirect (route('login') doesn't exist),
+        // which happens *during* AuthenticationException's own
+        // construction — an exception thrown while building another
+        // exception, which PHP's built-in dev server doesn't recover from
+        // cleanly (the connection just hangs instead of a clean 401 JSON
+        // response). No redirect target needed anyway since every API
+        // request already renders JSON via shouldRenderJsonWhen() below.
+        $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
