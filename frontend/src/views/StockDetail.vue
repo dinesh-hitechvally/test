@@ -24,8 +24,7 @@ const mlModel = ref(null)
 const dividends = ref([])
 const rightShares = ref([])
 const aiOpinion = ref(null)
-const loadingAiOpinion = ref(false)
-const aiOpinionError = ref('')
+const aiOpinionMessage = ref('')
 
 const {
   sorted: sortedDividends,
@@ -39,9 +38,6 @@ const {
   sortIndicator: rightShareSortIndicator,
 } = useSortableTable(rightShares, { defaultKey: 'opening_date', defaultDir: 'desc' })
 const loading = ref(true)
-const fetchingHistory = ref(false)
-const fetchHistoryResult = ref('')
-const fetchHistoryError = ref('')
 const fetchingCorporateActions = ref(false)
 const corporateActionsResult = ref('')
 const corporateActionsError = ref('')
@@ -50,8 +46,8 @@ async function loadAll(symbol) {
   loading.value = true
   signalsPage.value = 1
   aiOpinion.value = null
-  aiOpinionError.value = ''
-  const [stockRes, pricesRes, indicatorsRes, mlRes, dividendsRes, rightSharesRes] = await Promise.all([
+  aiOpinionMessage.value = ''
+  const [stockRes, pricesRes, indicatorsRes, mlRes, dividendsRes, rightSharesRes, aiRes] = await Promise.all([
     client.get(`/stocks/${symbol}`),
     // Most recent 1000 trading days (~4 years) — the Price & Moving
     // Averages chart zooms/pans within this range. Capped rather than
@@ -62,6 +58,10 @@ async function loadAll(symbol) {
     client.get(`/stocks/${symbol}/ml-prediction`),
     client.get(`/stocks/${symbol}/dividends`),
     client.get(`/stocks/${symbol}/right-shares`),
+    // A plain DB read (the cron pipeline is the only thing that ever calls
+    // the AI itself) — safe to fetch on every page load like everything
+    // else here, no button/latency/quota concern.
+    client.get(`/stocks/${symbol}/ai-opinion`),
   ])
 
   stock.value = stockRes.data
@@ -71,6 +71,11 @@ async function loadAll(symbol) {
   mlModel.value = mlRes.data.model
   dividends.value = dividendsRes.data
   rightShares.value = rightSharesRes.data
+  if (aiRes.data.available) {
+    aiOpinion.value = aiRes.data
+  } else {
+    aiOpinionMessage.value = aiRes.data.message
+  }
   loading.value = false
 
   await loadSignalsPage(1)
@@ -92,23 +97,6 @@ async function loadSignalsPage(page) {
     signalsTotalPages.value = data.total_pages
   } finally {
     signalsLoading.value = false
-  }
-}
-
-async function loadAiOpinion() {
-  loadingAiOpinion.value = true
-  aiOpinionError.value = ''
-  try {
-    const { data } = await client.get(`/stocks/${route.params.symbol}/ai-opinion`)
-    if (data.available) {
-      aiOpinion.value = data
-    } else {
-      aiOpinionError.value = data.message
-    }
-  } catch (e) {
-    aiOpinionError.value = e.response?.data?.message || 'Could not get an AI opinion right now.'
-  } finally {
-    loadingAiOpinion.value = false
   }
 }
 
@@ -147,21 +135,6 @@ function formatSignal(label) {
   return label.replace('_', ' ')
 }
 
-async function handleFetchFullHistory() {
-  fetchingHistory.value = true
-  fetchHistoryResult.value = ''
-  fetchHistoryError.value = ''
-  try {
-    const { data } = await client.post(`/stocks/${route.params.symbol}/fetch-full-history`)
-    fetchHistoryResult.value = `Imported ${data.rows_imported} rows (${data.oldest_date} to ${data.newest_date}).`
-    await loadAll(route.params.symbol)
-  } catch (e) {
-    fetchHistoryError.value = e.response?.data?.message || 'Fetch failed.'
-  } finally {
-    fetchingHistory.value = false
-  }
-}
-
 onMounted(() => loadAll(route.params.symbol))
 watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 </script>
@@ -179,23 +152,12 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       </div>
       <div class="header-right">
         <div class="price">Rs. {{ formatPrice(stock.latest_price?.close_price) }}</div>
-        <button class="btn-secondary btn" :disabled="fetchingHistory" @click="handleFetchFullHistory">
-          {{ fetchingHistory ? 'Fetching history…' : 'Fetch Full History' }}
-        </button>
       </div>
     </div>
 
-    <p v-if="fetchingHistory" class="muted card">
-      Pulling {{ stock.symbol }}'s entire price history from its listing date — this fetches one page of ~50 rows at a
-      time and can take a minute or more for stocks with many years of trading. Feel free to leave this page open.
-    </p>
-    <p v-if="fetchHistoryResult" class="muted card">{{ fetchHistoryResult }}</p>
-    <p v-if="fetchHistoryError" class="error-text card">{{ fetchHistoryError }}</p>
-
-    <p v-if="!fetchingHistory && prices.length < 20" class="muted card">
-      Not enough price history yet to compute indicators (need at least 20 trading days). Click "Fetch Full History"
-      above (covers roughly the trailing year), import a CSV from the Stocks page, or keep using "Scrape Latest Data"
-      daily to build up history.
+    <p v-if="prices.length < 20" class="muted card">
+      Not enough price history yet to compute indicators (need at least 20 trading days) — this fills in once the
+      scheduled history fetch reaches this stock, or import a CSV from the Stocks page.
     </p>
 
     <template v-else>
@@ -256,7 +218,8 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
           </span>
         </div>
         <p v-else class="muted">
-          Not enough price history for this stock yet (needs 260+ days) — use "Fetch Full History" above.
+          Not enough price history for this stock yet (needs 260+ days) — fills in once the scheduled history fetch
+          reaches it.
         </p>
       </template>
     </div>
@@ -264,24 +227,18 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
     <div class="card" style="margin-top: 16px">
       <h3>AI Opinion</h3>
       <p class="muted">
-        A 4th independent lens, generated on demand — fed the exact same technical/dividend/signal/ML data shown
-        above, not new information. Not financial advice.
+        A 4th independent lens, refreshed periodically by a scheduled job — fed the exact same technical/dividend/
+        signal/ML data shown above, not new information. Not financial advice.
       </p>
-
-      <button v-if="!aiOpinion" class="btn-secondary btn" :disabled="loadingAiOpinion" @click="loadAiOpinion">
-        {{ loadingAiOpinion ? 'Asking AI…' : 'Get AI Opinion' }}
-      </button>
-
-      <p v-if="aiOpinionError" class="muted" style="margin-top: 8px">{{ aiOpinionError }}</p>
 
       <div v-if="aiOpinion" class="ai-opinion">
         <span class="badge" :class="aiOpinion.verdict === 'buy' ? 'buy' : aiOpinion.verdict === 'sell' ? 'sell' : 'hold'">
           {{ aiOpinion.verdict }}
         </span>
-        <span class="muted">{{ aiOpinion.confidence }} confidence</span>
+        <span class="muted">{{ aiOpinion.confidence }} confidence · as of {{ new Date(aiOpinion.generated_at).toLocaleString() }}</span>
         <p style="margin-top: 8px">{{ aiOpinion.reasoning }}</p>
-        <button class="btn-secondary btn small" :disabled="loadingAiOpinion" @click="loadAiOpinion">Refresh</button>
       </div>
+      <p v-else class="muted">{{ aiOpinionMessage }}</p>
     </div>
 
     <div class="card" style="margin-top: 16px">
@@ -456,9 +413,5 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 
 .ai-opinion {
   margin-top: 12px;
-}
-
-.ai-opinion .small {
-  margin-top: 10px;
 }
 </style>

@@ -7,25 +7,31 @@ use App\Models\Stock;
 use App\Services\MarketData\MarketReportService;
 use App\Services\MarketData\MlDirectionPredictorService;
 use App\Services\MarketData\TechnicalAnalysisReportService;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
 /**
- * Generates a buy/sell/hold opinion via Google Gemini's free-tier API,
- * fed the same technical/dividend/signal/ML context the Analyst Report
- * page already assembles (see ReportController::analyst()) — a 4th
- * independent "lens" alongside the technical read, rule-based signal, and
- * ML predictor, not a replacement for any of them. Degrades to an
- * "unavailable" result (never a 500 the user sees as a crash) whenever
- * GEMINI_API_KEY isn't set or the call fails — this is a bonus opinion,
- * not something the rest of the app depends on.
+ * Generates a buy/sell/hold opinion via Groq's free-tier API, fed the same
+ * technical/dividend/signal/ML context the Analyst Report page already
+ * assembles (see ReportController::analyst()) — a 4th independent "lens"
+ * alongside the technical read, rule-based signal, and ML predictor, not a
+ * replacement for any of them.
+ *
+ * Generation only ever happens from the cron pipeline (CronController's
+ * batched generate-ai-opinions endpoint) — never from a user-facing
+ * request — and is persisted to ai_stock_opinions. Reading an opinion
+ * (getStoredOpinion()) is a plain DB lookup with no external call, so it's
+ * safe to show on every page load with no button/latency/quota concern.
+ *
+ * Third provider this app has used for this feature (Gemini, then Claude,
+ * now Groq — see git history) — Groq hosts open-weight models (Llama,
+ * etc.) behind an OpenAI-compatible chat-completions API, with a genuinely
+ * free tier (no billing setup) but real per-minute rate limits.
  */
 class AiStockOpinionService
 {
-    private const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
+    private const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
     public function __construct(
         private readonly MarketReportService $reports,
@@ -35,91 +41,88 @@ class AiStockOpinionService
 
     public function isConfigured(): bool
     {
-        return filled(config('services.gemini.api_key'));
+        return filled(config('services.groq.api_key'));
     }
 
     /**
      * @return array{verdict: string, confidence: string, reasoning: string, generated_at: string, available: true}
      *         |array{available: false, message: string}
      */
-    public function opinion(Stock $stock): array
+    public function getStoredOpinion(Stock $stock): array
     {
-        if (! $this->isConfigured()) {
-            return ['available' => false, 'message' => 'AI opinion is not configured on this instance — no GEMINI_API_KEY set.'];
+        $opinion = $stock->aiOpinion;
+
+        if (! $opinion || $opinion->verdict === null) {
+            return ['available' => false, 'message' => 'No AI opinion generated for this stock yet — it\'s picked up by the next scheduled run.'];
         }
 
-        // Cached per stock per trade date (indicators/signals only change
-        // once a day, at market close) so repeat visits/clicks for the same
-        // stock on the same day don't re-spend the free-tier quota. Only a
-        // successful opinion is cached — a failure (e.g. Gemini's free tier
-        // returning a transient 503 under load) must never get locked in
-        // for 12 hours; the user should be able to just click again.
-        $cacheKey = "ai-opinion:{$stock->id}:".($stock->latestSignal?->trade_date?->toDateString() ?? 'no-signal');
-
-        if ($cached = Cache::get($cacheKey)) {
-            return $cached;
-        }
-
-        try {
-            $result = [...$this->generate($stock), 'available' => true];
-            Cache::put($cacheKey, $result, now()->addHours(12));
-
-            return $result;
-        } catch (Throwable $e) {
-            Log::warning('AI opinion generation failed', ['symbol' => $stock->symbol, 'error' => $e->getMessage()]);
-
-            return ['available' => false, 'message' => 'Could not get an AI opinion right now — try again shortly.'];
-        }
+        return [
+            'available' => true,
+            'verdict' => $opinion->verdict,
+            'confidence' => $opinion->confidence,
+            'reasoning' => $opinion->reasoning,
+            'generated_at' => $opinion->generated_at->toIso8601String(),
+        ];
     }
 
     /**
-     * @return array{verdict: string, confidence: string, reasoning: string, generated_at: string}
+     * Calls Groq and returns the parsed opinion — throws on any failure.
+     * Callers (the cron endpoint) are responsible for persisting the
+     * result; this method never touches the database itself.
+     *
+     * Uses forced tool-calling (OpenAI-compatible function-calling, not
+     * just "ask for JSON in the prompt") for reliable structured output —
+     * same reasoning Gemini's responseSchema / Claude's tool_choice served
+     * here with the earlier providers.
+     *
+     * @return array{verdict: string, confidence: string, reasoning: string}
      */
-    private function generate(Stock $stock): array
+    public function generate(Stock $stock): array
     {
         $prompt = $this->buildPrompt($stock, $this->buildContext($stock));
-        $url = sprintf(self::ENDPOINT, config('services.gemini.model')).'?key='.config('services.gemini.api_key');
 
         $response = Http::timeout(40)
-            // Gemini's free tier occasionally returns a transient 503 ("high
-            // demand") — retried a couple of times with a short delay before
-            // giving up, since that's usually gone within a second or two.
+            ->withToken(config('services.groq.api_key'))
+            // Transient overload/rate-limit responses are retried a
+            // couple of times with a short delay before giving up.
             ->retry(2, 1500, throw: false)
-            ->post($url, [
-            'contents' => [['parts' => [['text' => $prompt]]]],
-            'generationConfig' => [
-                // This is a structured-output classification task, not
-                // something needing multi-step reasoning — the model's
-                // default "thinking" mode roughly doubled latency (~15s vs
-                // ~6s for a trivial prompt) for no real benefit here.
-                'thinkingConfig' => ['thinkingBudget' => 0],
-                'responseMimeType' => 'application/json',
-                'responseSchema' => [
-                    'type' => 'OBJECT',
-                    'properties' => [
-                        'verdict' => ['type' => 'STRING', 'enum' => ['buy', 'hold', 'sell']],
-                        'confidence' => ['type' => 'STRING', 'enum' => ['low', 'medium', 'high']],
-                        'reasoning' => ['type' => 'STRING'],
+            ->post(self::ENDPOINT, [
+                'model' => config('services.groq.model'),
+                'messages' => [['role' => 'user', 'content' => $prompt]],
+                'tools' => [[
+                    'type' => 'function',
+                    'function' => [
+                        'name' => 'record_opinion',
+                        'description' => 'Record the buy/hold/sell opinion for this stock.',
+                        'parameters' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'verdict' => ['type' => 'string', 'enum' => ['buy', 'hold', 'sell']],
+                                'confidence' => ['type' => 'string', 'enum' => ['low', 'medium', 'high']],
+                                'reasoning' => ['type' => 'string'],
+                            ],
+                            'required' => ['verdict', 'confidence', 'reasoning'],
+                        ],
                     ],
-                    'required' => ['verdict', 'confidence', 'reasoning'],
-                ],
-            ],
-        ]);
+                ]],
+                'tool_choice' => ['type' => 'function', 'function' => ['name' => 'record_opinion']],
+            ]);
 
         $response->throw();
 
-        $text = $response->json('candidates.0.content.parts.0.text');
-        $parsed = json_decode((string) $text, true);
+        // OpenAI-compatible shape: the tool call's arguments come back as a
+        // JSON *string*, not a nested object — needs its own decode.
+        $arguments = $response->json('choices.0.message.tool_calls.0.function.arguments');
+        $parsed = json_decode((string) $arguments, true);
 
         if (! is_array($parsed) || ! isset($parsed['verdict'], $parsed['confidence'], $parsed['reasoning'])) {
-            throw new RuntimeException('Gemini returned an unexpected response shape.');
+            throw new RuntimeException('Groq returned an unexpected response shape.');
         }
 
         return [
             'verdict' => $parsed['verdict'],
             'confidence' => $parsed['confidence'],
             'reasoning' => $parsed['reasoning'],
-            'generated_at' => now()->toIso8601String(),
         ];
     }
 

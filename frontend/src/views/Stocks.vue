@@ -89,7 +89,7 @@ onMounted(() => {
       <button class="btn" :disabled="importing" @click="handleImport">{{ importing ? 'Importing…' : 'Import' }}</button>
     </div>
 
-    <MarketTable :stocks="store.stocks" :show-turnover-volume="true" />
+    <MarketTable :stocks="store.stocks" :show-turnover-volume="true" :show-ai-opinion="true" />
   </div>
 </template>
 

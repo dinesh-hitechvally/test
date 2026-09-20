@@ -88,4 +88,10 @@ class Stock extends Model
     {
         return $this->hasOne(TechnicalIndicator::class)->latestOfMany('trade_date');
     }
+
+    /** @return HasOne<AiStockOpinion, $this> */
+    public function aiOpinion(): HasOne
+    {
+        return $this->hasOne(AiStockOpinion::class);
+    }
 }

@@ -63,7 +63,7 @@ onMounted(load)
       The pipeline runs via URL, not server cron — paste each URL below into an external scheduler (e.g.
       <a href="https://cron-job.org" target="_blank" rel="noopener">cron-job.org</a>, UptimeRobot, or a plain crontab
       <code>curl</code> line on any box you do have) set to the suggested cadence. This works even on hosting with no
-      real cron/SSH access. Use "Scrape Latest Data" in the topbar any time for an immediate manual refresh instead.
+      real cron/SSH access.
     </p>
 
     <p v-if="!loading && !secretConfigured" class="error-text card" style="margin-top: 12px">

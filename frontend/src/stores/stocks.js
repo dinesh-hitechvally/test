@@ -7,7 +7,6 @@ export const useStocksStore = defineStore('stocks', {
     todaySignals: [],
     scrapeLogs: [],
     loading: false,
-    lastError: null,
   }),
   actions: {
     // Fetches the full stock list once; filtering/sorting/pagination happens
@@ -29,19 +28,6 @@ export const useStocksStore = defineStore('stocks', {
     async fetchScrapeLogs() {
       const { data } = await client.get('/scrape/logs')
       this.scrapeLogs = data
-    },
-    // Official nepalstock.com source — see NepalStockScraperService, the
-    // app's only daily price source (ShareSansar is used again, but only for
-    // full price-history backfills — see StockDetail's "Fetch Full History").
-    async runScrape() {
-      this.lastError = null
-      try {
-        const { data } = await client.post('/scrape/run-nepse')
-        return data
-      } catch (e) {
-        this.lastError = e.response?.data?.message || 'Scrape failed.'
-        throw e
-      }
     },
     async addStock(payload) {
       const { data } = await client.post('/stocks', payload)

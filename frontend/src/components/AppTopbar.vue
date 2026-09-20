@@ -79,25 +79,6 @@ function handleSearchBlur() {
   }, 150)
 }
 
-const scraping = ref(false)
-const scrapeMessage = ref('')
-
-async function handleScrape() {
-  scraping.value = true
-  scrapeMessage.value = ''
-  try {
-    const result = await stocksStore.runScrape()
-    scrapeMessage.value = result.market_open === false
-      ? 'Market is closed today — nothing synced.'
-      : `Updated ${result.updated_prices} (${result.created_stocks} new)`
-    await stocksStore.fetchScrapeLogs()
-  } catch {
-    scrapeMessage.value = stocksStore.lastError
-  } finally {
-    scraping.value = false
-  }
-}
-
 async function handleLogout() {
   await auth.logout()
   router.push({ name: 'login' })
@@ -162,13 +143,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="scrape-block">
-        <button class="btn" :disabled="scraping" @click="handleScrape">
-          {{ scraping ? 'Scraping…' : 'Scrape Latest Data' }}
-        </button>
-        <span v-if="scrapeMessage" class="muted scrape-msg">{{ scrapeMessage }}</span>
-        <span v-else-if="lastScrape" class="muted scrape-msg">
-          Last: {{ new Date(lastScrape.created_at).toLocaleTimeString() }}
+      <div v-if="lastScrape" class="scrape-block">
+        <span class="muted scrape-msg">
+          Last synced: {{ new Date(lastScrape.created_at).toLocaleTimeString() }}
         </span>
       </div>
 

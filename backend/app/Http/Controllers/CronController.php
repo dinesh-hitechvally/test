@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiStockOpinion;
 use App\Models\Stock;
+use App\Services\AiStockOpinionService;
 use App\Services\CronAlertService;
 use App\Services\MarketData\NepalStockCorporateActionsService;
 use App\Services\MarketData\NepalStockSecurityResolver;
 use App\Services\MarketData\SharesansarHistoryService;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Artisan;
@@ -33,8 +36,8 @@ use Throwable;
  *   ml:train-predictor             03:30 NPT, Monday
  *   signals:backtest-accuracy      04:00 NPT, Monday
  *
- * fetch-histories/fetch-history/sync-sectors/sync-dividends are on-demand
- * (no fixed schedule, safe to ping repeatedly). There's no URL-triggered
+ * fetch-histories/fetch-history/sync-sectors/sync-dividends/generate-ai-opinions
+ * are on-demand (no fixed schedule, safe to ping repeatedly). There's no URL-triggered
  * queue-worker path anymore — it was fully redundant with fetch-histories,
  * which does the same job directly instead of via a queue.
  *
@@ -252,6 +255,90 @@ class CronController extends Controller
 
         $remaining = $pending()->count();
         $lines[] = "{$remaining} stock(s) still missing dividend data — re-ping this URL to continue.";
+
+        return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
+    }
+
+    /**
+     * No fixed timing, safe to ping often — same batched shape as
+     * syncDividends()/syncSectors() (?limit=, default 5). Generates a
+     * buy/sell/hold opinion via the Groq API and saves it to
+     * ai_stock_opinions — this is the ONLY place that ever calls the AI;
+     * StockController's ai-opinion endpoint just reads whatever's stored,
+     * so a page load never waits on (or costs) an external AI call.
+     *
+     * "Pending" = a stock with a signal (nothing else shows an AI opinion
+     * next to) whose stored opinion is missing, older than a day
+     * (indicators/signals only change once daily at market close, same
+     * cadence as the ML predictor), or whose last attempt failed more than
+     * 6h ago — a fresh failure is left alone rather than retried
+     * immediately, same "don't hammer a stuck one" reasoning as the other
+     * per-stock cron jobs.
+     */
+    public function generateAiOpinions(Request $request, AiStockOpinionService $ai)
+    {
+        set_time_limit(0);
+
+        if (! $ai->isConfigured()) {
+            return response("AI opinion is not configured on this instance — no GROQ_API_KEY set.\n")->header('Content-Type', 'text/plain');
+        }
+
+        $limit = max(1, (int) $request->query('limit', 1));
+        $staleBefore = now()->subDay();
+        $retryErrorsBefore = now()->subHours(6);
+
+        $pending = fn () => Stock::whereHas('latestSignal')->whereDoesntHave('aiOpinion', function ($q) use ($staleBefore, $retryErrorsBefore) {
+            $q->where('generated_at', '>=', $staleBefore)
+                ->orWhere('error_at', '>=', $retryErrorsBefore);
+        });
+
+        $stocks = $pending()->orderBy('id')->limit($limit)->get();
+
+        if ($stocks->isEmpty()) {
+            return response("No stocks are due for an AI opinion refresh.\n")->header('Content-Type', 'text/plain');
+        }
+
+        $lines = [];
+
+        foreach ($stocks as $stock) {
+            try {
+                $opinion = $ai->generate($stock);
+                AiStockOpinion::updateOrCreate(
+                    ['stock_id' => $stock->id],
+                    [...$opinion, 'generated_at' => now(), 'error' => null, 'error_at' => null]
+                );
+                $lines[] = "{$stock->symbol}: {$opinion['verdict']} ({$opinion['confidence']} confidence)";
+            } catch (Throwable $e) {
+                // A real stock-analysis prompt runs ~3,000 tokens against
+                // Groq's free-tier 8,000-tokens/minute cap — only ~2 calls
+                // fit per minute, so a 429 here is an expected, self-clearing
+                // condition (the token budget refills within seconds), not a
+                // sign this stock is actually broken. Recording it with the
+                // normal 6h error cooldown would leave it stuck long after
+                // the rate limit itself has cleared, so it's deliberately
+                // left untouched instead — still pending, picked up again on
+                // the very next ping.
+                if ($e instanceof RequestException && $e->response->status() === 429) {
+                    $lines[] = "{$stock->symbol}: rate limited — will retry on next ping.";
+
+                    continue;
+                }
+
+                // Any other failure DOES get the 6h cooldown (only touches
+                // error/error_at — never clobbers the last good opinion
+                // still worth showing).
+                AiStockOpinion::updateOrCreate(
+                    ['stock_id' => $stock->id],
+                    ['error' => $e->getMessage(), 'error_at' => now()]
+                );
+                $lines[] = "{$stock->symbol}: failed — {$e->getMessage()}";
+            }
+
+            usleep(500_000); // polite pacing between stocks within this batch
+        }
+
+        $remaining = $pending()->count();
+        $lines[] = "{$remaining} stock(s) still due for an AI opinion — re-ping this URL to continue.";
 
         return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
     }

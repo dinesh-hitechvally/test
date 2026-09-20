@@ -172,7 +172,7 @@ onMounted(async () => {
     </div>
 
     <p v-if="store.todaySignals.length === 0" class="muted" style="margin-top: 20px">
-      No signals yet — use "Scrape Latest Data" in the top bar to pull today's prices, or import historical CSVs from
+      No signals yet — the scheduled market sync pulls today's prices automatically, or import historical CSVs from
       the Stocks page so indicators have enough history to compute (at least 20 trading days).
     </p>
 

@@ -67,6 +67,15 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
         // ping repeatedly until "0 stock(s) still missing dividend data".
         Route::get('/sync-dividends', [CronController::class, 'syncDividends']);
 
+        // Same batched shape (?limit=, default 5) — the only place that ever
+        // calls Groq for the "AI Opinion" lens (Stock Detail / Analyst
+        // Report pages just read whatever's stored, no external call on a
+        // page load). Targets stocks with a signal whose stored opinion is
+        // missing or a day+ old; skipped no-op with a clear message if
+        // GROQ_API_KEY isn't set. Free tier, but has real per-minute rate
+        // limits — keep ?limit= modest if pinging often.
+        Route::get('/ai-opinions', [CronController::class, 'generateAiOpinions']);
+
         // Daily prices and the index snapshot — ~30min after NEPSE's ~15:00
         // NPT close, 2 minutes apart so one finishes before the next fires.
 

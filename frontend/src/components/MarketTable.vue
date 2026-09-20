@@ -14,15 +14,27 @@ const SIGNAL_OPTIONS = [
   { value: 'strong_sell', label: 'Strong Sell' },
 ]
 
+// AI opinions only ever come back as buy/hold/sell (see
+// AiStockOpinionService's responseSchema) — no strong_buy/strong_sell,
+// unlike the rule-based signal above.
+const AI_OPINION_OPTIONS = [
+  { value: '', label: 'All AI opinions' },
+  { value: 'buy', label: 'Buy' },
+  { value: 'hold', label: 'Hold' },
+  { value: 'sell', label: 'Sell' },
+]
+
 const props = defineProps({
   stocks: { type: Array, required: true },
   defaultSort: { type: Object, default: () => ({ key: 'symbol', dir: 'asc' }) },
   showTurnoverVolume: { type: Boolean, default: false },
+  showAiOpinion: { type: Boolean, default: false },
 })
 
 const search = ref('')
 const sectorFilter = ref('')
 const signalFilter = ref('')
+const aiOpinionFilter = ref('')
 const sortKey = ref(props.defaultSort.key)
 const sortDir = ref(props.defaultSort.dir)
 const page = ref(1)
@@ -54,6 +66,7 @@ function sortValue(stock, key) {
   if (key === 'turnover') return Number(stock.latest_price?.turnover ?? -Infinity)
   if (key === 'volume') return Number(stock.latest_price?.volume ?? -Infinity)
   if (key === 'signal') return stock.latest_signal?.signal ?? ''
+  if (key === 'ai_opinion') return stock.ai_opinion?.verdict ?? ''
   if (key === 'sector') return sectorOf(stock)
   return stock[key] ?? ''
 }
@@ -70,6 +83,9 @@ const filtered = computed(() => {
   }
   if (signalFilter.value) {
     list = list.filter((s) => s.latest_signal?.signal === signalFilter.value)
+  }
+  if (aiOpinionFilter.value) {
+    list = list.filter((s) => s.ai_opinion?.verdict === aiOpinionFilter.value)
   }
 
   return [...list].sort((a, b) => {
@@ -123,6 +139,7 @@ function formatInt(value) {
       <input v-model="search" class="input" style="max-width: 280px" placeholder="Search symbol or company…" @input="resetToFirstPage" />
       <SearchableSelect v-model="sectorFilter" :options="sectorOptions" style="max-width: 200px" @change="resetToFirstPage" />
       <SearchableSelect v-model="signalFilter" :options="SIGNAL_OPTIONS" style="max-width: 180px" @change="resetToFirstPage" />
+      <SearchableSelect v-if="showAiOpinion" v-model="aiOpinionFilter" :options="AI_OPINION_OPTIONS" style="max-width: 180px" @change="resetToFirstPage" />
       <span class="muted result-count">{{ filtered.length }} stocks</span>
     </div>
 
@@ -137,6 +154,7 @@ function formatInt(value) {
           <th v-if="showTurnoverVolume" class="sortable" @click="toggleSort('turnover')">Turnover {{ sortIndicator('turnover') }}</th>
           <th v-if="showTurnoverVolume" class="sortable" @click="toggleSort('volume')">Volume {{ sortIndicator('volume') }}</th>
           <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+          <th v-if="showAiOpinion" class="sortable" @click="toggleSort('ai_opinion')">AI Opinion {{ sortIndicator('ai_opinion') }}</th>
         </tr>
       </thead>
       <tbody>
@@ -158,9 +176,15 @@ function formatInt(value) {
             </span>
             <span v-else class="muted">No data</span>
           </td>
+          <td v-if="showAiOpinion" :title="stock.ai_opinion?.reasoning || ''">
+            <span v-if="stock.ai_opinion?.verdict" class="badge" :class="stock.ai_opinion.verdict === 'buy' ? 'buy' : stock.ai_opinion.verdict === 'sell' ? 'sell' : 'hold'">
+              {{ stock.ai_opinion.verdict }}
+            </span>
+            <span v-else class="muted">Not yet</span>
+          </td>
         </tr>
         <tr v-if="paged.length === 0">
-          <td :colspan="showTurnoverVolume ? 8 : 6" class="muted" style="text-align: center; padding: 24px">No stocks match these filters.</td>
+          <td :colspan="6 + (showTurnoverVolume ? 2 : 0) + (showAiOpinion ? 1 : 0)" class="muted" style="text-align: center; padding: 24px">No stocks match these filters.</td>
         </tr>
       </tbody>
     </table>

@@ -18,8 +18,7 @@ const data = ref(null)
 const loading = ref(false)
 const error = ref('')
 const aiOpinion = ref(null)
-const loadingAiOpinion = ref(false)
-const aiOpinionError = ref('')
+const aiOpinionMessage = ref('')
 
 function fmt(v) {
   return v === null || v === undefined ? '—' : formatPrice(v)
@@ -33,7 +32,7 @@ function toneOf(word) {
 
 async function load() {
   aiOpinion.value = null
-  aiOpinionError.value = ''
+  aiOpinionMessage.value = ''
 
   if (!selected.value) {
     data.value = null
@@ -43,30 +42,24 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const { data: res } = await client.get(`/reports/analyst/${selected.value}`)
+    const [{ data: res }, { data: aiRes }] = await Promise.all([
+      client.get(`/reports/analyst/${selected.value}`),
+      // A plain DB read (the cron pipeline is the only thing that ever
+      // calls the AI itself) — safe to fetch on every load, no
+      // button/latency/quota concern.
+      client.get(`/stocks/${selected.value}/ai-opinion`),
+    ])
     data.value = res
+    if (aiRes.available) {
+      aiOpinion.value = aiRes
+    } else {
+      aiOpinionMessage.value = aiRes.message
+    }
   } catch (e) {
     error.value = e.response?.data?.message || 'Failed to load analyst report.'
     data.value = null
   } finally {
     loading.value = false
-  }
-}
-
-async function loadAiOpinion() {
-  loadingAiOpinion.value = true
-  aiOpinionError.value = ''
-  try {
-    const { data: res } = await client.get(`/stocks/${selected.value}/ai-opinion`)
-    if (res.available) {
-      aiOpinion.value = res
-    } else {
-      aiOpinionError.value = res.message
-    }
-  } catch (e) {
-    aiOpinionError.value = e.response?.data?.message || 'Could not get an AI opinion right now.'
-  } finally {
-    loadingAiOpinion.value = false
   }
 }
 
@@ -245,24 +238,18 @@ const summary = computed(() => {
       <div class="card" style="margin-top: 16px">
         <h3>AI Opinion</h3>
         <p class="muted">
-          A 4th independent lens, generated on demand — fed the same technical/dividend/signal/ML data above, not
-          new information. Not financial advice.
+          A 4th independent lens, refreshed periodically by a scheduled job — fed the same technical/dividend/
+          signal/ML data above, not new information. Not financial advice.
         </p>
-
-        <button v-if="!aiOpinion" class="btn-secondary btn" :disabled="loadingAiOpinion" @click="loadAiOpinion">
-          {{ loadingAiOpinion ? 'Asking AI…' : 'Get AI Opinion' }}
-        </button>
-
-        <p v-if="aiOpinionError" class="muted" style="margin-top: 8px">{{ aiOpinionError }}</p>
 
         <div v-if="aiOpinion" style="margin-top: 12px">
           <span class="badge" :class="aiOpinion.verdict === 'buy' ? 'buy' : aiOpinion.verdict === 'sell' ? 'sell' : 'hold'">
             {{ aiOpinion.verdict }}
           </span>
-          <span class="muted">{{ aiOpinion.confidence }} confidence</span>
+          <span class="muted">{{ aiOpinion.confidence }} confidence · as of {{ new Date(aiOpinion.generated_at).toLocaleString() }}</span>
           <p style="margin-top: 8px">{{ aiOpinion.reasoning }}</p>
-          <button class="btn-secondary btn small" :disabled="loadingAiOpinion" @click="loadAiOpinion">Refresh</button>
         </div>
+        <p v-else class="muted" style="margin-top: 8px">{{ aiOpinionMessage }}</p>
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">

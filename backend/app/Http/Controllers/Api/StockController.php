@@ -19,7 +19,7 @@ class StockController extends Controller
 {
     public function index(Request $request, MarketReportService $reports)
     {
-        $query = Stock::query()->with(['latestPrice', 'latestSignal'])->orderBy('symbol');
+        $query = Stock::query()->with(['latestPrice', 'latestSignal', 'aiOpinion'])->orderBy('symbol');
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -160,9 +160,9 @@ class StockController extends Controller
 
     public function aiOpinion(string $symbol, AiStockOpinionService $ai)
     {
-        $stock = $this->findStock($symbol, ['latestSignal']);
+        $stock = $this->findStock($symbol, ['aiOpinion']);
 
-        return response()->json($ai->opinion($stock));
+        return response()->json($ai->getStoredOpinion($stock));
     }
 
     public function importCsv(Request $request, CsvPriceImportService $importer, RecalculationPipeline $pipeline)
