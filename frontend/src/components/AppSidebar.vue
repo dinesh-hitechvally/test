@@ -5,38 +5,15 @@ import NavIcon from './NavIcon.vue'
 
 const route = useRoute()
 
-// Ordered for a retail investor's mental model first: their own money
-// (Portfolio, Watchlist), the app's core value prop (Signals), and casual
-// browsing (Market) — all visible with no extra click. The deeper/expert
+// Ordered for a retail investor's mental model first: the app's core value
+// prop (Signals) and casual browsing (Market), then their own money
+// (Portfolio, Watchlist) — all visible with no extra click. The deeper/expert
 // tooling (Screener, Technical Analysis, Compare, the full Reports suite)
 // still has every route it always did, just grouped under one
 // clearly-labeled "Analyst Tools" section instead of competing for
 // top-billing with 10 other equally-weighted menus.
 const navItems = [
   { to: '/', label: 'Dashboard', icon: 'home' },
-  {
-    label: 'My Portfolio',
-    icon: 'wallet',
-    base: '/portfolio',
-    children: [
-      { to: '/portfolio', label: 'Overview' },
-      { to: '/portfolio/holdings', label: 'Holdings' },
-      { to: '/portfolio/performance', label: 'Performance' },
-      { to: '/portfolio/transactions', label: 'Transactions' },
-      { to: '/portfolio/diversification', label: 'Diversification' },
-      { to: '/portfolio/reports', label: 'Realized P/L / Tax Report' },
-      { to: '/portfolio/statements', label: 'Statements' },
-    ],
-  },
-  {
-    label: 'Watchlist',
-    icon: 'star',
-    base: '/watchlist',
-    children: [
-      { to: '/watchlist', label: 'My Watchlist(s)' },
-      { to: '/watchlist/alerts', label: 'Price Alerts' },
-    ],
-  },
   {
     label: 'Signals',
     icon: 'target',
@@ -60,6 +37,29 @@ const navItems = [
       { to: '/market/52-week', label: '52 Week High/Low' },
       { to: '/market/sector-overview', label: 'Sector Overview' },
       { to: '/market/indices', label: 'Indices' },
+    ],
+  },
+  {
+    label: 'My Portfolio',
+    icon: 'wallet',
+    base: '/portfolio',
+    children: [
+      { to: '/portfolio', label: 'Overview' },
+      { to: '/portfolio/holdings', label: 'Holdings' },
+      { to: '/portfolio/performance', label: 'Performance' },
+      { to: '/portfolio/transactions', label: 'Transactions' },
+      { to: '/portfolio/diversification', label: 'Diversification' },
+      { to: '/portfolio/reports', label: 'Realized P/L / Tax Report' },
+      { to: '/portfolio/statements', label: 'Statements' },
+    ],
+  },
+  {
+    label: 'Watchlist',
+    icon: 'star',
+    base: '/watchlist',
+    children: [
+      { to: '/watchlist', label: 'My Watchlist(s)' },
+      { to: '/watchlist/alerts', label: 'Price Alerts' },
     ],
   },
   { section: 'Analyst Tools' },
