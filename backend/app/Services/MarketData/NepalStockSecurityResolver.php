@@ -63,9 +63,13 @@ class NepalStockSecurityResolver
 
         $response->throw();
 
-        $sector = $response->json('securityData.sector');
+        // Trimmed here, once, at the source — every call site matches this
+        // against Sector.name via firstOrCreate(), and stray leading/trailing
+        // whitespace from the API would otherwise create a near-duplicate
+        // sector row instead of matching the existing one.
+        $sector = trim((string) $response->json('securityData.sector'));
 
-        return $sector !== null && $sector !== '' ? $sector : null;
+        return $sector !== '' ? $sector : null;
     }
 
     /**
