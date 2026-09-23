@@ -29,7 +29,7 @@ class PortfolioValuationService
             return collect();
         }
 
-        $stocks = Stock::with(['latestPrice', 'latestSignal'])->whereIn('id', array_keys($replay))->get()->keyBy('id');
+        $stocks = Stock::with(['sector', 'latestPrice', 'latestSignal'])->whereIn('id', array_keys($replay))->get()->keyBy('id');
         $targets = PositionTarget::where('portfolio_id', $portfolio->id)->get()->keyBy('stock_id');
 
         $holdings = collect();
@@ -68,7 +68,7 @@ class PortfolioValuationService
                 'stock_id' => $stockId,
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
                 'quantity' => $state['qty'],
                 'avg_cost' => round($avgCost, 4),
                 'invested' => round($state['total_cost'], 4),
@@ -435,7 +435,7 @@ class PortfolioValuationService
             // (a same-day buy is available to receive that day's bonus;
             // ambiguous either way, but this is the more common real case).
             $events = $transactions->map(fn ($tx) => ['date' => $tx->transaction_date->toDateString(), 'kind' => $tx->type, 'tx' => $tx])
-                ->concat(($bonusEventsByStock[$stockId] ?? [])->map(fn ($ev) => ['date' => $ev['date'], 'kind' => 'bonus', 'bonus' => $ev]))
+                ->concat(($bonusEventsByStock[$stockId] ?? collect())->map(fn ($ev) => ['date' => $ev['date'], 'kind' => 'bonus', 'bonus' => $ev]))
                 ->sortBy([['date', 'asc'], ['kind', 'asc']])
                 ->values();
 

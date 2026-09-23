@@ -15,7 +15,7 @@ class SignalController extends Controller
     public function today(Request $request)
     {
         $stocks = Stock::query()
-            ->with(['latestSignal', 'latestPrice'])
+            ->with(['sector', 'latestSignal', 'latestPrice'])
             ->whereHas('latestSignal')
             ->get();
 
@@ -42,7 +42,7 @@ class SignalController extends Controller
         $signals = $bias === 'sell' ? ['sell', 'strong_sell'] : ['buy', 'strong_buy'];
 
         $stocks = Stock::query()
-            ->with(['latestSignal', 'latestPrice'])
+            ->with(['sector', 'latestSignal', 'latestPrice'])
             ->whereHas('latestSignal', fn ($q) => $q->whereIn('signal', $signals))
             ->get();
 
@@ -53,7 +53,7 @@ class SignalController extends Controller
                 'stock_id' => $stock->id,
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
                 'close' => $stock->latestPrice?->close_price,
                 'signal' => $stock->latestSignal->signal,
                 'score' => (float) $stock->latestSignal->score,

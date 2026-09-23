@@ -11,8 +11,10 @@ return new class extends Migration
         Schema::create('stocks', function (Blueprint $table) {
             $table->id();
             $table->string('symbol', 20)->unique();
+            $table->unsignedInteger('nepse_security_id')->nullable()->unique();
+            $table->foreignId('sector_id')->nullable()->constrained()->nullOnDelete();
             $table->string('company_name')->nullable();
-            $table->string('sector')->nullable();
+            $table->string('share_group', 10)->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

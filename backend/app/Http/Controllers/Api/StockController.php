@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Sector;
 use App\Models\Stock;
 use App\Services\AiStockOpinionService;
 use App\Services\MarketData\CsvPriceImportService;
@@ -10,6 +11,7 @@ use App\Services\MarketData\MarketReportService;
 use App\Services\MarketData\MlDirectionPredictorService;
 use App\Services\MarketData\CorporateActionsRefreshService;
 use App\Services\MarketData\NepalStockHistoryService;
+use App\Services\MarketData\NextCloseEstimatorService;
 use App\Services\MarketData\RecalculationPipeline;
 use App\Services\MarketData\SharesansarHistoryService;
 use Illuminate\Http\Request;
@@ -19,7 +21,7 @@ class StockController extends Controller
 {
     public function index(Request $request, MarketReportService $reports)
     {
-        $query = Stock::query()->with(['latestPrice', 'latestSignal', 'aiOpinion'])->orderBy('symbol');
+        $query = Stock::query()->with(['sector', 'latestPrice', 'latestSignal', 'aiOpinion'])->orderBy('symbol');
 
         if ($search = $request->query('search')) {
             $query->where(function ($q) use ($search) {
@@ -48,14 +50,20 @@ class StockController extends Controller
 
         $validated['symbol'] = strtoupper($validated['symbol']);
 
+        $sectorName = $validated['sector'] ?? null;
+        unset($validated['sector']);
+        if ($sectorName !== null) {
+            $validated['sector_id'] = Sector::firstOrCreate(['name' => $sectorName])->id;
+        }
+
         $stock = Stock::create($validated);
 
-        return response()->json($stock, 201);
+        return response()->json($stock->load('sector'), 201);
     }
 
     public function show(string $symbol)
     {
-        $stock = $this->findStock($symbol, ['latestPrice', 'latestSignal']);
+        $stock = $this->findStock($symbol, ['sector', 'latestPrice', 'latestSignal', 'fundamental']);
 
         return response()->json($stock);
     }
@@ -80,11 +88,35 @@ class StockController extends Controller
         return response()->json($indicators);
     }
 
+    /**
+     * Historical forecasts for the Price & Moving Averages chart, keyed by
+     * their own trade_date (the day each was generated from), not the day
+     * being predicted — daily_prices only ever contains actual trading
+     * days, so the frontend plots each one against the *next* entry in the
+     * price series rather than needing a separately stored target date.
+     */
+    public function forecasts(string $symbol, Request $request)
+    {
+        $stock = $this->findStock($symbol);
+        $days = (int) $request->query('days', 365);
+
+        $forecasts = $stock->forecasts()
+            ->orderByDesc('trade_date')
+            ->limit($days)
+            ->get(['trade_date', 'next_close'])
+            ->reverse()
+            ->values();
+
+        return response()->json($forecasts);
+    }
+
     public function signals(string $symbol, Request $request)
     {
         $validated = $request->validate([
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
+            'signal' => ['nullable', 'array'],
+            'signal.*' => ['string', 'in:strong_buy,buy,hold,sell,strong_sell'],
         ]);
 
         $stock = $this->findStock($symbol);
@@ -97,6 +129,9 @@ class StockController extends Controller
         }
         if ($validated['to'] ?? null) {
             $query->where('trade_date', '<=', $validated['to']);
+        }
+        if ($validated['signal'] ?? null) {
+            $query->whereIn('signal', $validated['signal']);
         }
 
         $total = (clone $query)->count();
@@ -113,6 +148,20 @@ class StockController extends Controller
             ->get()
             ->reverse()
             ->values();
+
+        // Each signal's own day's forecast — what NextCloseEstimatorService
+        // projected for the following close as of that trade_date — merged
+        // in so the history table can show prediction vs. what actually
+        // happened next to it, without a second round trip.
+        $forecasts = $stock->forecasts()
+            ->whereIn('trade_date', $signals->pluck('trade_date')->map(fn ($d) => $d->toDateString()))
+            ->get()
+            ->keyBy(fn ($f) => $f->trade_date->toDateString());
+
+        $signals->each(function ($signal) use ($forecasts) {
+            $forecast = $forecasts->get($signal->trade_date->toDateString());
+            $signal->forecast_price = $forecast ? (float) $forecast->next_close : null;
+        });
 
         return response()->json([
             'data' => $signals,
@@ -163,6 +212,13 @@ class StockController extends Controller
         $stock = $this->findStock($symbol, ['aiOpinion']);
 
         return response()->json($ai->getStoredOpinion($stock));
+    }
+
+    public function nextCloseForecast(string $symbol, NextCloseEstimatorService $estimator)
+    {
+        $stock = $this->findStock($symbol, ['latestForecast']);
+
+        return response()->json($estimator->getStoredForecast($stock));
     }
 
     public function importCsv(Request $request, CsvPriceImportService $importer, RecalculationPipeline $pipeline)

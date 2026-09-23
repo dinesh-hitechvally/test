@@ -13,6 +13,8 @@ return new class extends Migration
             $table->foreignId('watchlist_id')->constrained()->cascadeOnDelete();
             $table->foreignId('stock_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
+            $table->decimal('alert_price', 18, 4)->nullable();
+            $table->enum('alert_direction', ['above', 'below'])->nullable();
 
             $table->unique(['watchlist_id', 'stock_id']);
         });

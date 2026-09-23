@@ -14,6 +14,7 @@ return new class extends Migration
             $table->date('trade_date');
             $table->decimal('sma_20', 18, 4)->nullable();
             $table->decimal('sma_50', 18, 4)->nullable();
+            $table->decimal('sma_100', 18, 4)->nullable();
             $table->decimal('sma_200', 18, 4)->nullable();
             $table->decimal('ema_12', 18, 4)->nullable();
             $table->decimal('ema_26', 18, 4)->nullable();

@@ -63,9 +63,9 @@ class MarketReportService
     public function sectorPerformance(): Collection
     {
         $changes = $this->priceChanges();
-        $stocks = Stock::all(['id', 'sector']);
+        $stocks = Stock::with('sector')->get(['id', 'sector_id']);
 
-        return $stocks->groupBy(fn ($s) => $s->sector ?: 'Other')
+        return $stocks->groupBy(fn ($s) => $s->sector?->name ?: 'Other')
             ->map(function ($group, $sector) use ($changes) {
                 $sectorChanges = $group->map(fn ($s) => $changes->get($s->id))->filter()->values();
                 $withPct = $sectorChanges->filter(fn ($c) => $c['change_pct'] !== null);
@@ -98,7 +98,7 @@ class MarketReportService
         // against for the very first day inside the reported window.
         $bufferSince = now()->subDays($days + 10)->toDateString();
 
-        $stockIds = $sector !== null ? Stock::where('sector', $sector)->pluck('id') : null;
+        $stockIds = $sector !== null ? Stock::whereHas('sector', fn ($q) => $q->where('name', $sector))->pluck('id') : null;
 
         $withPrev = DB::table('daily_prices')
             ->where('trade_date', '>=', $bufferSince)
@@ -266,23 +266,24 @@ class MarketReportService
     /**
      * Market-wide dividend ranking — one row per stock that has at least one
      * recorded dividend, ranked by trailing dividend yield. Cash dividend %
-     * is declared against face value, not market price — most NEPSE equities
-     * are Rs. 100 face value (the fallback here), but some instruments (e.g.
-     * mutual fund units) use a different one, captured per-stock via
-     * NepalStockCorporateActionsService when available.
+     * is declared against face value, not market price — always assumed to
+     * be Rs. 100 here (DIVIDEND_FACE_VALUE), which is wrong for instruments
+     * with a different face value (e.g. mutual fund units, commonly Rs. 10)
+     * now that stocks.face_value has been removed; such stocks will show an
+     * inflated yield until a per-stock face value is captured again.
      *
      * @return array{totals: array, stocks: Collection}
      */
     public function dividendReport(?string $sector = null): array
     {
         $query = Stock::query()->with([
-            'latestPrice', 'latestSignal',
+            'sector', 'latestPrice', 'latestSignal',
             'dividends' => fn ($q) => $q->orderByDesc('fiscal_year'),
             'rightShares' => fn ($q) => $q->orderByDesc('opening_date'),
         ]);
 
         if ($sector) {
-            $query->where('sector', $sector);
+            $query->whereHas('sector', fn ($q) => $q->where('name', $sector));
         }
 
         $rows = $query->get()
@@ -314,7 +315,7 @@ class MarketReportService
     public function stockDividendSummary(Stock $stock): ?array
     {
         $stock->loadMissing([
-            'latestPrice', 'latestSignal',
+            'sector', 'latestPrice', 'latestSignal',
             'dividends' => fn ($q) => $q->orderByDesc('fiscal_year'),
             'rightShares' => fn ($q) => $q->orderByDesc('opening_date'),
         ]);
@@ -330,9 +331,8 @@ class MarketReportService
     {
         $latest = $stock->dividends->first();
         $close = $stock->latestPrice?->close_price;
-        $faceValue = $stock->face_value !== null ? (float) $stock->face_value : self::DIVIDEND_FACE_VALUE;
         $latestCashRs = $latest->cash_dividend_pct !== null
-            ? (float) $latest->cash_dividend_pct * $faceValue / 100
+            ? (float) $latest->cash_dividend_pct * self::DIVIDEND_FACE_VALUE / 100
             : null;
 
         $totals = $stock->dividends->pluck('total_dividend_pct')->filter(fn ($v) => $v !== null)->map(fn ($v) => (float) $v);
@@ -359,7 +359,7 @@ class MarketReportService
             'stock_id' => $stock->id,
             'symbol' => $stock->symbol,
             'company_name' => $stock->company_name,
-            'sector' => $stock->sector,
+            'sector' => $stock->sector?->name,
             'close' => $close,
             'latest_fiscal_year' => $latest->fiscal_year,
             'latest_cash_pct' => $latest->cash_dividend_pct !== null ? (float) $latest->cash_dividend_pct : null,
@@ -451,7 +451,7 @@ class MarketReportService
      */
     public function longTermCandidates(): Collection
     {
-        $stocks = Stock::with('latestSignal')->get();
+        $stocks = Stock::with(['sector', 'latestSignal'])->get();
         $closes = $this->priceChanges();
 
         $divStats = DB::table('dividends')
@@ -515,7 +515,7 @@ class MarketReportService
                 'stock_id' => $stock->id,
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
                 'share_group' => $stock->share_group,
                 'close' => $close,
                 'dividend_years_recorded' => $div->years_recorded ?? 0,
@@ -625,7 +625,7 @@ class MarketReportService
      */
     public function shortTermCandidates(): Collection
     {
-        $stocks = Stock::with('latestIndicator')->get();
+        $stocks = Stock::with(['sector', 'latestIndicator'])->get();
         $closes = $this->priceChanges();
 
         return $stocks->map(function ($stock) use ($closes) {
@@ -636,7 +636,7 @@ class MarketReportService
                 'stock_id' => $stock->id,
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
                 'share_group' => $stock->share_group,
                 'close' => $price['close'] ?? null,
                 'change_pct' => $price['change_pct'] ?? null,
@@ -735,7 +735,7 @@ class MarketReportService
      */
     public function midTermCandidates(): Collection
     {
-        $stocks = Stock::with('latestIndicator')->get();
+        $stocks = Stock::with(['sector', 'latestIndicator'])->get();
         $closes = $this->priceChanges();
 
         $cutoff6m = now()->subDays(182)->toDateString();
@@ -776,7 +776,7 @@ class MarketReportService
                 'stock_id' => $stock->id,
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
                 'share_group' => $stock->share_group,
                 'close' => $close,
                 'change_pct' => $price['change_pct'] ?? null,

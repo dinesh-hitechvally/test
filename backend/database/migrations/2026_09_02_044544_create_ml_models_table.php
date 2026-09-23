@@ -15,6 +15,7 @@ return new class extends Migration
             $table->unsignedInteger('train_samples');
             $table->unsignedInteger('test_samples');
             $table->decimal('accuracy', 6, 4);
+            $table->decimal('baseline_accuracy', 6, 4);
             $table->decimal('precision', 6, 4);
             $table->decimal('recall', 6, 4);
             $table->decimal('f1', 6, 4);

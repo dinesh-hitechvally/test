@@ -155,7 +155,7 @@ class AiStockOpinionService
         return [
             'symbol' => $stock->symbol,
             'company_name' => $stock->company_name,
-            'sector' => $stock->sector,
+            'sector' => $stock->sector?->name,
             'close_price' => $change['close'] ?? null,
             'change_pct_today' => $change['change_pct'] ?? null,
             'returns_pct' => $this->reports->stockReturns($stock),

@@ -38,6 +38,7 @@ class ScheduleController extends Controller
         ['command' => 'market:recalculate', 'group' => 'reports', 'path' => 'reports/market-recalculate', 'when' => '15:40 NPT, Mon-Fri', 'cron_npt' => '40 15 * * 1-5', 'cron_utc' => '55 9 * * 1-5'],
         ['command' => 'ml:train-predictor', 'group' => 'reports', 'path' => 'reports/train-ml', 'when' => '03:30 NPT, Monday', 'cron_npt' => '30 3 * * 1', 'cron_utc' => '45 21 * * 0'],
         ['command' => 'signals:backtest-accuracy', 'group' => 'reports', 'path' => 'reports/backtest-signals', 'when' => '04:00 NPT, Monday', 'cron_npt' => '0 4 * * 1', 'cron_utc' => '15 22 * * 0'],
+        ['command' => 'signals:backtest-next-close', 'group' => 'reports', 'path' => 'reports/backtest-next-close', 'when' => '04:15 NPT, Monday', 'cron_npt' => '15 4 * * 1', 'cron_utc' => '30 22 * * 0'],
     ];
 
     public function index()

@@ -36,11 +36,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/stocks/{symbol}', [StockController::class, 'show']);
     Route::get('/stocks/{symbol}/prices', [StockController::class, 'prices']);
     Route::get('/stocks/{symbol}/indicators', [StockController::class, 'indicators']);
+    Route::get('/stocks/{symbol}/forecasts', [StockController::class, 'forecasts']);
     Route::get('/stocks/{symbol}/signals', [StockController::class, 'signals']);
     Route::post('/stocks/{symbol}/fetch-full-history', [StockController::class, 'fetchFullHistory']);
     Route::post('/stocks/{symbol}/fetch-nepse-history', [StockController::class, 'fetchNepseHistory']);
     Route::get('/stocks/{symbol}/ml-prediction', [StockController::class, 'mlPrediction']);
     Route::get('/stocks/{symbol}/ai-opinion', [StockController::class, 'aiOpinion']);
+    Route::get('/stocks/{symbol}/next-close-forecast', [StockController::class, 'nextCloseForecast']);
     Route::get('/stocks/{symbol}/dividends', [StockController::class, 'dividends']);
     Route::get('/stocks/{symbol}/right-shares', [StockController::class, 'rightShares']);
     Route::post('/stocks/{symbol}/fetch-corporate-actions', [StockController::class, 'fetchCorporateActions']);
@@ -72,6 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/rule-scan', [ReportController::class, 'ruleScan']);
     Route::get('/reports/technical/{symbol}', [ReportController::class, 'technical']);
     Route::get('/reports/dividends', [ReportController::class, 'dividends']);
+    Route::get('/reports/next-close-accuracy', [ReportController::class, 'nextCloseAccuracy']);
     Route::get('/reports/long-term', [ReportController::class, 'longTerm']);
     Route::get('/reports/mid-term', [ReportController::class, 'midTerm']);
     Route::get('/reports/short-term', [ReportController::class, 'shortTerm']);

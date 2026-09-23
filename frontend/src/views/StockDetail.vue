@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import client from '../api/client'
 import PriceChart from '../components/PriceChart.vue'
@@ -13,18 +13,26 @@ const route = useRoute()
 const stock = ref(null)
 const prices = ref([])
 const indicators = ref([])
+const forecastHistory = ref([])
 const signals = ref([])
 const signalsPage = ref(1)
 const signalsTotalPages = ref(1)
 const signalsLoading = ref(false)
 const signalsFromFilter = ref('')
 const signalsToFilter = ref('')
+const SIGNAL_TYPES = ['strong_buy', 'buy', 'hold', 'sell', 'strong_sell']
+const signalsTypeFilter = ref([])
 const mlPrediction = ref(null)
 const mlModel = ref(null)
 const dividends = ref([])
 const rightShares = ref([])
 const aiOpinion = ref(null)
 const aiOpinionMessage = ref('')
+const nextCloseAccuracy = ref(null)
+const nextCloseForecast = ref(null)
+const nextCloseForecastMessage = ref('')
+
+const latestPrice = computed(() => prices.value[prices.value.length - 1] || null)
 
 const {
   sorted: sortedDividends,
@@ -47,7 +55,9 @@ async function loadAll(symbol) {
   signalsPage.value = 1
   aiOpinion.value = null
   aiOpinionMessage.value = ''
-  const [stockRes, pricesRes, indicatorsRes, mlRes, dividendsRes, rightSharesRes, aiRes] = await Promise.all([
+  nextCloseForecast.value = null
+  nextCloseForecastMessage.value = ''
+  const [stockRes, pricesRes, indicatorsRes, forecastHistoryRes, mlRes, dividendsRes, rightSharesRes, aiRes, forecastRes] = await Promise.all([
     client.get(`/stocks/${symbol}`),
     // Most recent 1000 trading days (~4 years) — the Price & Moving
     // Averages chart zooms/pans within this range. Capped rather than
@@ -55,6 +65,7 @@ async function loadAll(symbol) {
     // doesn't force a multi-thousand-row fetch on every page load.
     client.get(`/stocks/${symbol}/prices`, { params: { days: 1000 } }),
     client.get(`/stocks/${symbol}/indicators`, { params: { days: 1000 } }),
+    client.get(`/stocks/${symbol}/forecasts`, { params: { days: 1000 } }),
     client.get(`/stocks/${symbol}/ml-prediction`),
     client.get(`/stocks/${symbol}/dividends`),
     client.get(`/stocks/${symbol}/right-shares`),
@@ -62,11 +73,15 @@ async function loadAll(symbol) {
     // the AI itself) — safe to fetch on every page load like everything
     // else here, no button/latency/quota concern.
     client.get(`/stocks/${symbol}/ai-opinion`),
+    // Same story: forecasts are only ever written by the recalculation
+    // pipeline's backfill, never generated on request.
+    client.get(`/stocks/${symbol}/next-close-forecast`),
   ])
 
   stock.value = stockRes.data
   prices.value = pricesRes.data
   indicators.value = indicatorsRes.data
+  forecastHistory.value = forecastHistoryRes.data
   mlPrediction.value = mlRes.data.prediction
   mlModel.value = mlRes.data.model
   dividends.value = dividendsRes.data
@@ -75,6 +90,11 @@ async function loadAll(symbol) {
     aiOpinion.value = aiRes.data
   } else {
     aiOpinionMessage.value = aiRes.data.message
+  }
+  if (forecastRes.data.available) {
+    nextCloseForecast.value = forecastRes.data
+  } else {
+    nextCloseForecastMessage.value = forecastRes.data.message
   }
   loading.value = false
 
@@ -90,6 +110,7 @@ async function loadSignalsPage(page) {
         per_page: 30,
         from: signalsFromFilter.value || undefined,
         to: signalsToFilter.value || undefined,
+        signal: signalsTypeFilter.value.length ? signalsTypeFilter.value : undefined,
       },
     })
     signals.value = data.data.reverse()
@@ -107,6 +128,17 @@ function applySignalsFilter() {
 function clearSignalsFilter() {
   signalsFromFilter.value = ''
   signalsToFilter.value = ''
+  signalsTypeFilter.value = []
+  loadSignalsPage(1)
+}
+
+function toggleSignalTypeFilter(type) {
+  const idx = signalsTypeFilter.value.indexOf(type)
+  if (idx === -1) {
+    signalsTypeFilter.value.push(type)
+  } else {
+    signalsTypeFilter.value.splice(idx, 1)
+  }
   loadSignalsPage(1)
 }
 
@@ -135,7 +167,14 @@ function formatSignal(label) {
   return label.replace('_', ' ')
 }
 
-onMounted(() => loadAll(route.params.symbol))
+onMounted(() => {
+  loadAll(route.params.symbol)
+  // Global (not per-stock), so fetched once here rather than in loadAll —
+  // no need to re-fetch it every time the symbol changes.
+  client.get('/reports/next-close-accuracy').then(({ data }) => {
+    if (data.available) nextCloseAccuracy.value = data
+  })
+})
 watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 </script>
 
@@ -155,6 +194,29 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       </div>
     </div>
 
+    <div v-if="stock.fundamental" class="fundamentals-row">
+      <div class="fundamental-item">
+        <span class="muted small">EPS</span>
+        <span>{{ formatPrice(stock.fundamental.eps) }}<span v-if="stock.fundamental.eps_fiscal_year" class="muted small"> ({{ stock.fundamental.eps_fiscal_year }})</span></span>
+      </div>
+      <div class="fundamental-item">
+        <span class="muted small">P/E Ratio</span>
+        <span>{{ formatPrice(stock.fundamental.pe_ratio) }}</span>
+      </div>
+      <div class="fundamental-item">
+        <span class="muted small">Book Value</span>
+        <span>Rs. {{ formatPrice(stock.fundamental.book_value) }}</span>
+      </div>
+      <div class="fundamental-item">
+        <span class="muted small">PBV</span>
+        <span>{{ formatPrice(stock.fundamental.pbv) }}</span>
+      </div>
+      <div class="fundamental-item">
+        <span class="muted small">Market Cap</span>
+        <span>Rs. {{ (stock.fundamental.market_cap / 1e9).toFixed(2) }}B</span>
+      </div>
+    </div>
+
     <p v-if="prices.length < 20" class="muted card">
       Not enough price history yet to compute indicators (need at least 20 trading days) — this fills in once the
       scheduled history fetch reaches this stock, or import a CSV from the Stocks page.
@@ -163,7 +225,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
     <template v-else>
       <div class="card">
         <h3>Price &amp; Moving Averages</h3>
-        <PriceChart :prices="prices" :indicators="indicators" />
+        <PriceChart :prices="prices" :indicators="indicators" :forecasts="forecastHistory" />
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
@@ -222,6 +284,36 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
           reaches it.
         </p>
       </template>
+    </div>
+
+    <div class="card" style="margin-top: 16px">
+      <h3>Estimated Next Close</h3>
+
+      <div v-if="nextCloseAccuracy" class="accuracy-box" :class="{ warn: !nextCloseAccuracy.beats_baseline }">
+        <strong>{{ nextCloseAccuracy.beats_baseline ? 'Beats baseline' : "Doesn't beat baseline" }}:</strong>
+        measured error {{ nextCloseAccuracy.mape.toFixed(2) }}% vs. simply assuming no price change (baseline
+        {{ nextCloseAccuracy.naive_mape.toFixed(2) }}%), and {{ nextCloseAccuracy.direction_accuracy.toFixed(1) }}%
+        directional accuracy (a coin flip is 50%) — backtested across {{ nextCloseAccuracy.sample_size.toLocaleString() }}
+        real historical day-ahead pairs on {{ nextCloseAccuracy.stocks_used }} stocks.
+        <span v-if="!nextCloseAccuracy.beats_baseline">
+          In its current form this estimate is not adding value over simply assuming no price change tomorrow — shown
+          anyway for transparency, not as a recommendation.
+        </span>
+      </div>
+
+      <template v-if="nextCloseForecast">
+        <div class="next-close-estimate">
+          <span class="estimate-price">Rs. {{ formatPrice(nextCloseForecast.next_close) }}</span>
+          <span class="muted" v-if="latestPrice">
+            vs. today's close of Rs. {{ formatPrice(latestPrice.close_price) }}
+            ({{ nextCloseForecast.next_close >= latestPrice.close_price ? '+' : '' }}{{ (((nextCloseForecast.next_close - latestPrice.close_price) / latestPrice.close_price) * 100).toFixed(2) }}%)
+          </span>
+        </div>
+        <ul class="reasons">
+          <li v-for="(r, i) in nextCloseForecast.reasons" :key="i">{{ r }}</li>
+        </ul>
+      </template>
+      <p v-else class="muted">{{ nextCloseForecastMessage || 'Not enough price history yet for this stock (needs at least a few weeks of trading).' }}</p>
     </div>
 
     <div class="card" style="margin-top: 16px">
@@ -320,7 +412,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         </label>
         <button class="btn-secondary btn" :disabled="signalsLoading" @click="applySignalsFilter">Apply</button>
         <button
-          v-if="signalsFromFilter || signalsToFilter"
+          v-if="signalsFromFilter || signalsToFilter || signalsTypeFilter.length"
           class="btn-secondary btn"
           :disabled="signalsLoading"
           @click="clearSignalsFilter"
@@ -329,14 +421,33 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         </button>
       </div>
 
+      <div class="signal-type-filters">
+        <span class="muted small">Signal</span>
+        <button
+          v-for="type in SIGNAL_TYPES"
+          :key="type"
+          type="button"
+          class="badge signal-type-toggle"
+          :class="[type, { active: signalsTypeFilter.includes(type) }]"
+          :disabled="signalsLoading"
+          @click="toggleSignalTypeFilter(type)"
+        >
+          {{ formatSignal(type) }}
+        </button>
+      </div>
+
       <table class="table">
         <thead>
-          <tr><th>Date</th><th>Price</th><th>Signal</th><th>Score</th><th>Reasons</th></tr>
+          <tr><th>Date</th><th>Price</th><th>Forecast Next Close</th><th>Signal</th><th>Score</th><th>Reasons</th></tr>
         </thead>
         <tbody>
           <tr v-for="s in signals" :key="s.id">
             <td>{{ s.trade_date }}</td>
             <td>Rs. {{ formatPrice(s.price_at_signal) }}</td>
+            <td>
+              <span v-if="s.forecast_price !== null">Rs. {{ formatPrice(s.forecast_price) }}</span>
+              <span v-else class="muted">—</span>
+            </td>
             <td><span class="badge" :class="s.signal">{{ formatSignal(s.signal) }}</span></td>
             <td>{{ s.score }}</td>
             <td class="muted">{{ s.reasons.join('; ') }}</td>
@@ -365,6 +476,25 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
   gap: 4px;
 }
 
+.signal-type-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.signal-type-toggle {
+  cursor: pointer;
+  border: 1px solid transparent;
+  opacity: 0.45;
+}
+
+.signal-type-toggle.active {
+  opacity: 1;
+  border-color: currentColor;
+}
+
 .small {
   font-size: 0.78rem;
 }
@@ -380,6 +510,19 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
+}
+
+.fundamentals-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.fundamental-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .card-head {
@@ -409,6 +552,25 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.next-close-estimate {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.estimate-price {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.reasons {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 .ai-opinion {

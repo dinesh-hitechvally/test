@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiStockOpinion;
+use App\Models\Sector;
 use App\Models\Stock;
 use App\Services\AiStockOpinionService;
 use App\Services\CronAlertService;
+use App\Services\MarketData\MeroLaganiFundamentalsService;
 use App\Services\MarketData\NepalStockCorporateActionsService;
 use App\Services\MarketData\NepalStockSecurityResolver;
 use App\Services\MarketData\SharesansarHistoryService;
@@ -35,9 +37,10 @@ use Throwable;
  *   market:recalculate             15:40 NPT, Mon-Fri
  *   ml:train-predictor             03:30 NPT, Monday
  *   signals:backtest-accuracy      04:00 NPT, Monday
+ *   signals:backtest-next-close    04:15 NPT, Monday
  *
- * fetch-histories/fetch-history/sync-sectors/sync-dividends/generate-ai-opinions
- * are on-demand (no fixed schedule, safe to ping repeatedly). There's no URL-triggered
+ * fetch-histories/fetch-history/sync-sectors/sync-dividends/generate-ai-opinions/
+ * sync-fundamentals are on-demand (no fixed schedule, safe to ping repeatedly). There's no URL-triggered
  * queue-worker path anymore — it was fully redundant with fetch-histories,
  * which does the same job directly instead of via a queue.
  *
@@ -173,7 +176,7 @@ class CronController extends Controller
         set_time_limit(0);
 
         $limit = max(1, (int) $request->query('limit', 5));
-        $stocks = Stock::whereNull('sector')->orderBy('id')->limit($limit)->get();
+        $stocks = Stock::whereNull('sector_id')->orderBy('id')->limit($limit)->get();
 
         if ($stocks->isEmpty()) {
             return response("No stocks are missing a sector.\n")->header('Content-Type', 'text/plain');
@@ -186,7 +189,7 @@ class CronController extends Controller
                 $sector = $resolver->fetchSector($stock);
 
                 if ($sector !== null) {
-                    $stock->update(['sector' => $sector]);
+                    $stock->update(['sector_id' => Sector::firstOrCreate(['name' => $sector])->id]);
                     $stock->ensureScrapeStatus()->clearSectorError();
                     $lines[] = "{$stock->symbol}: {$sector}";
                 } else {
@@ -200,7 +203,7 @@ class CronController extends Controller
             usleep(300_000); // same polite pacing as stocks:backfill-sectors
         }
 
-        $remaining = Stock::whereNull('sector')->count();
+        $remaining = Stock::whereNull('sector_id')->count();
         $lines[] = "{$remaining} stock(s) still missing a sector — re-ping this URL to continue.";
 
         return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
@@ -343,6 +346,48 @@ class CronController extends Controller
         return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
     }
 
+    /**
+     * Batched, same on-demand/re-pingable shape as generateAiOpinions() — EPS/
+     * P/E/book value only move quarterly (or drift slowly with price), so a
+     * week-old row is still fine to show; this just keeps every stock from
+     * going more than ~7 days stale, refreshed a `limit`-sized batch per ping.
+     */
+    public function syncFundamentals(Request $request, MeroLaganiFundamentalsService $fundamentals)
+    {
+        set_time_limit(0);
+
+        $limit = max(1, (int) $request->query('limit', 20));
+        $staleBefore = now()->subDays(7);
+
+        $pending = fn () => Stock::whereDoesntHave('fundamental', function ($q) use ($staleBefore) {
+            $q->where('fetched_at', '>=', $staleBefore);
+        });
+
+        $stocks = $pending()->orderBy('id')->limit($limit)->get();
+
+        if ($stocks->isEmpty()) {
+            return response("No stocks are due for a fundamentals refresh.\n")->header('Content-Type', 'text/plain');
+        }
+
+        $lines = [];
+
+        foreach ($stocks as $stock) {
+            try {
+                $data = $fundamentals->syncOne($stock);
+                $lines[] = "{$stock->symbol}: EPS={$data->eps} PE={$data->pe_ratio} BookValue={$data->book_value}";
+            } catch (Throwable $e) {
+                $lines[] = "{$stock->symbol}: failed — {$e->getMessage()}";
+            }
+
+            usleep(500_000); // polite pacing between stocks within this batch
+        }
+
+        $remaining = $pending()->count();
+        $lines[] = "{$remaining} stock(s) still due for a fundamentals refresh — re-ping this URL to continue.";
+
+        return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
+    }
+
     /** 03:30 NPT, Monday — cron_utc: 45 21 * * 0 (Sunday in UTC) */
     public function trainMl()
     {
@@ -353,6 +398,12 @@ class CronController extends Controller
     public function backtestSignals()
     {
         return $this->run('signals:backtest-accuracy', 'signal-accuracy.log');
+    }
+
+    /** 04:15 NPT, Monday — cron_utc: 30 22 * * 0 (Sunday in UTC) */
+    public function backtestNextClose()
+    {
+        return $this->run('signals:backtest-next-close', 'next-close-accuracy.log');
     }
 
     private function run(string $signature, string $logFile, array $params = []): Response

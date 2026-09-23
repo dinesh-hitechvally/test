@@ -17,7 +17,7 @@ class SignalAccuracyService
 {
     private const DIRECTIONAL_SIGNALS = ['strong_buy', 'buy', 'sell', 'strong_sell'];
 
-    public function backtest(int $horizonDays = 10): array
+    public function backtest(int $horizonDays = 30): array
     {
         $stocks = Stock::whereHas('signals')->get(['id']);
 

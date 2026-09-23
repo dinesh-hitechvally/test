@@ -15,6 +15,7 @@ return new class extends Migration
             $table->enum('signal', ['strong_buy', 'buy', 'hold', 'sell', 'strong_sell']);
             $table->decimal('score', 5, 4);
             $table->json('reasons')->nullable();
+            $table->json('rule_keys')->nullable();
             $table->decimal('price_at_signal', 18, 4)->nullable();
             $table->timestamps();
 

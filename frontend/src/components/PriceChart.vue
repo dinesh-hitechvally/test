@@ -17,11 +17,23 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 const props = defineProps({
   prices: { type: Array, default: () => [] },
   indicators: { type: Array, default: () => [] },
+  forecasts: { type: Array, default: () => [] },
 })
 
 const chartData = computed(() => {
   const priceLabels = props.prices.map((p) => p.trade_date)
   const indicatorByDate = Object.fromEntries(props.indicators.map((i) => [i.trade_date, i]))
+  // Forecasts are keyed by the day they were generated FROM, predicting
+  // the next trading day's close — shifted forward one position here so
+  // each estimate lines up on the same x position as the actual close it
+  // was predicting, not the day it was made. daily_prices only contains
+  // real trading days, so "next array position" is always "next trading
+  // day", no calendar math needed.
+  const forecastByGeneratedDate = Object.fromEntries(props.forecasts.map((f) => [f.trade_date, f]))
+  const estimatedClose = priceLabels.map((_, idx) => {
+    const priorLabel = idx > 0 ? priceLabels[idx - 1] : null
+    return priorLabel ? (forecastByGeneratedDate[priorLabel]?.next_close ?? null) : null
+  })
 
   return {
     labels: priceLabels,
@@ -33,6 +45,15 @@ const chartData = computed(() => {
         backgroundColor: 'transparent',
         pointRadius: 0,
         borderWidth: 2,
+      },
+      {
+        label: 'Estimated Close',
+        data: estimatedClose,
+        borderColor: '#dc2626',
+        backgroundColor: 'transparent',
+        pointRadius: 0,
+        borderWidth: 1.5,
+        borderDash: [5, 4],
       },
       {
         label: 'SMA20',

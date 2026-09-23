@@ -34,7 +34,7 @@ onMounted(load)
     <h1>Signal History / Accuracy</h1>
     <p class="muted">
       A walk-forward backtest of every historical signal this app has generated — for each one, did price actually
-      move the direction the signal implied over the next {{ data?.horizon_days || 10 }} trading days?
+      move the direction the signal implied over the next {{ data?.horizon_days || 30 }} trading days?
     </p>
 
     <p v-if="loading" class="muted">Loading…</p>

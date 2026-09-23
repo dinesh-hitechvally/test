@@ -89,16 +89,6 @@ class NepalStockCorporateActionsService
             $notice = $application['companyNews']['dividendsNotice'] ?? null;
             $fiscalYear = $notice['financialYear']['fyNameNepali'] ?? null;
 
-            // Every application response embeds the security's face value —
-            // not always Rs. 100 (mutual fund units are commonly Rs. 10), and
-            // dividend/bonus % is declared against that, not market price.
-            // Captured here since it's already in a payload we're fetching
-            // anyway, no extra request needed.
-            $faceValue = $application['companyNews']['security']['faceValue'] ?? null;
-            if ($faceValue !== null && $stock->face_value === null) {
-                $stock->update(['face_value' => (float) $faceValue]);
-            }
-
             // Same payload also carries NEPSE's own listing tier (A/B/N —
             // based on paid-up capital, listing age, profit history and
             // credit rating) — a cheap, real "is this an established

@@ -4,18 +4,38 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector', 'share_group', 'face_value', 'is_active'])]
+#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector_id', 'share_group', 'is_active'])]
 class Stock extends Model
 {
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
-            'face_value' => 'decimal:2',
         ];
+    }
+
+    /** @return BelongsTo<Sector, $this> */
+    public function sector(): BelongsTo
+    {
+        return $this->belongsTo(Sector::class);
+    }
+
+    /**
+     * Every API response has always sent `sector` as a plain name string —
+     * flatten the relation back into that shape here rather than making
+     * every controller/frontend consumer switch to a nested {id, name}
+     * object just because storage moved to a normalized FK.
+     */
+    public function toArray(): array
+    {
+        $array = parent::toArray();
+        $array['sector'] = $this->sector?->name;
+
+        return $array;
     }
 
     /** @return HasOne<StockScrapeStatus, $this> */
@@ -93,5 +113,23 @@ class Stock extends Model
     public function aiOpinion(): HasOne
     {
         return $this->hasOne(AiStockOpinion::class);
+    }
+
+    /** @return HasMany<Forecast, $this> */
+    public function forecasts(): HasMany
+    {
+        return $this->hasMany(Forecast::class);
+    }
+
+    /** @return HasOne<Forecast, $this> */
+    public function latestForecast(): HasOne
+    {
+        return $this->hasOne(Forecast::class)->latestOfMany('trade_date');
+    }
+
+    /** @return HasOne<StockFundamental, $this> */
+    public function fundamental(): HasOne
+    {
+        return $this->hasOne(StockFundamental::class);
     }
 }

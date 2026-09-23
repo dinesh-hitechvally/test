@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Sector;
 use App\Models\SignalAccuracyStat;
 use App\Models\Stock;
 use App\Services\MarketData\MarketReportService;
 use App\Services\MarketData\MlDirectionPredictorService;
+use App\Services\MarketData\NextCloseEstimatorService;
 use App\Services\MarketData\SignalRules;
 use App\Services\MarketData\TechnicalAnalysisReportService;
 use Illuminate\Http\Request;
@@ -35,12 +37,12 @@ class ReportController extends Controller
 
     public function sectors()
     {
-        $sectors = Stock::whereNotNull('sector')
-            ->where('sector', '!=', '')
-            ->groupBy('sector')
-            ->selectRaw('sector, COUNT(*) as stock_count')
-            ->orderByDesc('stock_count')
-            ->get();
+        $sectors = Sector::withCount('stocks')
+            ->having('stocks_count', '>', 0)
+            ->orderByDesc('stocks_count')
+            ->get()
+            ->map(fn ($sector) => ['sector' => $sector->name, 'stock_count' => $sector->stocks_count])
+            ->values();
 
         return response()->json($sectors);
     }
@@ -53,8 +55,8 @@ class ReportController extends Controller
             return response()->json(['message' => 'A sector name is required.'], 422);
         }
 
-        $stocks = Stock::where('sector', $sector)
-            ->with(['latestPrice', 'latestSignal'])
+        $stocks = Stock::whereHas('sector', fn ($q) => $q->where('name', $sector))
+            ->with(['sector', 'latestPrice', 'latestSignal'])
             ->orderBy('symbol')
             ->get();
 
@@ -97,7 +99,7 @@ class ReportController extends Controller
 
     public function stock(string $symbol, MarketReportService $reports)
     {
-        $stock = Stock::with(['latestPrice', 'latestSignal'])
+        $stock = Stock::with(['sector', 'latestPrice', 'latestSignal'])
             ->where('symbol', strtoupper($symbol))
             ->firstOrFail();
 
@@ -113,7 +115,7 @@ class ReportController extends Controller
             'stock' => [
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
             ],
             'latest_price' => $stock->latestPrice,
             'latest_signal' => $stock->latestSignal,
@@ -126,6 +128,28 @@ class ReportController extends Controller
     public function dividends(Request $request, MarketReportService $reports)
     {
         return response()->json($reports->dividendReport($request->query('sector')));
+    }
+
+    /**
+     * The next-close estimator's real, latest backtested accuracy — the
+     * companion honesty-check to whatever number Forecast.next_close
+     * is showing, so it's never displayed without its own measured track
+     * record right next to it (same convention as MlModel's accuracy).
+     */
+    public function nextCloseAccuracy(NextCloseEstimatorService $estimator)
+    {
+        $stat = $estimator->latestAccuracy();
+
+        return response()->json($stat ? [
+            'available' => true,
+            'sample_size' => $stat->sample_size,
+            'stocks_used' => $stat->stocks_used,
+            'mape' => (float) $stat->mape,
+            'naive_mape' => (float) $stat->naive_mape,
+            'direction_accuracy' => (float) $stat->direction_accuracy,
+            'beats_baseline' => $stat->beatsBaseline(),
+            'computed_at' => $stat->computed_at,
+        ] : ['available' => false]);
     }
 
     public function longTerm(Request $request, MarketReportService $reports)
@@ -151,13 +175,13 @@ class ReportController extends Controller
 
     public function technical(string $symbol, TechnicalAnalysisReportService $reports)
     {
-        $stock = Stock::where('symbol', strtoupper($symbol))->firstOrFail();
+        $stock = Stock::with('sector')->where('symbol', strtoupper($symbol))->firstOrFail();
 
         return response()->json([
             'stock' => [
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
             ],
             'report' => $reports->build($stock),
         ]);
@@ -174,7 +198,7 @@ class ReportController extends Controller
      */
     public function analyst(string $symbol, MarketReportService $reports, TechnicalAnalysisReportService $technical, MlDirectionPredictorService $predictor)
     {
-        $stock = Stock::with(['latestPrice', 'latestSignal'])->where('symbol', strtoupper($symbol))->firstOrFail();
+        $stock = Stock::with(['sector', 'latestPrice', 'latestSignal'])->where('symbol', strtoupper($symbol))->firstOrFail();
 
         $change = $reports->priceChanges()->get($stock->id);
 
@@ -199,7 +223,7 @@ class ReportController extends Controller
             'stock' => [
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
             ],
             'latest_price' => $stock->latestPrice,
             'change_pct' => $change['change_pct'] ?? null,
@@ -263,7 +287,7 @@ class ReportController extends Controller
 
         $mode = $validated['mode'] ?? 'any';
 
-        $stocks = Stock::with(['latestSignal', 'latestPrice'])->get();
+        $stocks = Stock::with(['sector', 'latestSignal', 'latestPrice'])->get();
         $changes = $reports->priceChanges();
 
         $matches = $stocks->filter(function ($stock) use ($requested, $mode) {
@@ -280,7 +304,7 @@ class ReportController extends Controller
                 'stock_id' => $stock->id,
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
                 'close' => $stock->latestPrice?->close_price,
                 'change_pct' => $changes->get($stock->id)['change_pct'] ?? null,
                 'signal' => $stock->latestSignal?->signal,

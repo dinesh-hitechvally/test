@@ -10,7 +10,7 @@ class MarketController extends Controller
 {
     public function screener(MarketReportService $reports)
     {
-        $stocks = Stock::with(['latestPrice', 'latestSignal', 'latestIndicator'])->orderBy('symbol')->get();
+        $stocks = Stock::with(['sector', 'latestPrice', 'latestSignal', 'latestIndicator'])->orderBy('symbol')->get();
         $changes = $reports->priceChanges();
 
         $stocks->each(function ($stock) use ($changes) {
@@ -22,7 +22,7 @@ class MarketController extends Controller
 
     public function fiftyTwoWeek(MarketReportService $reports)
     {
-        $stocks = Stock::orderBy('symbol')->get();
+        $stocks = Stock::with('sector')->orderBy('symbol')->get();
         $ranges = $reports->fiftyTwoWeekRange();
 
         $result = $stocks->map(function ($stock) use ($ranges) {
@@ -36,7 +36,7 @@ class MarketController extends Controller
                 'stock_id' => $stock->id,
                 'symbol' => $stock->symbol,
                 'company_name' => $stock->company_name,
-                'sector' => $stock->sector,
+                'sector' => $stock->sector?->name,
                 'current_price' => $range['current_price'],
                 'high_52w' => $range['high_52w'],
                 'low_52w' => $range['low_52w'],

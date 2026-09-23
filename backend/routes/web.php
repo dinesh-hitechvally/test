@@ -76,6 +76,11 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
         // limits — keep ?limit= modest if pinging often.
         Route::get('/ai-opinions', [CronController::class, 'generateAiOpinions']);
 
+        // EPS/P/E/Book Value from merolagani.com — batched, missing or 7+
+        // days stale, ?limit= (default 20) per ping. Slow-moving data, no
+        // strict schedule needed; safe to ping as often as convenient.
+        Route::get('/fundamentals', [CronController::class, 'syncFundamentals']);
+
         // Daily prices and the index snapshot — ~30min after NEPSE's ~15:00
         // NPT close, 2 minutes apart so one finishes before the next fires.
 
@@ -105,6 +110,9 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
 
         // 04:00 NPT, Monday  |  UTC: 15 22 * * 0  (22:15 UTC, *Sunday*)
         Route::get('/backtest-signals', [CronController::class, 'backtestSignals']);
+
+        // 04:15 NPT, Monday  |  UTC: 30 22 * * 0  (22:30 UTC, *Sunday*)
+        Route::get('/backtest-next-close', [CronController::class, 'backtestNextClose']);
 
     });
     

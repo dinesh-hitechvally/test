@@ -18,11 +18,16 @@ class SignalRules
         'sma_20_50_bull_cross' => ['label' => 'SMA20 crossed above SMA50', 'direction' => 'bullish'],
         'sma_20_50_bear_cross' => ['label' => 'SMA20 crossed below SMA50', 'direction' => 'bearish'],
         'rsi_oversold' => ['label' => 'RSI Oversold (< 30)', 'direction' => 'bullish'],
-        'rsi_overbought' => ['label' => 'RSI Overbought (> 70)', 'direction' => 'bearish'],
+        'rsi_overbought' => ['label' => 'RSI Rolled Over From Overbought (> 70)', 'direction' => 'bearish'],
         'macd_bull_cross' => ['label' => 'MACD Bullish Crossover', 'direction' => 'bullish'],
         'macd_bear_cross' => ['label' => 'MACD Bearish Crossover', 'direction' => 'bearish'],
         'bb_lower_touch' => ['label' => 'Price at/below Lower Bollinger Band', 'direction' => 'bullish'],
-        'bb_upper_touch' => ['label' => 'Price at/above Upper Bollinger Band', 'direction' => 'bearish'],
+        'bb_upper_touch' => ['label' => 'Price Rejected From Upper Bollinger Band', 'direction' => 'bearish'],
+        'valuation_loss' => ['label' => 'Reporting a Loss (Negative EPS)', 'direction' => 'bearish'],
+        'valuation_undervalued' => ['label' => 'Trading Below Book Value (PBV < 1)', 'direction' => 'bullish'],
+        'valuation_overvalued' => ['label' => 'Trading Well Above Book Value (PBV > 4)', 'direction' => 'bearish'],
+        'valuation_cheap_pe' => ['label' => 'Cheap Earnings Multiple (P/E < 10)', 'direction' => 'bullish'],
+        'valuation_expensive_pe' => ['label' => 'Expensive Earnings Multiple (P/E > 40)', 'direction' => 'bearish'],
     ];
 
     public static function isValidKey(string $key): bool

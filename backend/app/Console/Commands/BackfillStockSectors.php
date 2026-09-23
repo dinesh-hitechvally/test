@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Sector;
 use App\Models\Stock;
 use App\Services\MarketData\NepalStockSecurityResolver;
 use Illuminate\Console\Attributes\Description;
@@ -17,7 +18,7 @@ class BackfillStockSectors extends Command
     {
         $stocks = $this->option('all')
             ? Stock::orderBy('symbol')->get()
-            : Stock::whereNull('sector')->orderBy('symbol')->get();
+            : Stock::whereNull('sector_id')->orderBy('symbol')->get();
 
         if ($stocks->isEmpty()) {
             $this->info('Every stock already has a sector — nothing to do (use --all to re-fetch anyway).');
@@ -37,7 +38,7 @@ class BackfillStockSectors extends Command
                 $sector = $resolver->fetchSector($stock);
 
                 if ($sector !== null) {
-                    $stock->update(['sector' => $sector]);
+                    $stock->update(['sector_id' => Sector::firstOrCreate(['name' => $sector])->id]);
                     $stock->ensureScrapeStatus()->clearSectorError();
                 }
 
