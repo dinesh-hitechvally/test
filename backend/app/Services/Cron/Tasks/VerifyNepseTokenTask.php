@@ -2,8 +2,7 @@
 
 namespace App\Services\Cron\Tasks;
 
-use App\Services\Cron\CronTask;
-use App\Services\MarketData\NepalStockTokenService;
+use App\Services\DataSources\NepalStock\NepalStockTokenService;
 
 /** On-demand diagnostic — the first thing to run when every nepalstock.com fetch starts failing at once. */
 class VerifyNepseTokenTask extends CronTask

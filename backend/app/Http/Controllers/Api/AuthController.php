@@ -9,7 +9,7 @@ use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\UpdatePasswordRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Models\LoginHistory;
-use App\Services\LoginGeolocationService;
+use App\Services\Auth\LoginGeolocationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;

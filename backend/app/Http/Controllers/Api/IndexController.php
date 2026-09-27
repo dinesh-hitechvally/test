@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\IndexSnapshot;
-use App\Services\MarketData\NepalStockIndexService;
+use App\Services\DataSources\NepalStock\NepalStockIndexService;
 use Illuminate\Http\Request;
 use Throwable;
 

@@ -5,7 +5,7 @@ namespace Tests\Feature\Services;
 use App\Models\DailyPrice;
 use App\Models\Stock;
 use App\Models\TechnicalIndicator;
-use App\Services\MarketData\SignalGeneratorService;
+use App\Services\Analysis\Signals\SignalGeneratorService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

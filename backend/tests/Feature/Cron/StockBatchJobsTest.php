@@ -26,7 +26,8 @@ class StockBatchJobsTest extends TestCase
 
     public function test_fetch_histories_processes_one_batch_and_reports_the_remainder(): void
     {
-        $this->app->instance(PriceHistorySource::class, new class implements PriceHistorySource {
+        $this->app->instance(PriceHistorySource::class, new class implements PriceHistorySource
+        {
             public function fetchHistory(Stock $stock): array
             {
                 if ($stock->symbol === 'BAD') {
@@ -61,7 +62,8 @@ class StockBatchJobsTest extends TestCase
 
     public function test_ai_opinions_are_skipped_when_no_provider_is_configured(): void
     {
-        $this->app->instance(AiOpinionProvider::class, new class implements AiOpinionProvider {
+        $this->app->instance(AiOpinionProvider::class, new class implements AiOpinionProvider
+        {
             public function isConfigured(): bool
             {
                 return false;

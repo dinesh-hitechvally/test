@@ -3,7 +3,7 @@
 namespace App\Listeners;
 
 use App\Events\CronTaskFailed;
-use App\Services\CronAlertService;
+use App\Services\Cron\CronAlertService;
 
 class AlertCronFailure
 {

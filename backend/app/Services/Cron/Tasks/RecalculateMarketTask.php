@@ -3,8 +3,7 @@
 namespace App\Services\Cron\Tasks;
 
 use App\Models\Stock;
-use App\Services\Cron\CronTask;
-use App\Services\MarketData\RecalculationPipeline;
+use App\Services\Analysis\RecalculationPipeline;
 use Illuminate\Support\Facades\DB;
 
 /**

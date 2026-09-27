@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Watchlist\AddWatchlistItemRequest;
 use App\Http\Requests\Watchlist\SetWatchlistAlertRequest;
 use App\Http\Requests\Watchlist\StoreWatchlistRequest;
-use App\Services\MarketData\MarketReportService;
+use App\Services\Reports\MarketReportService;
 use Illuminate\Http\Request;
 
 class WatchlistController extends Controller

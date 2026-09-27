@@ -2,8 +2,7 @@
 
 namespace App\Services\Cron\Tasks;
 
-use App\Services\Cron\CronTask;
-use App\Services\MarketData\SignalAccuracyService;
+use App\Services\Analysis\Signals\SignalAccuracyService;
 
 class BacktestSignalsTask extends CronTask
 {

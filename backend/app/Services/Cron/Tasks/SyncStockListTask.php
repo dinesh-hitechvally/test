@@ -3,8 +3,7 @@
 namespace App\Services\Cron\Tasks;
 
 use App\Events\ScrapeFinished;
-use App\Services\Cron\CronTask;
-use App\Services\MarketData\NepalStockSecurityResolver;
+use App\Services\DataSources\NepalStock\NepalStockSecurityResolver;
 use Throwable;
 
 class SyncStockListTask extends CronTask
@@ -46,11 +45,11 @@ class SyncStockListTask extends CronTask
         $summary = "{$result['created']} new stock(s) created, {$result['existing']} already existed.";
 
         ScrapeFinished::dispatch(
-                source: self::SOURCE,
-                succeeded: true,
-                recordsProcessed: $result['total'],
-                message: $summary,
-            );
+            source: self::SOURCE,
+            succeeded: true,
+            recordsProcessed: $result['total'],
+            message: $summary,
+        );
 
         return "{$result['total']} securities on record — {$summary}";
     }

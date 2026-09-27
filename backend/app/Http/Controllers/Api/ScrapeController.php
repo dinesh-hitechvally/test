@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ScrapeLog;
-use App\Services\MarketData\NepalStockScraperService;
+use App\Services\DataSources\NepalStock\NepalStockScraperService;
 use Illuminate\Http\Request;
 use Throwable;
 

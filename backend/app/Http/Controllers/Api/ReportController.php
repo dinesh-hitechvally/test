@@ -7,11 +7,11 @@ use App\Http\Requests\Report\RuleScanRequest;
 use App\Models\Sector;
 use App\Models\SignalAccuracyStat;
 use App\Models\Stock;
-use App\Services\MarketData\MarketReportService;
-use App\Services\MarketData\MlDirectionPredictorService;
-use App\Services\MarketData\NextCloseEstimatorService;
-use App\Services\MarketData\SignalRules;
-use App\Services\MarketData\TechnicalAnalysisReportService;
+use App\Services\Reports\MarketReportService;
+use App\Services\MachineLearning\MlDirectionPredictorService;
+use App\Services\Analysis\Forecasting\NextCloseEstimatorService;
+use App\Services\Analysis\Signals\SignalRules;
+use App\Services\Reports\TechnicalAnalysisReportService;
 use Illuminate\Http\Request;
 use Throwable;
 

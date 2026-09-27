@@ -2,8 +2,7 @@
 
 namespace App\Services\Cron\Tasks;
 
-use App\Services\Cron\CronTask;
-use App\Services\MarketData\NepalStockScraperService;
+use App\Services\DataSources\NepalStock\NepalStockScraperService;
 
 class MarketSyncTask extends CronTask
 {

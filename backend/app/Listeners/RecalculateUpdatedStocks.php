@@ -4,7 +4,7 @@ namespace App\Listeners;
 
 use App\Events\StockPricesUpdated;
 use App\Models\Stock;
-use App\Services\MarketData\RecalculationPipeline;
+use App\Services\Analysis\RecalculationPipeline;
 
 /**
  * Keeps indicators → signals → next-close in step with prices: runs the

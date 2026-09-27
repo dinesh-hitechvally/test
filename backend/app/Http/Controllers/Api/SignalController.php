@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Stock;
-use App\Services\MarketData\TechnicalAnalysisReportService;
+use App\Services\Reports\TechnicalAnalysisReportService;
 use Illuminate\Http\Request;
 
 class SignalController extends Controller

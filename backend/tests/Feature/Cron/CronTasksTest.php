@@ -4,9 +4,11 @@ namespace Tests\Feature\Cron;
 
 use App\Models\DailyPrice;
 use App\Models\Stock;
-use App\Services\CronAlertService;
-use App\Services\MarketData\NepalStockScraperService;
+use App\Models\User;
+use App\Services\Cron\CronAlertService;
+use App\Services\DataSources\NepalStock\NepalStockScraperService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -66,14 +68,17 @@ class CronTasksTest extends TestCase
 
     public function test_schedule_page_lists_tasks_with_their_descriptions(): void
     {
-        $user = \App\Models\User::create(['name' => 'T', 'email' => 't@example.com', 'password' => 'password']);
-        \Laravel\Sanctum\Sanctum::actingAs($user);
+        $user = User::create(['name' => 'T', 'email' => 't@example.com', 'password' => 'password']);
+        Sanctum::actingAs($user);
 
-        $this->getJson('/api/schedule')
+        $response = $this->getJson('/api/schedule')
             ->assertOk()
             ->assertJsonPath('jobs.0.command', 'stocks:sync-list')
-            ->assertJsonPath('jobs.3.command', 'market:recalculate')
-            ->assertJsonPath('jobs.3.description', 'Recompute indicators/signals for stocks priced today');
+            ->assertJsonPath('jobs.1.command', 'market:sync')
+            ->assertJsonPath('jobs.1.description', 'Scrape today\'s prices from the official nepalstock.com API');
+
+        // Recalculation is event-driven now, not a scheduled job.
+        $this->assertNotContains('market:recalculate', array_column($response->json('jobs'), 'command'));
     }
 
     private function price(Stock $stock, string $date): void

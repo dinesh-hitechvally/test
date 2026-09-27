@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Stock;
-use App\Services\MarketData\MarketReportService;
+use App\Services\Reports\MarketReportService;
 
 class MarketController extends Controller
 {

@@ -2,8 +2,7 @@
 
 namespace App\Services\Cron\Tasks;
 
-use App\Services\Cron\CronTask;
-use App\Services\MarketData\MlDirectionPredictorService;
+use App\Services\MachineLearning\MlDirectionPredictorService;
 
 class TrainMlTask extends CronTask
 {

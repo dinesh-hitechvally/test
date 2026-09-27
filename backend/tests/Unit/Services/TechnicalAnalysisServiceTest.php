@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services;
 
-use App\Services\MarketData\TechnicalAnalysisService;
+use App\Services\Analysis\Indicators\TechnicalAnalysisService;
 use PHPUnit\Framework\TestCase;
 
 class TechnicalAnalysisServiceTest extends TestCase
