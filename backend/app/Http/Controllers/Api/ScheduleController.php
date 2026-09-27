@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\Cron\Tasks\BacktestNextCloseTask;
-use App\Services\Cron\Tasks\BacktestSignalsTask;
-use App\Services\Cron\Tasks\CronTask;
-use App\Services\Cron\Tasks\MarketSyncIndexTask;
-use App\Services\Cron\Tasks\MarketSyncTask;
-use App\Services\Cron\Tasks\SyncStockListTask;
-use App\Services\Cron\Tasks\TrainMlTask;
+use App\Services\Cron\Tasks\Reports\BacktestNextCloseTask;
+use App\Services\Cron\Tasks\Reports\BacktestSignalsTask;
+use App\Services\Cron\CronTask;
+use App\Services\Cron\Tasks\Scrape\MarketSyncIndexTask;
+use App\Services\Cron\Tasks\Scrape\MarketSyncTask;
+use App\Services\Cron\Tasks\Scrape\SyncStockListTask;
+use App\Services\Cron\Tasks\Reports\TrainMlTask;
 use Illuminate\Support\Facades\DB;
 
 /**

@@ -1,0 +1,2 @@
+200
+{"candidates":[{"stock_id":1,"symbol":"USHL","company_name":"Upper Syange Hydropower Limited","sector":"Hydro Power","share_group":null,"close":520,"change_pct":0.97,"turnover":280577,"sma_20":519.725,"sma_50":527.358,"rsi_14":47.6165,"macd_histogram":0.8272,"bb_upper":538.443,"bb_lower":501.007,"short_term_score":23.3,"short_term_signal":"hold","reasons":["SMA20 is 1.4% below SMA50 \u2014 short-term downtrend","RSI 47.6","MACD histogram positive \u2014 bullish momentum building","price mid-band"]}]}
