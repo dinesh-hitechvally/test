@@ -71,8 +71,8 @@ class MeroLaganiFundamentalsService
     }
 
     /**
-     * Fetches, persists, and logs one stock — the unit of work the cron
-     * endpoint calls per stock in its batch.
+     * Fetches, persists, and logs one stock — the unit of work
+     * SyncFundamentalsTask calls for each pending stock.
      */
     public function syncOne(Stock $stock): StockFundamental
     {

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Cron\BatchJobs;
+namespace App\Services\Cron\Tasks;
 
 use App\Models\Stock;
 use App\Services\DataSources\MeroLagani\MeroLaganiFundamentalsService;
@@ -11,11 +11,26 @@ use Illuminate\Database\Eloquent\Builder;
  * a week-old row is still fine to show — this just keeps every stock from
  * going more than ~7 days stale.
  */
-class SyncFundamentalsJob extends StockBatchJob
+class SyncFundamentalsTask extends PerStockTask
 {
     public function __construct(private readonly MeroLaganiFundamentalsService $fundamentals) {}
 
-    public function pending(): Builder
+    public function name(): string
+    {
+        return 'fundamentals';
+    }
+
+    public function description(): string
+    {
+        return 'Refresh EPS / P/E / book value from merolagani.com for stocks missing them or 7+ days stale';
+    }
+
+    public function logFile(): string
+    {
+        return 'fundamentals.log';
+    }
+
+    protected function pending(): Builder
     {
         $staleBefore = now()->subDays(7);
 
@@ -24,30 +39,20 @@ class SyncFundamentalsJob extends StockBatchJob
         });
     }
 
-    public function defaultLimit(): int
-    {
-        return 20;
-    }
-
-    public function pauseMicroseconds(): int
+    protected function pauseMicroseconds(): int
     {
         return 500_000;
     }
 
-    public function process(Stock $stock): string
+    protected function process(Stock $stock): string
     {
         $data = $this->fundamentals->syncOne($stock);
 
         return "{$stock->symbol}: EPS={$data->eps} PE={$data->pe_ratio} BookValue={$data->book_value}";
     }
 
-    public function emptyMessage(): string
+    protected function nothingPendingMessage(): string
     {
-        return "No stocks are due for a fundamentals refresh.\n";
-    }
-
-    public function remainingMessage(int $remaining): string
-    {
-        return "{$remaining} stock(s) still due for a fundamentals refresh — re-ping this URL to continue.";
+        return 'No stocks are due for a fundamentals refresh.';
     }
 }

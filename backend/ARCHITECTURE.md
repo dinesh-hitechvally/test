@@ -37,8 +37,9 @@ app/
     ├── Portfolio/        Valuation, P&L, and Export/ (CSV, Excel, PDF).
     ├── Auth/             Login geolocation.
     └── Cron/             The URL-triggered pipeline:
-        ├── Tasks/        CronTask — one whole-market step (market sync, backtests, ML training...).
-        ├── BatchJobs/    StockBatchJob — per-stock work in small re-pingable batches (?limit=).
+        ├── Tasks/        CronTask — one step per URL (market sync, backtests, ML training...).
+        │                 PerStockTask — a CronTask that works through every pending stock
+        │                 in one run (histories, sectors, dividends, AI opinions, fundamentals).
         └── CronAlertService   Log + optional Slack/email on failure.
 ```
 
@@ -48,7 +49,7 @@ Tests mirror this: `tests/Feature/{Analysis,Cron,Events,Portfolio}`, `tests/Unit
 
 ```
 SPA ──HTTP──▶ Controllers/Api ──▶ FormRequest (validation) ──▶ Service ──▶ Model/DB
-Pinger ─GET─▶ /cron/* ──▶ VerifyCronSecret ──▶ CronController ──▶ CronTask | StockBatchJob ──▶ Service
+Pinger ─GET─▶ /cron/* ──▶ VerifyCronSecret ──▶ CronController ──▶ CronTaskRunner ──▶ CronTask ──▶ Service
 ```
 
 Controllers stay thin: validate, call a service, return JSON/text. No business
@@ -78,9 +79,14 @@ SPA (`GET /api/schedule`, source of truth: `ScheduleController::JOBS`).
 
 - **Scheduled:** sync-stock-list (06:00 NPT), market-sync-stock (15:30),
   market-sync-index (15:32), train-ml / backtest-signals / backtest-next-close (Mon early morning).
-- **On-demand / re-pingable:** fetch-histories, sync-sectors, sync-dividends,
-  ai-opinions, fundamentals (batched, `?limit=`), fetch-history/{symbol},
-  market-recalculate (`?all=1` = every stock), verify-token.
+- **On-demand:** fetch-history/{symbol}, market-recalculate (`?all=1` = every
+  stock), verify-token.
+- **Per-stock (no batches):** fetch-histories, sync-sectors, sync-dividends,
+  ai-opinions, fundamentals. Each run processes **every** pending stock; each
+  stock is saved as it finishes, so if the host cuts a long request short,
+  ping again and it resumes. First runs are long (ai-opinions ≈ pending ÷ 2
+  minutes, because Groq's free tier fits ~2 stocks/minute and the task waits
+  out rate limits); later runs only see new or stale stocks.
 
 There are no artisan commands for the pipeline — everything runs through these URLs.
 
@@ -93,7 +99,7 @@ There are no artisan commands for the pipeline — everything runs through these
 | Add an indicator | calculator in `TechnicalAnalysisService`, store it in `IndicatorRecalculationService` (+ migration) |
 | React to something that happened | a listener in `Listeners/`, registered in `AppServiceProvider::LISTENERS` |
 | A new scheduled whole-market step | a `CronTask` in `Services/Cron/Tasks/`, a route in `routes/web.php`, an entry in `ScheduleController::JOBS` |
-| A new per-stock batch | a `StockBatchJob` in `Services/Cron/BatchJobs/` + route |
+| A new per-stock job | a `PerStockTask` in `Services/Cron/Tasks/` (say what's pending + how to process one stock) + route |
 | Swap the AI provider | a new `AiOpinionProvider` implementation + one line in `AppServiceProvider::$bindings` |
 | A new portfolio export format | a `PortfolioExporter` implementation + route |
 | A new API endpoint | FormRequest in `Http/Requests/<Area>/`, method on the controller, logic in a service |

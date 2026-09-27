@@ -5,20 +5,18 @@ namespace App\Http\Controllers;
 use App\Contracts\PriceHistorySource;
 use App\Events\CronTaskFailed;
 use App\Models\Stock;
-use App\Services\Cron\BatchJobs\FetchHistoriesJob;
-use App\Services\Cron\BatchJobs\GenerateAiOpinionsJob;
-use App\Services\Cron\BatchJobs\StockBatchJob;
-use App\Services\Cron\BatchJobs\StockBatchRunner;
-use App\Services\Cron\BatchJobs\SyncDividendsJob;
-use App\Services\Cron\BatchJobs\SyncFundamentalsJob;
-use App\Services\Cron\BatchJobs\SyncSectorsJob;
 use App\Services\Cron\Tasks\BacktestNextCloseTask;
 use App\Services\Cron\Tasks\BacktestSignalsTask;
 use App\Services\Cron\Tasks\CronTask;
 use App\Services\Cron\Tasks\CronTaskRunner;
+use App\Services\Cron\Tasks\FetchHistoriesTask;
+use App\Services\Cron\Tasks\GenerateAiOpinionsTask;
 use App\Services\Cron\Tasks\MarketSyncIndexTask;
 use App\Services\Cron\Tasks\MarketSyncTask;
 use App\Services\Cron\Tasks\RecalculateMarketTask;
+use App\Services\Cron\Tasks\SyncDividendsTask;
+use App\Services\Cron\Tasks\SyncFundamentalsTask;
+use App\Services\Cron\Tasks\SyncSectorsTask;
 use App\Services\Cron\Tasks\SyncStockListTask;
 use App\Services\Cron\Tasks\TrainMlTask;
 use App\Services\Cron\Tasks\VerifyNepseTokenTask;
@@ -36,10 +34,10 @@ use Throwable;
  * not consumed by the SPA.
  *
  * This class is only the HTTP edge — nothing here goes through artisan.
- * Each whole-market step is a CronTask (App\Services\Cron\Tasks) run by
- * CronTaskRunner, and each batched per-stock job is a StockBatchJob
- * (App\Services\Cron\Jobs) run by StockBatchRunner; both call the
- * underlying services directly.
+ * Every URL runs one CronTask (App\Services\Cron\Tasks) through
+ * CronTaskRunner, which calls the underlying services directly. The
+ * per-stock ones (PerStockTask) work through every pending stock in a
+ * single run — no batches, no ?limit=.
  *
  * The URLs only START the pipeline — what follows is event-driven. Any
  * price update (market sync, history fetch, CSV import) fires
@@ -61,8 +59,9 @@ use Throwable;
  *
  * market-recalculate/fetch-histories/fetch-history/sync-sectors/
  * sync-dividends/ai-opinions/fundamentals/verify-token are on-demand (no
- * fixed schedule, safe to ping repeatedly, ?limit= per ping for the
- * batched ones).
+ * fixed schedule). The per-stock ones can run a long time on a first run
+ * (e.g. ai-opinions ≈ pending stocks ÷ 2 minutes); each stock is saved as
+ * it finishes, so if the host cuts a request short, the next ping resumes.
  *
  * A failed task or a failed on-demand fetch fires CronTaskFailed; its
  * listener (AlertCronFailure → CronAlertService) always logs it, and also
@@ -73,7 +72,6 @@ class CronController extends Controller
 {
     public function __construct(
         private readonly CronTaskRunner $tasks,
-        private readonly StockBatchRunner $batches,
     ) {}
 
     /**
@@ -136,7 +134,7 @@ class CronController extends Controller
 
     /**
      * No fixed timing — this is the on-demand, one-stock counterpart to
-     * fetch-histories (which handles the whole market in small batches).
+     * fetch-histories (which handles every stock missing history).
      * Same full-history fetch as the "Fetch Full History" button on that
      * stock's detail page, just callable by URL instead of needing to log
      * into the SPA. Re-running it re-fetches (safe — it's an upsert), it's
@@ -166,41 +164,34 @@ class CronController extends Controller
         }
     }
 
-    public function fetchHistories(Request $request, FetchHistoriesJob $job): Response
+    public function fetchHistories(FetchHistoriesTask $task): Response
     {
-        return $this->batch($request, $job);
+        return $this->task($task);
     }
 
-    public function syncSectors(Request $request, SyncSectorsJob $job): Response
+    public function syncSectors(SyncSectorsTask $task): Response
     {
-        return $this->batch($request, $job);
+        return $this->task($task);
     }
 
-    public function syncDividends(Request $request, SyncDividendsJob $job): Response
+    public function syncDividends(SyncDividendsTask $task): Response
     {
-        return $this->batch($request, $job);
+        return $this->task($task);
     }
 
-    public function generateAiOpinions(Request $request, GenerateAiOpinionsJob $job): Response
+    public function generateAiOpinions(GenerateAiOpinionsTask $task): Response
     {
-        return $this->batch($request, $job);
+        return $this->task($task);
     }
 
-    public function syncFundamentals(Request $request, SyncFundamentalsJob $job): Response
+    public function syncFundamentals(SyncFundamentalsTask $task): Response
     {
-        return $this->batch($request, $job);
+        return $this->task($task);
     }
 
     private function task(CronTask $task): Response
     {
         return $this->plain($this->tasks->run($task));
-    }
-
-    private function batch(Request $request, StockBatchJob $job): Response
-    {
-        $limit = $request->query('limit');
-
-        return $this->plain($this->batches->run($job, $limit === null ? null : (int) $limit));
     }
 
     private function plain(string $body, int $status = 200): Response

@@ -9,7 +9,7 @@ use RuntimeException;
 /**
  * Groq's free-tier API — open-weight models (Llama, etc.) behind an
  * OpenAI-compatible chat-completions endpoint, with no billing setup but
- * real per-minute rate limits (see GenerateAiOpinionsJob for how a 429 is
+ * real per-minute rate limits (see GenerateAiOpinionsTask for how a 429 is
  * handled).
  */
 class GroqOpinionProvider implements AiOpinionProvider

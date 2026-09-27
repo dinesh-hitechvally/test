@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Cron\BatchJobs;
+namespace App\Services\Cron\Tasks;
 
 use App\Models\Sector;
 use App\Models\Stock;
@@ -8,22 +8,37 @@ use App\Services\DataSources\NepalStock\NepalStockSecurityResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Throwable;
 
-/** Fills in stocks.sector_id for whichever stocks are still missing one — each saved as soon as it's fetched. */
-class SyncSectorsJob extends StockBatchJob
+/** Fills in stocks.sector_id for every stock still missing one. */
+class SyncSectorsTask extends PerStockTask
 {
     public function __construct(private readonly NepalStockSecurityResolver $resolver) {}
 
-    public function pending(): Builder
+    public function name(): string
+    {
+        return 'sync-sectors';
+    }
+
+    public function description(): string
+    {
+        return 'Fetch each stock\'s sector from nepalstock.com, for stocks missing one';
+    }
+
+    public function logFile(): string
+    {
+        return 'sync-sectors.log';
+    }
+
+    protected function pending(): Builder
     {
         return Stock::whereNull('sector_id');
     }
 
-    public function pauseMicroseconds(): int
+    protected function pauseMicroseconds(): int
     {
         return 300_000; // polite pacing, same as the other per-stock NEPSE fetches
     }
 
-    public function process(Stock $stock): string
+    protected function process(Stock $stock): string
     {
         $sector = $this->resolver->fetchSector($stock);
 
@@ -37,20 +52,15 @@ class SyncSectorsJob extends StockBatchJob
         return "{$stock->symbol}: {$sector}";
     }
 
-    public function failed(Stock $stock, Throwable $e): string
+    protected function failed(Stock $stock, Throwable $e): string
     {
         $stock->ensureScrapeStatus()->flagSectorError($e->getMessage());
 
         return parent::failed($stock, $e);
     }
 
-    public function emptyMessage(): string
+    protected function nothingPendingMessage(): string
     {
-        return "No stocks are missing a sector.\n";
-    }
-
-    public function remainingMessage(int $remaining): string
-    {
-        return "{$remaining} stock(s) still missing a sector — re-ping this URL to continue.";
+        return 'No stocks are missing a sector.';
     }
 }

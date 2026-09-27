@@ -9,7 +9,8 @@ namespace App\Services\Cron\Tasks;
  * shared plumbing (log file, failure alert, response text). Throwing from
  * handle() is how a task reports failure.
  *
- * Per-stock batched jobs are the other kind — see StockBatchJob.
+ * Tasks that work through every pending stock one at a time extend
+ * PerStockTask instead of this directly.
  */
 abstract class CronTask
 {

@@ -39,47 +39,40 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
         // 06:00 NPT, daily  |  UTC: 15 0 * * *  (00:15 UTC, daily)
         Route::get('/sync-stock-list', [CronController::class, 'syncStockList']);
 
-        // Fetches full history directly for stocks that don't have any yet
-        // (stock_scrape_statuses.history_fetched_at IS NULL), a few at a
-        // time (?limit=, default 5) so one ping can't run long enough to hit
-        // a web server timeout. Safe to ping repeatedly (e.g. every 15 min)
-        // until "0 stock(s) still missing history" — a stock whose last
-        // attempt failed is skipped automatically instead of being retried
-        // forever; see fetch-history/{symbol} to retry one by hand.
+        // The per-stock jobs below each work through EVERY pending stock in
+        // one run (no batches, no ?limit=). Each stock is saved as it
+        // finishes, so if the host cuts a long request short, just ping
+        // again — it resumes with whatever is still pending. First runs can
+        // take a long time; later runs only see the few new/stale stocks.
+
+        // Full history for every stock that doesn't have any yet
+        // (stock_scrape_statuses.history_fetched_at IS NULL). A stock whose
+        // last attempt failed is skipped instead of retried forever; see
+        // fetch-history/{symbol} to retry one by hand.
         Route::get('/fetch-histories', [CronController::class, 'fetchHistories']);
 
-        // On-demand, one stock at a time — no fixed timing. e.g.
-        // /cron/scrape/fetch-history/NABIL?key=... Same ShareSansar
-        // full-history fetch as the "Fetch Full History" button, just
-        // reachable by plain URL.
+        // On-demand, one stock — e.g. /cron/scrape/fetch-history/NABIL?key=...
+        // Same ShareSansar full-history fetch as the "Fetch Full History"
+        // button, just reachable by plain URL.
         Route::get('/fetch-history/{symbol}', [CronController::class, 'fetchHistory']);
 
-        // Same batched, timeout-proof shape as fetch-histories (?limit=,
-        // default 5) — fills in stocks.sector for whichever stocks are
-        // still missing one. Safe to ping repeatedly until "0 stock(s)
-        // still missing a sector".
+        // Sector for every stock still missing one.
         Route::get('/sync-sectors', [CronController::class, 'syncSectors']);
 
-        // Same batched, timeout-proof shape as fetch-histories (?limit=,
-        // default 5) — fetches dividend/bonus data (nepalstock.com's only
-        // source) for stocks that haven't had a successful fetch yet
-        // (stock_scrape_statuses.dividend_fetched_at IS NULL — genuinely
-        // having zero dividends counts as fetched, not pending). Safe to
-        // ping repeatedly until "0 stock(s) still missing dividend data".
+        // Dividend/bonus data (nepalstock.com is the only source) for every
+        // stock without a successful fetch yet — genuinely having zero
+        // dividends counts as fetched, not pending.
         Route::get('/sync-dividends', [CronController::class, 'syncDividends']);
 
-        // Same batched shape (?limit=, default 5) — the only place that ever
-        // calls Groq for the "AI Opinion" lens (Stock Detail / Analyst
-        // Report pages just read whatever's stored, no external call on a
-        // page load). Targets stocks with a signal whose stored opinion is
-        // missing or a day+ old; skipped no-op with a clear message if
-        // GROQ_API_KEY isn't set. Free tier, but has real per-minute rate
-        // limits — keep ?limit= modest if pinging often.
+        // The only place that ever calls Groq for the "AI Opinion" lens
+        // (pages just read what's stored). Every stock with a signal whose
+        // opinion is missing or a day+ old. Groq's free tier fits ~2 stocks
+        // a minute, so a run waits out rate limits and takes roughly
+        // (pending stocks ÷ 2) minutes. No-op if GROQ_API_KEY isn't set.
         Route::get('/ai-opinions', [CronController::class, 'generateAiOpinions']);
 
-        // EPS/P/E/Book Value from merolagani.com — batched, missing or 7+
-        // days stale, ?limit= (default 20) per ping. Slow-moving data, no
-        // strict schedule needed; safe to ping as often as convenient.
+        // EPS/P/E/Book Value from merolagani.com for every stock missing it
+        // or 7+ days stale. Slow-moving data — daily or weekly is plenty.
         Route::get('/fundamentals', [CronController::class, 'syncFundamentals']);
 
         // Daily prices and the index snapshot — ~30min after NEPSE's ~15:00

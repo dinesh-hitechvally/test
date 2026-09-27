@@ -4,12 +4,16 @@ namespace Tests\Feature\Cron;
 
 use App\Contracts\AiOpinionProvider;
 use App\Contracts\PriceHistorySource;
+use App\Models\Signal;
 use App\Models\Stock;
+use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use RuntimeException;
 use Tests\TestCase;
 
-class StockBatchJobsTest extends TestCase
+class PerStockTasksTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -24,7 +28,7 @@ class StockBatchJobsTest extends TestCase
         $this->get('/cron/scrape/fetch-histories')->assertForbidden();
     }
 
-    public function test_fetch_histories_processes_one_batch_and_reports_the_remainder(): void
+    public function test_fetch_histories_processes_every_pending_stock_in_one_run(): void
     {
         $this->app->instance(PriceHistorySource::class, new class implements PriceHistorySource
         {
@@ -40,17 +44,20 @@ class StockBatchJobsTest extends TestCase
             }
         });
 
-        Stock::create(['symbol' => 'AAA', 'company_name' => 'A', 'is_active' => true]);
-        Stock::create(['symbol' => 'BAD', 'company_name' => 'B', 'is_active' => true]);
-        Stock::create(['symbol' => 'CCC', 'company_name' => 'C', 'is_active' => true]);
+        foreach (['AAA', 'BAD', 'CCC', 'DDD', 'EEE', 'FFF', 'GGG'] as $symbol) {
+            Stock::create(['symbol' => $symbol, 'company_name' => $symbol, 'is_active' => true]);
+        }
 
-        $this->get('/cron/scrape/fetch-histories?key=test-secret&limit=2')
+        // ?limit= is gone — it's ignored if a pinger still sends it.
+        $this->get('/cron/scrape/fetch-histories?key=test-secret&limit=1')
             ->assertOk()
             ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
+            ->assertSeeText('$ fetch-histories')
             ->assertSeeText('AAA: 10 rows imported (2020-01-01 to 2020-01-10).')
+            ->assertSeeText('GGG: 10 rows imported')
             ->assertSeeText('BAD: failed — source down')
-            // AAA is done; BAD failed without flagging an error, so it's still pending alongside CCC.
-            ->assertSeeText('2 stock(s) still missing history');
+            ->assertSeeText('Done — 6 stock(s) processed, 1 failed.')
+            ->assertSeeText('[ok]');
     }
 
     public function test_fetch_histories_says_so_when_nothing_is_pending(): void
@@ -78,5 +85,39 @@ class StockBatchJobsTest extends TestCase
         $this->get('/cron/scrape/ai-opinions?key=test-secret')
             ->assertOk()
             ->assertSeeText('AI opinion is not configured on this instance');
+    }
+
+    public function test_ai_opinions_wait_out_a_rate_limit_instead_of_skipping_the_stock(): void
+    {
+        $provider = new class implements AiOpinionProvider
+        {
+            public int $calls = 0;
+
+            public function isConfigured(): bool
+            {
+                return true;
+            }
+
+            public function requestOpinion(string $prompt): array
+            {
+                if (++$this->calls === 1) {
+                    throw new RequestException(new Response(new PsrResponse(429, ['Retry-After' => '1'])));
+                }
+
+                return ['verdict' => 'hold', 'confidence' => 'low', 'reasoning' => 'test'];
+            }
+        };
+        $this->app->instance(AiOpinionProvider::class, $provider);
+
+        $stock = Stock::create(['symbol' => 'AAA', 'company_name' => 'A', 'is_active' => true]);
+        Signal::create(['stock_id' => $stock->id, 'trade_date' => '2024-01-01', 'signal' => 'hold', 'score' => 0, 'reasons' => [], 'rule_keys' => []]);
+
+        $this->get('/cron/scrape/ai-opinions?key=test-secret')
+            ->assertOk()
+            ->assertSeeText('AAA: hold (low confidence)')
+            ->assertSeeText('Done — 1 stock(s) processed, 0 failed.');
+
+        $this->assertSame(2, $provider->calls);
+        $this->assertSame('hold', $stock->aiOpinion()->first()->verdict);
     }
 }

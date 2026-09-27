@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Cron\BatchJobs;
+namespace App\Services\Cron\Tasks;
 
 use App\Models\Stock;
 use App\Services\DataSources\NepalStock\NepalStockCorporateActionsService;
@@ -16,23 +16,38 @@ use Throwable;
  * succeeded (e.g. a newly-declared dividend), use its "Refresh
  * Dividend/Bonus Data" button (StockController::fetchCorporateActions).
  */
-class SyncDividendsJob extends StockBatchJob
+class SyncDividendsTask extends PerStockTask
 {
     public function __construct(private readonly NepalStockCorporateActionsService $dividends) {}
 
-    public function pending(): Builder
+    public function name(): string
+    {
+        return 'sync-dividends';
+    }
+
+    public function description(): string
+    {
+        return 'Fetch dividend/bonus history from nepalstock.com for stocks that haven\'t had it fetched';
+    }
+
+    public function logFile(): string
+    {
+        return 'sync-dividends.log';
+    }
+
+    protected function pending(): Builder
     {
         return Stock::whereDoesntHave('scrapeStatus', function ($q) {
             $q->whereNotNull('dividend_fetched_at');
         });
     }
 
-    public function pauseMicroseconds(): int
+    protected function pauseMicroseconds(): int
     {
         return 500_000; // polite pacing — same sources as the price-history scrapers
     }
 
-    public function process(Stock $stock): string
+    protected function process(Stock $stock): string
     {
         $result = $this->dividends->fetchDividends($stock);
         $stock->ensureScrapeStatus()->markDividendFetched();
@@ -40,20 +55,15 @@ class SyncDividendsJob extends StockBatchJob
         return "{$stock->symbol}: {$result['dividends']} dividend row(s) imported.";
     }
 
-    public function failed(Stock $stock, Throwable $e): string
+    protected function failed(Stock $stock, Throwable $e): string
     {
         $stock->ensureScrapeStatus()->flagDividendError($e->getMessage());
 
         return parent::failed($stock, $e);
     }
 
-    public function emptyMessage(): string
+    protected function nothingPendingMessage(): string
     {
-        return "No stocks are missing dividend data.\n";
-    }
-
-    public function remainingMessage(int $remaining): string
-    {
-        return "{$remaining} stock(s) still missing dividend data — re-ping this URL to continue.";
+        return 'No stocks are missing dividend data.';
     }
 }
