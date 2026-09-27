@@ -4,15 +4,22 @@ namespace App\Providers;
 
 use App\Contracts\AiOpinionProvider;
 use App\Contracts\PriceHistorySource;
-use App\Events\CronTaskFailed;
 use App\Events\ScrapeFinished;
 use App\Events\StockPricesUpdated;
-use App\Listeners\AlertCronFailure;
+use App\Events\TaskFailed;
+use App\Events\UserLoggedIn;
+use App\Listeners\AlertTaskFailure;
 use App\Listeners\RecalculateUpdatedStocks;
+use App\Listeners\RecordEmailSending;
+use App\Listeners\RecordEmailSent;
+use App\Listeners\RecordLoginHistory;
 use App\Listeners\RecordScrapeLog;
 use App\Services\Ai\GroqOpinionProvider;
 use App\Services\DataSources\ShareSansar\SharesansarHistoryService;
+use App\Services\Mail\EmailLogService;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -31,6 +38,16 @@ class AppServiceProvider extends ServiceProvider
     ];
 
     /**
+     * One shared instance per process. EmailLogService remembers which emails
+     * are mid-send, so the exception handler can mark them failed.
+     *
+     * @var array<class-string, class-string>
+     */
+    public array $singletons = [
+        EmailLogService::class => EmailLogService::class,
+    ];
+
+    /**
      * The whole event workflow at a glance — what happens after what.
      * Registered explicitly (auto-discovery is off in bootstrap/app.php)
      * so a stale `event:cache` manifest can never silently drop a
@@ -42,7 +59,11 @@ class AppServiceProvider extends ServiceProvider
     private const LISTENERS = [
         StockPricesUpdated::class => [RecalculateUpdatedStocks::class],
         ScrapeFinished::class => [RecordScrapeLog::class],
-        CronTaskFailed::class => [AlertCronFailure::class],
+        TaskFailed::class => [AlertTaskFailure::class],
+        UserLoggedIn::class => [RecordLoginHistory::class],
+        // Laravel's own mail events — every email, whatever sent it.
+        MessageSending::class => [RecordEmailSending::class],
+        MessageSent::class => [RecordEmailSent::class],
     ];
 
     /**

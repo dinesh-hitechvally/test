@@ -2,15 +2,16 @@
 
 use App\Http\Controllers\Api\AlertController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\EmailLogController;
 use App\Http\Controllers\Api\IndexController;
-use App\Http\Controllers\Api\ScheduleController;
-use App\Http\Controllers\Api\PatternScanController;
-use App\Http\Controllers\Api\SavedScreenController;
-use App\Http\Controllers\Api\SignalAccuracyController;
 use App\Http\Controllers\Api\MarketController;
+use App\Http\Controllers\Api\PatternScanController;
 use App\Http\Controllers\Api\PortfolioController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\SavedScreenController;
+use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\ScrapeController;
+use App\Http\Controllers\Api\SignalAccuracyController;
 use App\Http\Controllers\Api\SignalController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\UserController;
@@ -22,13 +23,14 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 Route::middleware('auth:sanctum')->group(function () {
-    
+
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
     Route::put('/user/profile', [AuthController::class, 'updateProfile']);
     Route::put('/user/password', [AuthController::class, 'updatePassword']);
     Route::get('/user/login-history', [AuthController::class, 'loginHistory']);
     Route::get('/users', [UserController::class, 'index']);
+    Route::get('/email-logs', [EmailLogController::class, 'index']);
 
     Route::get('/stocks', [StockController::class, 'index']);
     Route::post('/stocks', [StockController::class, 'store']);

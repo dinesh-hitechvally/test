@@ -4,7 +4,6 @@ namespace App\Services\DataSources\NepalStock;
 
 use App\Events\ScrapeFinished;
 use App\Models\IndexSnapshot;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -17,16 +16,12 @@ use Throwable;
  */
 class NepalStockIndexService
 {
-    private const BASE_URL = 'https://www.nepalstock.com';
-
     private const INDEX_PATH = '/api/nots/nepse-index';
-
-    private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
 
     private const SOURCE_NAME = 'nepalstock.com/index';
 
     public function __construct(
-        private readonly NepalStockTokenService $tokens,
+        private readonly NepalStockClient $client,
         private readonly NepalStockMarketStatusService $marketStatus,
     ) {}
 
@@ -50,13 +45,7 @@ class NepalStockIndexService
                 return ['indices_updated' => 0, 'market_open' => false];
             }
 
-            $token = $this->tokens->getAccessToken();
-
-            $response = Http::withHeaders([
-                'User-Agent' => self::USER_AGENT,
-                'Referer' => self::BASE_URL.'/',
-                'Authorization' => 'Salter '.$token,
-            ])->timeout(20)->get(self::BASE_URL.self::INDEX_PATH);
+            $response = $this->client->get(self::INDEX_PATH);
 
             $response->throw();
             $rows = $response->json();

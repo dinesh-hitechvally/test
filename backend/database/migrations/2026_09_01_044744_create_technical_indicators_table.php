@@ -25,6 +25,11 @@ return new class extends Migration
             $table->decimal('bb_upper', 18, 4)->nullable();
             $table->decimal('bb_middle', 18, 4)->nullable();
             $table->decimal('bb_lower', 18, 4)->nullable();
+            // Wider than rsi_14 on purpose: %B is unbounded outside the
+            // bands, and a very narrow band can push it well past ±1.
+            $table->decimal('bb_percent_b', 12, 4)->nullable();
+            $table->decimal('stoch_k', 8, 4)->nullable();
+            $table->decimal('stoch_d', 8, 4)->nullable();
             $table->decimal('atr_14', 12, 4)->nullable();
             $table->timestamps();
 

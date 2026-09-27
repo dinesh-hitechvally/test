@@ -116,4 +116,32 @@ class SignalAccuracyService
 
         return ['horizon_days' => $horizonDays, 'signal_types_computed' => count($rows), 'baseline_win_rate' => $baselineWinRate];
     }
+
+    /** The latest backtest's stats for one signal type (e.g. "buy") — null before the first backtest. */
+    public function latestFor(string $signalType): ?SignalAccuracyStat
+    {
+        return SignalAccuracyStat::where('signal_type', $signalType)
+            ->where('computed_at', SignalAccuracyStat::max('computed_at'))
+            ->first();
+    }
+
+    /** The Signal History / Accuracy page: the most recent backtest run, per signal type. */
+    public function latestReport(): array
+    {
+        $latestRun = SignalAccuracyStat::max('computed_at');
+
+        if ($latestRun === null) {
+            return ['available' => false];
+        }
+
+        $stats = SignalAccuracyStat::where('computed_at', $latestRun)->get();
+
+        return [
+            'available' => true,
+            'computed_at' => $latestRun,
+            'horizon_days' => $stats->first()?->horizon_days,
+            'stats' => $stats,
+            'disclaimer' => 'Walk-forward backtest over historical signals — real past performance of the rule-based signal engine, not a guarantee of future results.',
+        ];
+    }
 }

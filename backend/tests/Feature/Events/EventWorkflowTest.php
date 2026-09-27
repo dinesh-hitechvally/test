@@ -2,11 +2,13 @@
 
 namespace Tests\Feature\Events;
 
-use App\Events\CronTaskFailed;
 use App\Events\ScrapeFinished;
 use App\Events\StockPricesUpdated;
-use App\Listeners\AlertCronFailure;
+use App\Events\TaskFailed;
+use App\Events\UserLoggedIn;
+use App\Listeners\AlertTaskFailure;
 use App\Listeners\RecalculateUpdatedStocks;
+use App\Listeners\RecordLoginHistory;
 use App\Listeners\RecordScrapeLog;
 use App\Models\DailyPrice;
 use App\Models\ScrapeLog;
@@ -27,7 +29,8 @@ class EventWorkflowTest extends TestCase
 
         Event::assertListening(StockPricesUpdated::class, RecalculateUpdatedStocks::class);
         Event::assertListening(ScrapeFinished::class, RecordScrapeLog::class);
-        Event::assertListening(CronTaskFailed::class, AlertCronFailure::class);
+        Event::assertListening(TaskFailed::class, AlertTaskFailure::class);
+        Event::assertListening(UserLoggedIn::class, RecordLoginHistory::class);
     }
 
     public function test_a_price_update_recalculates_exactly_those_stocks(): void

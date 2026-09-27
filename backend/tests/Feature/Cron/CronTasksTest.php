@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\Cron;
 
+use App\Contracts\PriceHistorySource;
+use App\Http\Cron\CronSchedule;
 use App\Models\DailyPrice;
 use App\Models\Stock;
 use App\Models\User;
-use App\Services\Cron\CronAlertService;
+use App\Services\Alerts\FailureAlertService;
 use App\Services\DataSources\NepalStock\NepalStockScraperService;
+use App\Tasks\Task;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Mockery;
@@ -44,6 +47,37 @@ class CronTasksTest extends TestCase
         $this->assertSame(1, $old->technicalIndicators()->count());
     }
 
+    public function test_every_registry_entry_is_a_routed_task(): void
+    {
+        foreach (CronSchedule::tasks() as $path => $entry) {
+            $this->assertTrue(is_subclass_of($entry['task'], Task::class), $entry['task']);
+            $this->get('/cron/'.str_replace('{symbol}', 'X', $path))->assertForbidden(); // routed + gated by the key
+        }
+    }
+
+    public function test_fetch_history_for_one_symbol_uses_the_route_parameter(): void
+    {
+        $this->app->instance(PriceHistorySource::class, new class implements PriceHistorySource
+        {
+            public function fetchHistory(Stock $stock): array
+            {
+                return ['rows_imported' => 3, 'oldest_date' => '2024-01-01', 'newest_date' => '2024-01-03'];
+            }
+        });
+        Stock::create(['symbol' => 'NABIL', 'company_name' => 'N', 'is_active' => true]);
+
+        $this->get('/cron/scrape/fetch-history/nabil?key=test-secret')
+            ->assertOk()
+            ->assertSeeText('$ fetch-history NABIL')
+            ->assertSeeText('3 rows imported (2024-01-01 to 2024-01-03).')
+            ->assertSeeText('[ok]');
+
+        $this->get('/cron/scrape/fetch-history/NOPE?key=test-secret')
+            ->assertOk()
+            ->assertSeeText('Failed: No stock found for symbol [NOPE].')
+            ->assertSeeText('[failed]');
+    }
+
     public function test_backtest_signals_runs_the_service_directly(): void
     {
         $this->get('/cron/reports/backtest-signals?key=test-secret')
@@ -57,7 +91,7 @@ class CronTasksTest extends TestCase
     {
         $this->mock(NepalStockScraperService::class)
             ->shouldReceive('scrape')->andThrow(new RuntimeException('nepalstock.com unreachable'));
-        $this->mock(CronAlertService::class)
+        $this->mock(FailureAlertService::class)
             ->shouldReceive('notifyFailure')->once()->with('market:sync', 'nepalstock.com unreachable');
 
         $this->get('/cron/scrape/market-sync-stock?key=test-secret')

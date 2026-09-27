@@ -261,6 +261,27 @@ class NextCloseEstimatorService
     }
 
     /**
+     * The estimator's latest backtested accuracy, for display — shown next to
+     * every forecast so a number is never presented without its own measured
+     * track record (same convention as the ML model's accuracy).
+     */
+    public function accuracySummary(): array
+    {
+        $stat = $this->latestAccuracy();
+
+        return $stat ? [
+            'available' => true,
+            'sample_size' => $stat->sample_size,
+            'stocks_used' => $stat->stocks_used,
+            'mape' => (float) $stat->mape,
+            'naive_mape' => (float) $stat->naive_mape,
+            'direction_accuracy' => (float) $stat->direction_accuracy,
+            'beats_baseline' => $stat->beatsBaseline(),
+            'computed_at' => $stat->computed_at,
+        ] : ['available' => false];
+    }
+
+    /**
      * The formula itself — shared by estimate() (latest data) and
      * backtest() (every historical point) so the two can never drift apart
      * the way a hand-copied second implementation would risk.

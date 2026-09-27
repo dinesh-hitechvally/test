@@ -4,7 +4,6 @@ namespace App\Services\DataSources\NepalStock;
 
 use App\Models\Stock;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 /**
@@ -15,15 +14,11 @@ use RuntimeException;
  */
 class NepalStockSecurityResolver
 {
-    private const BASE_URL = 'https://www.nepalstock.com';
-
     private const SECURITIES_PATH = '/api/nots/security?nonDelisted=true';
 
     private const SECURITY_DETAIL_PATH = '/api/nots/security/%d';
 
-    private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
-
-    public function __construct(private readonly NepalStockTokenService $tokens) {}
+    public function __construct(private readonly NepalStockClient $client) {}
 
     public function resolve(Stock $stock): int
     {
@@ -53,13 +48,7 @@ class NepalStockSecurityResolver
     public function fetchSector(Stock $stock): ?string
     {
         $securityId = $this->resolve($stock);
-        $token = $this->tokens->getAccessToken();
-
-        $response = Http::withHeaders([
-            'User-Agent' => self::USER_AGENT,
-            'Referer' => self::BASE_URL.'/',
-            'Authorization' => 'Salter '.$token,
-        ])->timeout(20)->get(self::BASE_URL.sprintf(self::SECURITY_DETAIL_PATH, $securityId));
+        $response = $this->client->get(sprintf(self::SECURITY_DETAIL_PATH, $securityId));
 
         $response->throw();
 
@@ -132,13 +121,7 @@ class NepalStockSecurityResolver
     /** @return list<array<string, mixed>> */
     private function fetchSecuritiesList(): array
     {
-        $token = $this->tokens->getAccessToken();
-
-        $response = Http::withHeaders([
-            'User-Agent' => self::USER_AGENT,
-            'Referer' => self::BASE_URL.'/',
-            'Authorization' => 'Salter '.$token,
-        ])->timeout(20)->get(self::BASE_URL.self::SECURITIES_PATH);
+        $response = $this->client->get(self::SECURITIES_PATH);
 
         $response->throw();
 

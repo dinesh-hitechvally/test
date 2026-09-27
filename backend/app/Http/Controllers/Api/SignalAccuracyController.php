@@ -3,26 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\SignalAccuracyStat;
+use App\Services\Analysis\Signals\SignalAccuracyService;
 
 class SignalAccuracyController extends Controller
 {
-    public function index()
+    public function index(SignalAccuracyService $accuracy)
     {
-        $latestRun = SignalAccuracyStat::max('computed_at');
-
-        if ($latestRun === null) {
-            return response()->json(['available' => false]);
-        }
-
-        $stats = SignalAccuracyStat::where('computed_at', $latestRun)->get();
-
-        return response()->json([
-            'available' => true,
-            'computed_at' => $latestRun,
-            'horizon_days' => $stats->first()?->horizon_days,
-            'stats' => $stats,
-            'disclaimer' => 'Walk-forward backtest over historical signals — real past performance of the rule-based signal engine, not a guarantee of future results.',
-        ]);
+        return response()->json($accuracy->latestReport());
     }
 }

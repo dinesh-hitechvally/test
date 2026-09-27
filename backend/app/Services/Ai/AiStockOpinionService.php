@@ -3,12 +3,12 @@
 namespace App\Services\Ai;
 
 use App\Contracts\AiOpinionProvider;
-use App\Models\SignalAccuracyStat;
 use App\Models\Stock;
+use App\Services\Analysis\Signals\SignalAccuracyService;
 use App\Services\MachineLearning\MlDirectionPredictorService;
-use App\Services\Reports\MarketReportService;
+use App\Services\Reports\DividendReportService;
+use App\Services\Reports\PriceStatisticsService;
 use App\Services\Reports\TechnicalAnalysisReportService;
-use Throwable;
 
 /**
  * Generates a buy/sell/hold opinion via the bound AiOpinionProvider, fed the
@@ -17,7 +17,7 @@ use Throwable;
  * alongside the technical read, rule-based signal, and ML predictor, not a
  * replacement for any of them.
  *
- * Generation only ever happens from the cron pipeline (GenerateAiOpinionsTask,
+ * Generation only ever happens in a background task (GenerateAiOpinionsTask,
  * run by the /cron/scrape/ai-opinions endpoint) — never from a
  * user-facing request — and is persisted to ai_stock_opinions. Reading an
  * opinion (getStoredOpinion()) is a plain DB lookup with no external call,
@@ -32,9 +32,11 @@ class AiStockOpinionService
 {
     public function __construct(
         private readonly AiOpinionProvider $provider,
-        private readonly MarketReportService $reports,
+        private readonly PriceStatisticsService $prices,
+        private readonly DividendReportService $dividends,
         private readonly TechnicalAnalysisReportService $technical,
         private readonly MlDirectionPredictorService $predictor,
+        private readonly SignalAccuracyService $accuracy,
     ) {}
 
     public function isConfigured(): bool
@@ -76,30 +78,21 @@ class AiStockOpinionService
     }
 
     /**
-     * Same shape ReportController::analyst() assembles — kept independent
-     * here (not a shared extraction) since the two call sites' error
-     * handling and response shapes differ enough that sharing would mean a
-     * method with two different failure modes to reason about.
+     * The same lenses StockReportService::analyst() assembles, in the
+     * compact shape the prompt wants (percentages, no display fields) — kept
+     * separate because the two shapes serve different readers.
      *
      * @return array<string, mixed>
      */
     private function buildContext(Stock $stock): array
     {
-        $change = $this->reports->priceChanges()->get($stock->id);
+        $change = $this->prices->priceChanges()->get($stock->id);
         $signal = $stock->latestSignal;
 
-        $signalAccuracy = $signal
-            ? SignalAccuracyStat::where('signal_type', $signal->signal)
-                ->where('computed_at', SignalAccuracyStat::max('computed_at'))
-                ->first()
-            : null;
+        $signalAccuracy = $signal ? $this->accuracy->latestFor($signal->signal) : null;
 
         $mlModel = $this->predictor->latestMetrics();
-        try {
-            $mlPrediction = $mlModel ? $this->predictor->predict($stock) : null;
-        } catch (Throwable) {
-            $mlPrediction = null;
-        }
+        $mlPrediction = $mlModel ? $this->predictor->tryPredict($stock) : null;
 
         return [
             'symbol' => $stock->symbol,
@@ -107,9 +100,9 @@ class AiStockOpinionService
             'sector' => $stock->sector?->name,
             'close_price' => $change['close'] ?? null,
             'change_pct_today' => $change['change_pct'] ?? null,
-            'returns_pct' => $this->reports->stockReturns($stock),
+            'returns_pct' => $this->prices->stockReturns($stock),
             'technical' => $this->technical->build($stock),
-            'dividend_history' => $this->reports->stockDividendSummary($stock),
+            'dividend_history' => $this->dividends->stockDividendSummary($stock),
             'rule_based_signal' => $signal ? [
                 'signal' => $signal->signal,
                 'reasons' => $signal->reasons,

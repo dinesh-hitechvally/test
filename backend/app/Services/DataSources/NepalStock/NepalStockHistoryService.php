@@ -8,7 +8,6 @@ use App\Events\StockPricesUpdated;
 use App\Models\DailyPrice;
 use App\Models\Stock;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
@@ -25,18 +24,14 @@ use Throwable;
  */
 class NepalStockHistoryService implements PriceHistorySource
 {
-    private const BASE_URL = 'https://www.nepalstock.com';
-
     private const HISTORY_PATH = '/api/nots/market/history/security/%d';
-
-    private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
 
     private const SOURCE_NAME = 'nepalstock.com/history';
 
     private const PAGE_SIZE = 1000;
 
     public function __construct(
-        private readonly NepalStockTokenService $tokens,
+        private readonly NepalStockClient $client,
         private readonly NepalStockSecurityResolver $resolver,
     ) {}
 
@@ -105,13 +100,7 @@ class NepalStockHistoryService implements PriceHistorySource
         $endDate = Carbon::today()->toDateString();
 
         do {
-            $token = $this->tokens->getAccessToken(); // refetch each page — the token is only valid ~45s
-
-            $response = Http::withHeaders([
-                'User-Agent' => self::USER_AGENT,
-                'Referer' => self::BASE_URL.'/',
-                'Authorization' => 'Salter '.$token,
-            ])->timeout(20)->get(self::BASE_URL.sprintf(self::HISTORY_PATH, $securityId), [
+            $response = $this->client->get(sprintf(self::HISTORY_PATH, $securityId), [
                 'size' => self::PAGE_SIZE,
                 'page' => $page,
                 'startDate' => $startDate,

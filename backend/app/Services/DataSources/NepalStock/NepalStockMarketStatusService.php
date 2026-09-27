@@ -2,8 +2,6 @@
 
 namespace App\Services\DataSources\NepalStock;
 
-use Illuminate\Support\Facades\Http;
-
 /**
  * NEPSE's own live market-open flag — shared by every sync that shouldn't
  * write anything while the market's closed (a stray ping on a non-trading
@@ -13,13 +11,9 @@ use Illuminate\Support\Facades\Http;
  */
 class NepalStockMarketStatusService
 {
-    private const BASE_URL = 'https://www.nepalstock.com';
-
     private const MARKET_OPEN_PATH = '/api/nots/nepse-data/market-open';
 
-    private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
-
-    public function __construct(private readonly NepalStockTokenService $tokens) {}
+    public function __construct(private readonly NepalStockClient $client) {}
 
     /**
      * Confirmed live to return e.g. {"isOpen":"OPEN",...}. Anything other
@@ -29,13 +23,7 @@ class NepalStockMarketStatusService
      */
     public function isOpen(): bool
     {
-        $token = $this->tokens->getAccessToken();
-
-        $response = Http::withHeaders([
-            'User-Agent' => self::USER_AGENT,
-            'Referer' => self::BASE_URL.'/',
-            'Authorization' => 'Salter '.$token,
-        ])->timeout(15)->get(self::BASE_URL.self::MARKET_OPEN_PATH);
+        $response = $this->client->get(self::MARKET_OPEN_PATH, timeout: 15);
 
         $response->throw();
 

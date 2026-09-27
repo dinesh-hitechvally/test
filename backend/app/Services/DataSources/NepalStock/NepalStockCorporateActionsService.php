@@ -5,7 +5,6 @@ namespace App\Services\DataSources\NepalStock;
 use App\Events\ScrapeFinished;
 use App\Models\Dividend;
 use App\Models\Stock;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -24,16 +23,12 @@ use Throwable;
  */
 class NepalStockCorporateActionsService
 {
-    private const BASE_URL = 'https://www.nepalstock.com';
-
     private const DIVIDEND_PATH = '/api/nots/application/dividend/%d';
-
-    private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
 
     private const SOURCE_NAME = 'nepalstock.com/dividend';
 
     public function __construct(
-        private readonly NepalStockTokenService $tokens,
+        private readonly NepalStockClient $client,
         private readonly NepalStockSecurityResolver $resolver,
     ) {}
 
@@ -44,13 +39,7 @@ class NepalStockCorporateActionsService
     {
         try {
             $securityId = $this->resolver->resolve($stock);
-            $token = $this->tokens->getAccessToken();
-
-            $response = Http::withHeaders([
-                'User-Agent' => self::USER_AGENT,
-                'Referer' => self::BASE_URL.'/',
-                'Authorization' => 'Salter '.$token,
-            ])->timeout(20)->get(self::BASE_URL.sprintf(self::DIVIDEND_PATH, $securityId));
+            $response = $this->client->get(sprintf(self::DIVIDEND_PATH, $securityId));
 
             $response->throw();
 

@@ -4,317 +4,106 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Report\RuleScanRequest;
-use App\Models\Sector;
-use App\Models\SignalAccuracyStat;
-use App\Models\Stock;
 use App\Services\Analysis\Forecasting\NextCloseEstimatorService;
-use App\Services\Analysis\Signals\SignalRules;
-use App\Services\MachineLearning\MlDirectionPredictorService;
+use App\Services\Analysis\Signals\SignalRuleScanner;
+use App\Services\Reports\DividendReportService;
+use App\Services\Reports\InvestmentHorizonService;
 use App\Services\Reports\MarketReportService;
-use App\Services\Reports\TechnicalAnalysisReportService;
+use App\Services\Reports\SectorReportService;
+use App\Services\Reports\StockReportService;
+use App\Services\Stocks\StockService;
 use Illuminate\Http\Request;
-use Throwable;
 
 class ReportController extends Controller
 {
-    public function dashboard(MarketReportService $reports)
+    public function __construct(
+        private readonly MarketReportService $reports,
+        private readonly StockService $stocks,
+    ) {}
+
+    public function dashboard()
     {
-        return response()->json($reports->dashboardSummary());
+        return response()->json($this->reports->dashboardSummary());
     }
 
-    public function market(MarketReportService $reports)
+    public function market()
     {
-        $summary = $reports->dashboardSummary();
-
-        return response()->json([
-            'totals' => $summary['totals'],
-            'signal_counts' => $summary['signal_counts'],
-            'breadth' => $summary['breadth'],
-            'movers' => $summary['movers'],
-            'sector_performance' => $reports->sectorPerformance(),
-            'trend' => $reports->trend(30),
-        ]);
+        return response()->json($this->reports->marketOverview());
     }
 
-    public function sectors()
+    public function sectors(SectorReportService $sectors)
     {
-        $sectors = Sector::withCount('stocks')
-            ->having('stocks_count', '>', 0)
-            ->orderByDesc('stocks_count')
-            ->get()
-            ->map(fn ($sector) => ['sector' => $sector->name, 'stock_count' => $sector->stocks_count])
-            ->values();
-
-        return response()->json($sectors);
+        return response()->json($sectors->sectors());
     }
 
-    public function sector(Request $request, MarketReportService $reports)
+    public function sector(Request $request, SectorReportService $sectors)
     {
-        $sector = $request->query('name');
+        $name = $request->query('name');
 
-        if (! $sector) {
+        if (! $name) {
             return response()->json(['message' => 'A sector name is required.'], 422);
         }
 
-        $stocks = Stock::whereHas('sector', fn ($q) => $q->where('name', $sector))
-            ->with(['sector', 'latestPrice', 'latestSignal'])
-            ->orderBy('symbol')
-            ->get();
+        $report = $sectors->sector($name);
 
-        if ($stocks->isEmpty()) {
-            return response()->json(['message' => "No stocks found for sector [{$sector}]."], 404);
-        }
-
-        $changes = $reports->priceChanges();
-
-        $stocks->each(function ($stock) use ($changes) {
-            $stock->change_pct = $changes->get($stock->id)['change_pct'] ?? null;
-        });
-
-        $withPct = $stocks->filter(fn ($s) => $s->change_pct !== null);
-
-        $signalCounts = ['strong_buy' => 0, 'buy' => 0, 'hold' => 0, 'sell' => 0, 'strong_sell' => 0];
-        foreach ($stocks as $stock) {
-            if ($stock->latestSignal) {
-                $signalCounts[$stock->latestSignal->signal]++;
-            }
-        }
-
-        $ranked = $withPct->sortByDesc('change_pct')->values();
-
-        return response()->json([
-            'sector' => $sector,
-            'totals' => [
-                'stock_count' => $stocks->count(),
-                'advancing' => $withPct->where('change_pct', '>', 0)->count(),
-                'declining' => $withPct->where('change_pct', '<', 0)->count(),
-            ],
-            'signal_counts' => $signalCounts,
-            'avg_change_pct' => $withPct->isNotEmpty() ? round($withPct->avg('change_pct'), 2) : null,
-            'stocks' => $stocks->values(),
-            'top_gainers' => $ranked->take(5)->values(),
-            'top_losers' => $ranked->reverse()->take(5)->values(),
-            'trend' => $reports->trend(30, $sector),
-        ]);
+        return $report
+            ? response()->json($report)
+            : response()->json(['message' => "No stocks found for sector [{$name}]."], 404);
     }
 
-    public function stock(string $symbol, MarketReportService $reports)
+    public function stock(string $symbol, StockReportService $report)
     {
-        $stock = Stock::with(['sector', 'latestPrice', 'latestSignal'])
-            ->where('symbol', strtoupper($symbol))
-            ->firstOrFail();
-
-        $signalCounts90d = $stock->signals()
-            ->where('trade_date', '>=', now()->subDays(90))
-            ->selectRaw('`signal`, COUNT(*) as count') // `signal` is a reserved word in MySQL (stored-procedure SIGNAL statement)
-            ->groupBy('signal')
-            ->pluck('count', 'signal');
-
-        $change = $reports->priceChanges()->get($stock->id);
-
-        return response()->json([
-            'stock' => [
-                'symbol' => $stock->symbol,
-                'company_name' => $stock->company_name,
-                'sector' => $stock->sector?->name,
-            ],
-            'latest_price' => $stock->latestPrice,
-            'latest_signal' => $stock->latestSignal,
-            'change_pct' => $change['change_pct'] ?? null,
-            'returns' => $reports->stockReturns($stock),
-            'signal_counts_90d' => $signalCounts90d,
-        ]);
+        return response()->json($report->summary($this->stocks->findBySymbol($symbol, ['sector', 'latestPrice', 'latestSignal'])));
     }
 
-    public function dividends(Request $request, MarketReportService $reports)
+    public function dividends(Request $request, DividendReportService $dividends)
     {
-        return response()->json($reports->dividendReport($request->query('sector')));
+        return response()->json($dividends->dividendReport($request->query('sector')));
     }
 
-    /**
-     * The next-close estimator's real, latest backtested accuracy — the
-     * companion honesty-check to whatever number Forecast.next_close
-     * is showing, so it's never displayed without its own measured track
-     * record right next to it (same convention as MlModel's accuracy).
-     */
     public function nextCloseAccuracy(NextCloseEstimatorService $estimator)
     {
-        $stat = $estimator->latestAccuracy();
-
-        return response()->json($stat ? [
-            'available' => true,
-            'sample_size' => $stat->sample_size,
-            'stocks_used' => $stat->stocks_used,
-            'mape' => (float) $stat->mape,
-            'naive_mape' => (float) $stat->naive_mape,
-            'direction_accuracy' => (float) $stat->direction_accuracy,
-            'beats_baseline' => $stat->beatsBaseline(),
-            'computed_at' => $stat->computed_at,
-        ] : ['available' => false]);
+        return response()->json($estimator->accuracySummary());
     }
 
-    public function longTerm(Request $request, MarketReportService $reports)
+    public function longTerm(Request $request, InvestmentHorizonService $horizons)
     {
-        return response()->json([
-            'candidates' => $reports->rankLongTermCandidates($request->query('sector')),
-        ]);
+        return response()->json(['candidates' => $horizons->rankLongTermCandidates($request->query('sector'))]);
     }
 
-    public function midTerm(Request $request, MarketReportService $reports)
+    public function midTerm(Request $request, InvestmentHorizonService $horizons)
     {
-        return response()->json([
-            'candidates' => $reports->rankMidTermCandidates($request->query('sector')),
-        ]);
+        return response()->json(['candidates' => $horizons->rankMidTermCandidates($request->query('sector'))]);
     }
 
-    public function shortTerm(Request $request, MarketReportService $reports)
+    public function shortTerm(Request $request, InvestmentHorizonService $horizons)
     {
-        return response()->json([
-            'candidates' => $reports->rankShortTermCandidates($request->query('sector')),
-        ]);
+        return response()->json(['candidates' => $horizons->rankShortTermCandidates($request->query('sector'))]);
     }
 
-    public function technical(string $symbol, TechnicalAnalysisReportService $reports)
+    public function technical(string $symbol, StockReportService $report)
     {
-        $stock = Stock::with('sector')->where('symbol', strtoupper($symbol))->firstOrFail();
-
-        return response()->json([
-            'stock' => [
-                'symbol' => $stock->symbol,
-                'company_name' => $stock->company_name,
-                'sector' => $stock->sector?->name,
-            ],
-            'report' => $reports->build($stock),
-        ]);
+        return response()->json($report->technical($this->stocks->findBySymbol($symbol, ['sector'])));
     }
 
-    /**
-     * The "Analyst Report" — one stock, every lens the app has on it (price
-     * performance, technical read, dividend history, rule-based signal with
-     * its own honest backtest context, ML direction call) assembled in one
-     * response. No new computation happens here; it's a merge of what
-     * TechnicalAnalysisReportService, MarketReportService,
-     * MlDirectionPredictorService and the signal tables already produce
-     * elsewhere, so nothing here can drift from those other pages.
-     */
-    public function analyst(string $symbol, MarketReportService $reports, TechnicalAnalysisReportService $technical, MlDirectionPredictorService $predictor)
+    public function analyst(string $symbol, StockReportService $report)
     {
-        $stock = Stock::with(['sector', 'latestPrice', 'latestSignal'])->where('symbol', strtoupper($symbol))->firstOrFail();
+        return response()->json($report->analyst($this->stocks->findBySymbol($symbol, ['sector', 'latestPrice', 'latestSignal'])));
+    }
 
-        $change = $reports->priceChanges()->get($stock->id);
+    public function rules(SignalRuleScanner $scanner)
+    {
+        return response()->json($scanner->rules());
+    }
 
-        $signalAccuracy = $stock->latestSignal
-            ? SignalAccuracyStat::where('signal_type', $stock->latestSignal->signal)
-                ->where('computed_at', SignalAccuracyStat::max('computed_at'))
-                ->first()
-            : null;
+    public function ruleScan(RuleScanRequest $request, SignalRuleScanner $scanner)
+    {
+        $rules = $request->validated('rules');
 
-        $mlModel = $predictor->latestMetrics();
-        try {
-            $mlPrediction = $mlModel ? $predictor->predict($stock) : null;
-        } catch (Throwable $e) {
-            // The saved model file and MlFeatureBuilder's feature set can briefly
-            // disagree right after a feature-set change and before the next
-            // retrain finishes — degrade to "no prediction" rather than
-            // failing the whole report over one section.
-            $mlPrediction = null;
+        if ($unknown = $scanner->unknownKeys(array_unique($rules))) {
+            return response()->json(['message' => 'Unknown rule key(s): '.implode(', ', $unknown)], 422);
         }
 
-        return response()->json([
-            'stock' => [
-                'symbol' => $stock->symbol,
-                'company_name' => $stock->company_name,
-                'sector' => $stock->sector?->name,
-            ],
-            'latest_price' => $stock->latestPrice,
-            'change_pct' => $change['change_pct'] ?? null,
-            'returns' => $reports->stockReturns($stock),
-            'technical' => $technical->build($stock),
-            'dividend' => $reports->stockDividendSummary($stock),
-            'signal' => $stock->latestSignal ? [
-                'signal' => $stock->latestSignal->signal,
-                'score' => (float) $stock->latestSignal->score,
-                'reasons' => $stock->latestSignal->reasons,
-                'trade_date' => $stock->latestSignal->trade_date,
-                'accuracy' => $signalAccuracy ? [
-                    'sample_size' => $signalAccuracy->sample_size,
-                    'win_rate' => (float) $signalAccuracy->win_rate,
-                    'baseline_win_rate' => (float) $signalAccuracy->baseline_win_rate,
-                    'horizon_days' => $signalAccuracy->horizon_days,
-                ] : null,
-            ] : null,
-            'ml_prediction' => $mlPrediction ? [
-                'direction' => $mlPrediction['direction'],
-                'probability' => $mlPrediction['probability'],
-                'as_of_date' => $mlPrediction['as_of_date'],
-                'horizon_days' => $mlModel->horizon_days,
-                'model_accuracy' => (float) $mlModel->accuracy,
-                'model_baseline_accuracy' => (float) $mlModel->baseline_accuracy,
-                'beats_baseline' => $mlModel->beatsBaseline(),
-            ] : null,
-        ]);
-    }
-
-    public function rules()
-    {
-        $rules = collect(SignalRules::RULES)->map(fn ($r, $key) => [
-            'key' => $key,
-            'label' => $r['label'],
-            'direction' => $r['direction'],
-        ])->values();
-
-        return response()->json($rules);
-    }
-
-    /**
-     * Filters every stock's latest signal down to the ones that fired at
-     * least one (mode=any) or all (mode=all) of the requested rule keys.
-     * Reads already-stored rule_keys — nothing is recomputed live.
-     */
-    public function ruleScan(RuleScanRequest $request, MarketReportService $reports)
-    {
-        $validated = $request->validated();
-
-        $requested = array_values(array_unique($validated['rules']));
-        $invalid = array_filter($requested, fn ($key) => ! SignalRules::isValidKey($key));
-
-        if ($invalid !== []) {
-            return response()->json(['message' => 'Unknown rule key(s): '.implode(', ', $invalid)], 422);
-        }
-
-        $mode = $validated['mode'] ?? 'any';
-
-        $stocks = Stock::with(['sector', 'latestSignal', 'latestPrice'])->get();
-        $changes = $reports->priceChanges();
-
-        $matches = $stocks->filter(function ($stock) use ($requested, $mode) {
-            $fired = $stock->latestSignal?->rule_keys ?? [];
-
-            return $mode === 'all'
-                ? count(array_diff($requested, $fired)) === 0
-                : count(array_intersect($requested, $fired)) > 0;
-        })->map(function ($stock) use ($changes, $requested) {
-            $fired = $stock->latestSignal?->rule_keys ?? [];
-            $matchedKeys = array_values(array_intersect($requested, $fired));
-
-            return [
-                'stock_id' => $stock->id,
-                'symbol' => $stock->symbol,
-                'company_name' => $stock->company_name,
-                'sector' => $stock->sector?->name,
-                'close' => $stock->latestPrice?->close_price,
-                'change_pct' => $changes->get($stock->id)['change_pct'] ?? null,
-                'signal' => $stock->latestSignal?->signal,
-                'trade_date' => $stock->latestSignal?->trade_date,
-                'matched_rules' => array_map(fn ($key) => ['key' => $key, 'label' => SignalRules::label($key)], $matchedKeys),
-            ];
-        })->sortByDesc(fn ($row) => count($row['matched_rules']))->values();
-
-        return response()->json([
-            'mode' => $mode,
-            'requested_rules' => $requested,
-            'matched_count' => $matches->count(),
-            'stocks' => $matches,
-        ]);
+        return response()->json($scanner->scan($rules, $request->validated('mode') ?? 'any'));
     }
 }

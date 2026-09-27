@@ -7,7 +7,6 @@ use App\Events\StockPricesUpdated;
 use App\Models\DailyPrice;
 use App\Models\Stock;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
@@ -20,16 +19,12 @@ use Throwable;
  */
 class NepalStockScraperService
 {
-    private const BASE_URL = 'https://www.nepalstock.com';
-
     private const LIVE_MARKET_PATH = '/api/nots/lives-market';
-
-    private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
 
     private const SOURCE_NAME = 'nepalstock.com';
 
     public function __construct(
-        private readonly NepalStockTokenService $tokens,
+        private readonly NepalStockClient $client,
         private readonly NepalStockMarketStatusService $marketStatus,
     ) {}
 
@@ -39,8 +34,6 @@ class NepalStockScraperService
     public function scrape(): array
     {
         try {
-            $token = $this->tokens->getAccessToken();
-
             // Skipping (rather than writing whatever the live-market endpoint
             // happens to return while closed — often stale or empty) means a
             // stray ping on a non-trading day can never leave today's
@@ -56,11 +49,7 @@ class NepalStockScraperService
                 return ['created_stocks' => 0, 'updated_prices' => 0, 'affected_stock_ids' => [], 'market_open' => false];
             }
 
-            $response = Http::withHeaders([
-                'User-Agent' => self::USER_AGENT,
-                'Referer' => self::BASE_URL.'/',
-                'Authorization' => 'Salter '.$token,
-            ])->timeout(20)->get(self::BASE_URL.self::LIVE_MARKET_PATH);
+            $response = $this->client->get(self::LIVE_MARKET_PATH);
 
             $response->throw();
             $rows = $response->json();

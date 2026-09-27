@@ -1,9 +1,12 @@
 <?php
 
+use App\Http\Middleware\VerifyCronSecret;
+use App\Services\Mail\EmailLogService;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,7 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->alias([
-            'cron.secret' => \App\Http\Middleware\VerifyCronSecret::class,
+            'cron.secret' => VerifyCronSecret::class,
         ]);
 
         // This is an API-only backend — no 'login' route exists (the SPA
@@ -38,4 +41,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // Laravel has no "email failed" event — a failed send is just a
+        // transport exception. Record it against the email log; the normal
+        // error logging still happens too.
+        $exceptions->report(function (TransportExceptionInterface $e) {
+            app(EmailLogService::class)->markPendingFailed($e);
+        });
     })->create();

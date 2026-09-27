@@ -6,65 +6,39 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Watchlist\AddWatchlistItemRequest;
 use App\Http\Requests\Watchlist\SetWatchlistAlertRequest;
 use App\Http\Requests\Watchlist\StoreWatchlistRequest;
-use App\Services\Reports\MarketReportService;
+use App\Services\Watchlists\WatchlistService;
 use Illuminate\Http\Request;
 
 class WatchlistController extends Controller
 {
-    public function index(Request $request, MarketReportService $reports)
+    public function __construct(private readonly WatchlistService $watchlists) {}
+
+    public function index(Request $request)
     {
-        $watchlists = $request->user()->watchlists()->with(['stocks.latestPrice', 'stocks.latestSignal'])->get();
-        $changes = $reports->priceChanges();
-
-        $watchlists->each(function ($watchlist) use ($changes) {
-            $watchlist->stocks->each(function ($stock) use ($changes) {
-                $stock->change_pct = $changes->get($stock->id)['change_pct'] ?? null;
-            });
-        });
-
-        return response()->json($watchlists);
+        return response()->json($this->watchlists->forUser($request->user()));
     }
 
     public function store(StoreWatchlistRequest $request)
     {
-        $watchlist = $request->user()->watchlists()->create($request->validated());
-
-        return response()->json($watchlist, 201);
+        return response()->json($this->watchlists->create($request->user(), $request->validated()), 201);
     }
 
     public function addItem(AddWatchlistItemRequest $request, int $watchlistId)
     {
-        $watchlist = $request->user()->watchlists()->findOrFail($watchlistId);
-
-        $watchlist->stocks()->syncWithoutDetaching([$request->validated('stock_id')]);
-
-        return response()->json($watchlist->load('stocks'));
+        return response()->json($this->watchlists->addStock($request->user(), $watchlistId, (int) $request->validated('stock_id')));
     }
 
     public function removeItem(Request $request, int $watchlistId, int $stockId)
     {
-        $watchlist = $request->user()->watchlists()->findOrFail($watchlistId);
-        $watchlist->stocks()->detach($stockId);
+        $this->watchlists->removeStock($request->user(), $watchlistId, $stockId);
 
         return response()->json(['message' => 'Removed.']);
     }
 
-    /**
-     * Sets or clears a price alert on one watchlist item — independent of
-     * the portfolio stop-loss/target alerts, since a watchlist stock isn't
-     * necessarily something you own.
-     */
     public function setAlert(SetWatchlistAlertRequest $request, int $watchlistId, int $stockId)
     {
-        $watchlist = $request->user()->watchlists()->findOrFail($watchlistId);
-        $validated = $request->validated();
-
-        if (! $watchlist->stocks()->where('stocks.id', $stockId)->exists()) {
-            return response()->json(['message' => 'That stock is not on this watchlist.'], 404);
-        }
-
-        $watchlist->stocks()->updateExistingPivot($stockId, $validated);
-
-        return response()->json(['message' => 'Alert saved.']);
+        return $this->watchlists->setAlert($request->user(), $watchlistId, $stockId, $request->validated())
+            ? response()->json(['message' => 'Alert saved.'])
+            : response()->json(['message' => 'That stock is not on this watchlist.'], 404);
     }
 }

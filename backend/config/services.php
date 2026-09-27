@@ -34,7 +34,7 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
             // Separate from the OAuth bot token above (unused, no package
             // installed for it) — this is a plain Slack "Incoming Webhook"
-            // URL, posted to directly over HTTP by CronAlertService with no
+            // URL, posted to directly over HTTP by FailureAlertService with no
             // package needed. Leave unset to skip Slack alerts entirely.
             'webhook_url' => env('SLACK_WEBHOOK_URL'),
         ],
@@ -47,7 +47,7 @@ return [
         // these URLs (cron-job.org, UptimeRobot, etc.) as ?key=...
         'secret' => env('CRON_SECRET'),
 
-        // Where CronAlertService emails a failing job (via whatever
+        // Where FailureAlertService emails a failing job (via whatever
         // MAIL_MAILER is configured — defaults to just logging the email
         // rather than sending it, until real SMTP is set up). Leave unset
         // to skip email alerts entirely.

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\Cron\CronSchedule;
+use App\Http\Cron\CronSchedule;
 use App\Services\DataSources\ScrapeHealthService;
 
 /**

@@ -13,47 +13,70 @@ app/
 ├── Listeners/            What happens in response. Wired in AppServiceProvider::LISTENERS.
 ├── Http/
 │   ├── Controllers/Api/  JSON endpoints for the SPA (routes/api.php, auth:sanctum).
-│   ├── Controllers/      CronController — plain-text endpoints for the external pinger (routes/web.php).
+│   ├── Controllers/      CronController — one invokable action behind every /cron/* URL.
+│   ├── Cron/             CronSchedule — reads config/cron.php (URL → task) for the routes
+│   │                     and the Schedule page. The only cron-specific code in app/.
 │   ├── Middleware/       VerifyCronSecret (?key= on every /cron/* URL).
 │   └── Requests/         One FormRequest per input, grouped by area.
 ├── Models/               Eloquent models (one per table).
 ├── Providers/            AppServiceProvider — contract bindings + event wiring.
+├── Tasks/                Background units of work, grouped by domain like Services/.
+│   │                     They don't know how they're triggered — cron URLs today, but a
+│   │                     controller, test or queued job can run the same class.
+│   ├── Task · PerStockTask (works through every pending stock) · TaskRunner (log + alert)
+│   ├── MarketData/       stock list, live prices, index, histories, sectors, dividends,
+│   │                     fundamentals, nepalstock.com token check.
+│   ├── Analysis/         manual recalculation, signal + next-close backtests.
+│   ├── MachineLearning/  train the direction predictor.
+│   └── Ai/               generate AI opinions.
 └── Services/             All business logic, grouped by what it does:
     ├── DataSources/      Talks to the outside world, writes what it gets back.
-    │   ├── NepalStock/   nepalstock.com: auth token, market status, live prices, indices,
-    │   │                 ~1yr history, securities list/sectors, dividends.
+    │   ├── NepalStock/   nepalstock.com. NepalStockClient is the only class that knows how to
+    │   │                 authenticate (headers + token); the others (market status, live prices,
+    │   │                 indices, ~1yr history, securities/sectors, dividends) just call get().
     │   ├── ShareSansar/  Full price history (the primary history source).
     │   ├── MeroLagani/   Fundamentals (EPS, P/E, book value).
     │   ├── Csv/          CSV price import.
     │   └── CorporateActionsRefreshService
     ├── Analysis/         Derived purely from prices already in the DB — no external calls.
     │   ├── Indicators/   TechnicalAnalysisService (pure math) + IndicatorRecalculationService (stores it).
-    │   ├── Signals/      SignalRules (rules + weights), SignalGeneratorService, SignalAccuracyService (backtest).
+    │   ├── Signals/      SignalRules (rules + weights), SignalGeneratorService, SignalAccuracyService
+    │   │                 (backtest), SignalFeedService (today / buy-sell feeds), SignalRuleScanner.
     │   ├── Forecasting/  NextCloseEstimatorService.
+    │   ├── Patterns/     CandlestickPatternScanner (market-wide pattern scan).
     │   └── RecalculationPipeline   indicators → signals → next-close, for one or many stocks.
     ├── MachineLearning/  Direction predictor (Random Forest) + its feature builder.
-    ├── Reports/          Read-side aggregations for the report pages.
+    ├── Reports/          Read-side assembly for pages, one class per job:
+    │                     PriceStatisticsService (% change, returns, 52-week, trend — used by the
+    │                     others), MarketReportService (dashboard/market), DividendReportService,
+    │                     InvestmentHorizonService (long/mid/short-term), Sector/Stock/Screener/
+    │                     Index/TechnicalAnalysis reports.
+    ├── Stocks/           StockService — find/list/create stocks, their price/indicator/
+    │                     forecast series, signal history, dividends.
+    ├── Watchlists/       WatchlistService.
     ├── Ai/               AI buy/hold/sell opinion (prompt) + GroqOpinionProvider (the LLM call).
-    ├── Portfolio/        Valuation, P&L, and Export/ (CSV, Excel, PDF).
-    ├── Auth/             Login geolocation.
-    └── Cron/             The URL-triggered pipeline:
-        ├── Tasks/        CronTask — one step per URL (market sync, backtests, ML training...).
-        │                 PerStockTask — a CronTask that works through every pending stock
-        │                 in one run (histories, sectors, dividends, AI opinions, fundamentals).
-        └── CronAlertService   Log + optional Slack/email on failure.
+    ├── Portfolio/        PortfolioService (ledger), valuation/P&L, price alerts, Export/.
+    ├── Auth/             Login history + geolocation.
+    ├── Alerts/           FailureAlertService — log + optional Slack/email when a task fails.
+    └── Mail/             EmailLogService — records every outgoing email (email_logs table).
+
+config/cron.php           THE list of /cron/<path> URLs → task class (+ schedule).
 ```
 
-Tests mirror this: `tests/Feature/{Analysis,Cron,Events,Portfolio}`, `tests/Unit/Analysis`.
+Tests mirror this: `tests/Feature/{Analysis,Auth,Cron,Events,Portfolio,Watchlists}`, `tests/Unit/{Analysis,DataSources}`.
 
 ## How a request flows
 
 ```
 SPA ──HTTP──▶ Controllers/Api ──▶ FormRequest (validation) ──▶ Service ──▶ Model/DB
-Pinger ─GET─▶ /cron/* ──▶ VerifyCronSecret ──▶ CronController ──▶ CronTaskRunner ──▶ CronTask ──▶ Service
+Pinger ─GET─▶ /cron/<path> ──▶ VerifyCronSecret ──▶ CronController ──▶ TaskRunner ──▶ Task ──▶ Service
 ```
 
-Controllers stay thin: validate, call a service, return JSON/text. No business
-logic, no `$request->validate()`, no `new SomeService()`.
+**Controllers only call things.** A controller method does at most three
+things: validate (FormRequest), call a service / task / event, and turn the
+result into an HTTP response (including status codes like 404/422/502). No
+queries, loops or response assembly in a controller — that belongs in a
+service. No `$request->validate()`, no `new SomeService()`.
 
 ## Event workflow
 
@@ -65,7 +88,16 @@ waits for them.
 |---|---|---|
 | `StockPricesUpdated` | market sync, history fetch (either source), CSV import | `RecalculateUpdatedStocks` → RecalculationPipeline for those stocks |
 | `ScrapeFinished` | every external fetch, success or failure | `RecordScrapeLog` → `scrape_logs` row |
-| `CronTaskFailed` | CronTaskRunner, `/cron/scrape/fetch-history/{symbol}` | `AlertCronFailure` → CronAlertService |
+| `TaskFailed` | TaskRunner (any failed task) | `AlertTaskFailure` → FailureAlertService |
+| `UserLoggedIn` | AuthController::login | `RecordLoginHistory` → LoginHistoryService (IP, device, location) |
+| Laravel `MessageSending` / `MessageSent` | every email, whatever sends it | `RecordEmailSending` / `RecordEmailSent` → EmailLogService |
+
+**Email log:** every email gets an `email_logs` row — status (`sending` → `sent`, `logged` when
+the mailer is `log` so it was NOT delivered, or `failed` + the error), recipients, from, subject,
+mailer, message id, what sent it, and the matching user. Laravel has no "mail failed" event, so a
+transport exception is caught by the hook in `bootstrap/app.php`; code that catches a mail error
+itself must `report($e)` for the row to be marked failed. Bodies are never stored (reset links
+are secrets). Read it at `GET /api/email-logs?status=failed`.
 
 So the daily chain is: **market sync → `StockPricesUpdated` → recalculation**,
 all in one request. Listeners are registered explicitly (discovery is off in
@@ -75,7 +107,8 @@ all in one request. Listeners are registered explicitly (discovery is off in
 
 An external pinger (cron-job.org etc.) hits `/cron/*?key=CRON_SECRET`. The live
 list with times and ready-to-paste URLs is at **Settings → Data Sources** in the
-SPA (`GET /api/schedule`, source of truth: `ScheduleController::JOBS`).
+SPA (`GET /api/schedule`). **`config/cron.php` is the single source of truth**:
+every URL, the task class it runs, and its schedule is one line there.
 
 - **Scheduled:** sync-stock-list (06:00 NPT), market-sync-stock (15:30),
   market-sync-index (15:32), train-ml / backtest-signals / backtest-next-close (Mon early morning).
@@ -94,15 +127,15 @@ There are no artisan commands for the pipeline — everything runs through these
 
 | You want to… | Add |
 |---|---|
+| Call a new nepalstock.com endpoint | `$this->client->get('/api/...')` via `NepalStockClient` — never build the auth headers yourself |
 | Fetch from a new website | a service in `Services/DataSources/<Site>/`; fire `ScrapeFinished` (+ `StockPricesUpdated` if it writes prices) |
 | Add a signal rule | detect it in `SignalGeneratorService::detectRules()`, add its key + **weight** to `SignalRules::RULES`, then re-run backtest-signals and check it beats baseline |
 | Add an indicator | calculator in `TechnicalAnalysisService`, store it in `IndicatorRecalculationService` (+ migration) |
 | React to something that happened | a listener in `Listeners/`, registered in `AppServiceProvider::LISTENERS` |
-| A new scheduled whole-market step | a `CronTask` in `Services/Cron/Tasks/`, a route in `routes/web.php`, an entry in `ScheduleController::JOBS` |
-| A new per-stock job | a `PerStockTask` in `Services/Cron/Tasks/` (say what's pending + how to process one stock) + route |
+| A new background task | a `Task` (or `PerStockTask` for per-stock work) in `Tasks/<Domain>/`. To trigger it by URL, add **one line** to `config/cron.php` (add `when`/`cron_npt`/`cron_utc` to schedule it); if it needs URL input, override `withRequest()`. To run it from code: `app(TaskRunner::class)->run(app(MyTask::class))`. |
 | Swap the AI provider | a new `AiOpinionProvider` implementation + one line in `AppServiceProvider::$bindings` |
 | A new portfolio export format | a `PortfolioExporter` implementation + route |
-| A new API endpoint | FormRequest in `Http/Requests/<Area>/`, method on the controller, logic in a service |
+| A new API endpoint | FormRequest in `Http/Requests/<Area>/`, the logic in a service method, and a one-line controller method that calls it |
 
 ## Conventions
 

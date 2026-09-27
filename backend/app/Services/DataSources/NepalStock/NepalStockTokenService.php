@@ -26,18 +26,18 @@ use RuntimeException;
  * salt exchanges: this produces byte-identical splice positions to the
  * real WASM, and the resulting token is accepted by the real API.
  *
- * If NEPSE ever changes this algorithm, verify() — /cron/scrape/verify-token
- * — (or any real API call through this service) will start failing loudly —
+ * If NEPSE ever changes this algorithm, NepalStockClient::verify() —
+ * /cron/scrape/verify-token — (or any real API call) will start failing loudly —
  * at that point the WASM module needs re-disassembling, not this file
  * patched blindly.
  */
 class NepalStockTokenService
 {
-    private const BASE_URL = 'https://www.nepalstock.com';
+    private const BASE_URL = NepalStockClient::BASE_URL;
 
     private const TOKEN_PATH = '/api/authenticate/prove';
 
-    private const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome Safari';
+    private const USER_AGENT = NepalStockClient::USER_AGENT;
 
     /**
      * TABLE[digit sum of the relevant salt, 0-27] — read directly out of
@@ -46,28 +46,6 @@ class NepalStockTokenService
     private const TABLE = [
         5, 8, 4, 7, 9, 4, 6, 9, 5, 5, 6, 5, 3, 5, 4, 4, 9, 6, 6, 8, 8, 6, 8, 6, 5, 8, 4, 9,
     ];
-
-    /**
-     * Mints a token and proves it against a real API call (NABIL, always
-     * listed) — throws with a specific reason if either step fails.
-     */
-    public function verify(): void
-    {
-        $token = $this->getAccessToken();
-
-        $response = Http::withHeaders([
-            'User-Agent' => self::USER_AGENT,
-            'Referer' => self::BASE_URL.'/',
-            'Authorization' => 'Salter '.$token,
-        ])->timeout(15)->get(self::BASE_URL.'/api/nots/security/131');
-
-        if ($response->failed() || $response->json('securityData.symbol') === null) {
-            throw new RuntimeException(
-                "Token minted but the API rejected it (HTTP {$response->status()}) — NEPSE's token algorithm ".
-                'may have changed. NepalStockTokenService needs re-deriving from a fresh css.wasm (see its docblock).'
-            );
-        }
-    }
 
     public function getAccessToken(): string
     {

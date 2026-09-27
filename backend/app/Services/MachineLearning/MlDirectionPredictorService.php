@@ -13,6 +13,7 @@ use Rubix\ML\PersistentModel;
 use Rubix\ML\Persisters\Filesystem;
 use Rubix\ML\Serializers\RBX;
 use RuntimeException;
+use Throwable;
 
 /**
  * Binary direction classifier ("will this stock's close be higher N trading
@@ -175,6 +176,52 @@ class MlDirectionPredictorService
             'direction' => $upProbability >= 0.5 ? 'up' : 'down',
             'probability' => round(max($upProbability, 1 - $upProbability), 4),
             'as_of_date' => $row['date'],
+        ];
+    }
+
+    /**
+     * predict(), but never throws: the saved model file and MlFeatureBuilder's
+     * feature set can briefly disagree right after a feature-set change and
+     * before the next retrain — callers show "no prediction" rather than
+     * failing a whole page over one section.
+     */
+    public function tryPredict(Stock $stock): ?array
+    {
+        try {
+            return $this->predict($stock);
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * The Stock Detail page's ML card: this stock's prediction plus the
+     * model's own measured accuracy, so a prediction is never shown without
+     * its track record. Both null when no model has been trained yet.
+     *
+     * @return array{prediction: ?array, model: ?array}
+     */
+    public function predictionReport(Stock $stock): array
+    {
+        $model = $this->latestMetrics();
+
+        if ($model === null) {
+            return ['prediction' => null, 'model' => null];
+        }
+
+        return [
+            'prediction' => $this->tryPredict($stock),
+            'model' => [
+                'trained_at' => $model->trained_at,
+                'horizon_days' => $model->horizon_days,
+                'accuracy' => (float) $model->accuracy,
+                'baseline_accuracy' => (float) $model->baseline_accuracy,
+                'beats_baseline' => $model->beatsBaseline(),
+                'precision' => (float) $model->precision,
+                'recall' => (float) $model->recall,
+                'test_samples' => $model->test_samples,
+                'stocks_used' => $model->stocks_used,
+            ],
         ];
     }
 
