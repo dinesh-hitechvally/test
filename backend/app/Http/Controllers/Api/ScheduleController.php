@@ -3,103 +3,23 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\Cron\Tasks\Reports\BacktestNextCloseTask;
-use App\Services\Cron\Tasks\Reports\BacktestSignalsTask;
-use App\Services\Cron\CronTask;
-use App\Services\Cron\Tasks\Scrape\MarketSyncIndexTask;
-use App\Services\Cron\Tasks\Scrape\MarketSyncTask;
-use App\Services\Cron\Tasks\Scrape\SyncStockListTask;
-use App\Services\Cron\Tasks\Reports\TrainMlTask;
-use Illuminate\Support\Facades\DB;
+use App\Services\Cron\CronSchedule;
+use App\Services\DataSources\ScrapeHealthService;
 
 /**
- * The pipeline moved from the Laravel scheduler/server cron to URL-triggered
- * routes (routes/web.php's `cron/*` group, CronController) — for hosting
- * without real cron/SSH access, an external pinger (cron-job.org,
- * UptimeRobot, etc.) just needs a URL to hit on a timer instead.
- *
- * This lists those URLs, with the CRON_SECRET already filled in, ready to
- * paste into whatever's doing the pinging. Safe to include the real secret
- * here specifically because this endpoint itself sits behind auth:sanctum
- * (routes/api.php) — only a logged-in user of this app ever sees it.
+ * The Data Source Settings page: the scheduled cron URLs (with CRON_SECRET
+ * filled in, ready to paste into a pinger) plus any stocks flagged with a
+ * failed fetch. Showing the real secret is safe here only because this
+ * endpoint sits behind auth:sanctum — only a logged-in user ever sees it.
  */
 class ScheduleController extends Controller
 {
-    /**
-     * Timing mirrors routes/web.php's comments exactly (see that file for
-     * the full explanation of the NPT/UTC split) — cron_npt is what to use
-     * if the external pinger supports a per-job timezone (cron-job.org
-     * does); cron_utc is the same instant as a plain 5-field expression for
-     * pingers that only run in UTC. NPT is UTC+5:45, not a whole number of
-     * hours, so the UTC expressions shift the minute too, and the weekly
-     * Monday-NPT jobs land on Sunday in UTC.
-     */
-    private const JOBS = [
-        // group: 'scrape' — hits nepalstock.com/ShareSansar, writes what comes back. Path mirrors routes/web.php's cron/scrape/* group.
-        ['task' => SyncStockListTask::class, 'group' => 'scrape', 'path' => 'scrape/sync-stock-list', 'when' => '06:00 NPT, daily', 'cron_npt' => '0 6 * * *', 'cron_utc' => '15 0 * * *'],
-        ['task' => MarketSyncTask::class, 'group' => 'scrape', 'path' => 'scrape/market-sync-stock', 'when' => '15:30 NPT, Mon-Fri', 'cron_npt' => '30 15 * * 1-5', 'cron_utc' => '45 9 * * 1-5'],
-        ['task' => MarketSyncIndexTask::class, 'group' => 'scrape', 'path' => 'scrape/market-sync-index', 'when' => '15:32 NPT, Mon-Fri', 'cron_npt' => '32 15 * * 1-5', 'cron_utc' => '47 9 * * 1-5'],
-
-        // group: 'reports' — no external call, only recomputes from data already in the DB. Path mirrors routes/web.php's cron/reports/* group.
-        // No market-recalculate entry: recalculation now follows every price
-        // update automatically (StockPricesUpdated → RecalculateUpdatedStocks).
-        ['task' => TrainMlTask::class, 'group' => 'reports', 'path' => 'reports/train-ml', 'when' => '03:30 NPT, Monday', 'cron_npt' => '30 3 * * 1', 'cron_utc' => '45 21 * * 0'],
-        ['task' => BacktestSignalsTask::class, 'group' => 'reports', 'path' => 'reports/backtest-signals', 'when' => '04:00 NPT, Monday', 'cron_npt' => '0 4 * * 1', 'cron_utc' => '15 22 * * 0'],
-        ['task' => BacktestNextCloseTask::class, 'group' => 'reports', 'path' => 'reports/backtest-next-close', 'when' => '04:15 NPT, Monday', 'cron_npt' => '15 4 * * 1', 'cron_utc' => '30 22 * * 0'],
-    ];
-
-    public function index()
+    public function index(CronSchedule $schedule, ScrapeHealthService $health)
     {
-        $secret = config('services.cron.secret');
-
-        $jobs = collect(self::JOBS)->map(function ($job) use ($secret) {
-            /** @var CronTask $task */
-            $task = app($job['task']);
-
-            return [
-                // Key kept as 'command' — it's what the frontend reads.
-                'command' => $task->name(),
-                'group' => $job['group'],
-                'url' => url('/cron/'.$job['path']).($secret ? '?key='.$secret : ''),
-                'when' => $job['when'],
-                'cron_npt' => $job['cron_npt'],
-                'cron_utc' => $job['cron_utc'],
-                'description' => $task->description(),
-            ];
-        })->values();
-
-        // Stocks currently flagged with a failed per-stock fetch (history,
-        // sector, or dividend — see StockScrapeStatus) — not a retry
-        // mechanism, just visibility instead of a failure sitting silently
-        // in a log file. Cleared automatically the next time that same kind
-        // of fetch succeeds. Each source has its own error column on
-        // stock_scrape_statuses, so a stock failing on two sources at once
-        // appears as two rows here, one per source — unioned into the same
-        // flat shape the frontend has always expected.
-        $bySource = function (string $source) {
-            return DB::table('stock_scrape_statuses')
-                ->join('stocks', 'stocks.id', '=', 'stock_scrape_statuses.stock_id')
-                ->whereNotNull("stock_scrape_statuses.{$source}_error")
-                ->select(
-                    'stocks.id',
-                    'stocks.symbol',
-                    'stocks.company_name',
-                    DB::raw("'{$source}' as scrape_error_source"),
-                    "stock_scrape_statuses.{$source}_error as scrape_error",
-                    "stock_scrape_statuses.{$source}_error_at as scrape_error_at"
-                );
-        };
-
-        $flaggedStocks = $bySource('history')
-            ->unionAll($bySource('sector'))
-            ->unionAll($bySource('dividend'))
-            ->orderByDesc('scrape_error_at')
-            ->get();
-
         return response()->json([
-            'secret_configured' => $secret !== null && $secret !== '',
-            'jobs' => $jobs,
-            'flagged_stocks' => $flaggedStocks,
+            'secret_configured' => filled(config('services.cron.secret')),
+            'jobs' => $schedule->scheduled(),
+            'flagged_stocks' => $health->flaggedStocks(),
         ]);
     }
 }
