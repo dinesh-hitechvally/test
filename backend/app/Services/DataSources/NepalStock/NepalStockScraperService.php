@@ -2,7 +2,6 @@
 
 namespace App\Services\DataSources\NepalStock;
 
-
 use App\Events\ScrapeFinished;
 use App\Events\StockPricesUpdated;
 use App\Models\DailyPrice;

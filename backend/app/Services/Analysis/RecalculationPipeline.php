@@ -2,11 +2,10 @@
 
 namespace App\Services\Analysis;
 
+use App\Models\Stock;
+use App\Services\Analysis\Forecasting\NextCloseEstimatorService;
 use App\Services\Analysis\Indicators\IndicatorRecalculationService;
 use App\Services\Analysis\Signals\SignalGeneratorService;
-use App\Services\Analysis\Forecasting\NextCloseEstimatorService;
-
-use App\Models\Stock;
 use Illuminate\Support\Collection;
 
 /**

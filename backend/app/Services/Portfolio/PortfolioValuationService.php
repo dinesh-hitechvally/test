@@ -7,6 +7,7 @@ use App\Models\Dividend;
 use App\Models\Portfolio;
 use App\Models\PositionTarget;
 use App\Models\Stock;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use RuntimeException;
 
@@ -392,7 +393,7 @@ class PortfolioValuationService
             'quantity' => $quantity,
             'price' => 0,
             'fees' => 0,
-            'transaction_date' => \Illuminate\Support\Carbon::parse($transactionDate),
+            'transaction_date' => Carbon::parse($transactionDate),
         ];
 
         $sequence = $existing->push($pending)->sortBy([

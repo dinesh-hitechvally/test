@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Unit\Services;
+namespace Tests\Unit\Analysis;
 
 use App\Services\Analysis\Indicators\TechnicalAnalysisService;
 use PHPUnit\Framework\TestCase;
@@ -12,7 +12,7 @@ class TechnicalAnalysisServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->ta = new TechnicalAnalysisService();
+        $this->ta = new TechnicalAnalysisService;
     }
 
     public function test_sma_is_null_before_enough_data_then_the_correct_average(): void

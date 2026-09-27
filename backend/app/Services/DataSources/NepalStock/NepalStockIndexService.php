@@ -2,7 +2,6 @@
 
 namespace App\Services\DataSources\NepalStock;
 
-
 use App\Events\ScrapeFinished;
 use App\Models\IndexSnapshot;
 use Illuminate\Support\Facades\Http;

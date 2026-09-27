@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Services;
+namespace Tests\Feature\Portfolio;
 
 use App\Models\DailyPrice;
 use App\Models\Portfolio;

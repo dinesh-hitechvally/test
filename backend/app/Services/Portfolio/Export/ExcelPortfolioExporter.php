@@ -17,7 +17,7 @@ class ExcelPortfolioExporter implements PortfolioExporter
         $holdings = collect($this->valuation->holdings($portfolio))->map(fn ($h) => PortfolioTables::holdingRow($h));
         $transactions = $portfolio->transactionHistory()->get()->map(fn ($tx) => PortfolioTables::transactionRow($tx, numeric: true));
 
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
 
         $holdingsSheet = $spreadsheet->getActiveSheet();
         $holdingsSheet->setTitle('Holdings');

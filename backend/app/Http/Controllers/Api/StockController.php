@@ -10,12 +10,12 @@ use App\Http\Requests\Stock\StoreStockRequest;
 use App\Models\Sector;
 use App\Models\Stock;
 use App\Services\Ai\AiStockOpinionService;
-use App\Services\DataSources\Csv\CsvPriceImportService;
-use App\Services\Reports\MarketReportService;
-use App\Services\MachineLearning\MlDirectionPredictorService;
-use App\Services\DataSources\CorporateActionsRefreshService;
-use App\Services\DataSources\NepalStock\NepalStockHistoryService;
 use App\Services\Analysis\Forecasting\NextCloseEstimatorService;
+use App\Services\DataSources\CorporateActionsRefreshService;
+use App\Services\DataSources\Csv\CsvPriceImportService;
+use App\Services\DataSources\NepalStock\NepalStockHistoryService;
+use App\Services\MachineLearning\MlDirectionPredictorService;
+use App\Services\Reports\MarketReportService;
 use Illuminate\Http\Request;
 use Throwable;
 
@@ -164,7 +164,6 @@ class StockController extends Controller
             'total_pages' => (int) ceil($total / $perPage),
         ]);
     }
-
 
     public function mlPrediction(string $symbol, MlDirectionPredictorService $predictor)
     {

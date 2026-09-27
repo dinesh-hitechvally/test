@@ -2,7 +2,6 @@
 
 namespace App\Services\Analysis\Signals;
 
-
 use App\Models\Signal;
 use App\Models\Stock;
 use App\Models\StockFundamental;

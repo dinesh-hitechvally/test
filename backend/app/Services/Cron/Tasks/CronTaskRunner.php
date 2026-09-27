@@ -2,7 +2,6 @@
 
 namespace App\Services\Cron\Tasks;
 
-
 use App\Events\CronTaskFailed;
 use Throwable;
 

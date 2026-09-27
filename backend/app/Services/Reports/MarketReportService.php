@@ -397,9 +397,6 @@ class MarketReportService
      * of its raw scale. Requires an actual cash yield (bonus-only years don't
      * count as an income pick) and a latest signal that isn't bearish, so
      * this can't recommend a stock currently flagged Sell/Strong Sell.
-     *
-     * @param  Collection  $rows
-     * @return Collection
      */
     private function rankDividendPicks(Collection $rows): Collection
     {

@@ -21,7 +21,7 @@ class PdfPortfolioExporter implements PortfolioExporter
             $this->valuation->realizedPnl($portfolio),
         );
 
-        $options = new Options();
+        $options = new Options;
         $options->set('isRemoteEnabled', false);
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html);

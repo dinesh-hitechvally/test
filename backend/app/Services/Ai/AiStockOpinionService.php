@@ -5,8 +5,8 @@ namespace App\Services\Ai;
 use App\Contracts\AiOpinionProvider;
 use App\Models\SignalAccuracyStat;
 use App\Models\Stock;
-use App\Services\Reports\MarketReportService;
 use App\Services\MachineLearning\MlDirectionPredictorService;
+use App\Services\Reports\MarketReportService;
 use App\Services\Reports\TechnicalAnalysisReportService;
 use Throwable;
 
@@ -44,7 +44,7 @@ class AiStockOpinionService
 
     /**
      * @return array{verdict: string, confidence: string, reasoning: string, generated_at: string, available: true}
-     *         |array{available: false, message: string}
+     *                                                                                                              |array{available: false, message: string}
      */
     public function getStoredOpinion(Stock $stock): array
     {

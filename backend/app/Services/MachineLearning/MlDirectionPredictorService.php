@@ -2,7 +2,6 @@
 
 namespace App\Services\MachineLearning;
 
-
 use App\Models\MlModel;
 use App\Models\Stock;
 use Illuminate\Support\Facades\File;
@@ -10,8 +9,8 @@ use Rubix\ML\Classifiers\ClassificationTree;
 use Rubix\ML\Classifiers\RandomForest;
 use Rubix\ML\Datasets\Labeled;
 use Rubix\ML\Datasets\Unlabeled;
-use Rubix\ML\Persisters\Filesystem;
 use Rubix\ML\PersistentModel;
+use Rubix\ML\Persisters\Filesystem;
 use Rubix\ML\Serializers\RBX;
 use RuntimeException;
 
@@ -121,7 +120,7 @@ class MlDirectionPredictorService
         $model = new PersistentModel(
             new RandomForest(new ClassificationTree(maxHeight: 12, maxLeafSize: 20), estimators: 100, ratio: 0.3, balanced: false),
             new Filesystem($this->modelPath()),
-            new RBX()
+            new RBX
         );
 
         $model->train(Labeled::build(array_column($train, 'features'), array_column($train, 'label')));
@@ -168,7 +167,7 @@ class MlDirectionPredictorService
             return null;
         }
 
-        $model = PersistentModel::load(new Filesystem($this->modelPath()), new RBX());
+        $model = PersistentModel::load(new Filesystem($this->modelPath()), new RBX);
         $proba = $model->proba(Unlabeled::build([$row['features']]));
         $upProbability = $proba[0]['up'] ?? 0.0;
 

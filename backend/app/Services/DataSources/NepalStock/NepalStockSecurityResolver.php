@@ -2,7 +2,6 @@
 
 namespace App\Services\DataSources\NepalStock;
 
-
 use App\Models\Stock;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;

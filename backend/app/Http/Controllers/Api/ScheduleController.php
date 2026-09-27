@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\Cron\Tasks\CronTask;
 use App\Services\Cron\Tasks\BacktestNextCloseTask;
 use App\Services\Cron\Tasks\BacktestSignalsTask;
+use App\Services\Cron\Tasks\CronTask;
 use App\Services\Cron\Tasks\MarketSyncIndexTask;
 use App\Services\Cron\Tasks\MarketSyncTask;
 use App\Services\Cron\Tasks\SyncStockListTask;

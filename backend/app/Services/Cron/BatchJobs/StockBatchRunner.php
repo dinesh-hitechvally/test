@@ -2,7 +2,6 @@
 
 namespace App\Services\Cron\BatchJobs;
 
-
 use Throwable;
 
 class StockBatchRunner

@@ -2,7 +2,6 @@
 
 namespace App\Services\DataSources\NepalStock;
 
-
 use App\Events\ScrapeFinished;
 use App\Models\Dividend;
 use App\Models\Stock;

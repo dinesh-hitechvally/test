@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Http;
+namespace Tests\Feature\Portfolio;
 
 use App\Models\Portfolio;
 use App\Models\Stock;

@@ -2,7 +2,6 @@
 
 namespace App\Services\Analysis\Indicators;
 
-
 use App\Models\Stock;
 use App\Models\TechnicalIndicator;
 

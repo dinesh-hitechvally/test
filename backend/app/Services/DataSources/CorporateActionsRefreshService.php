@@ -2,9 +2,8 @@
 
 namespace App\Services\DataSources;
 
-use App\Services\DataSources\NepalStock\NepalStockCorporateActionsService;
-
 use App\Models\Stock;
+use App\Services\DataSources\NepalStock\NepalStockCorporateActionsService;
 use Throwable;
 
 /**

@@ -2,7 +2,6 @@
 
 namespace App\Services\DataSources\NepalStock;
 
-
 use Illuminate\Support\Facades\Http;
 
 /**

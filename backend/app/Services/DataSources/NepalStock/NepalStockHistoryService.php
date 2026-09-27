@@ -2,7 +2,6 @@
 
 namespace App\Services\DataSources\NepalStock;
 
-
 use App\Contracts\PriceHistorySource;
 use App\Events\ScrapeFinished;
 use App\Events\StockPricesUpdated;
