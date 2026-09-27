@@ -2,7 +2,7 @@
 
 namespace App\Services\MarketData;
 
-use App\Models\ScrapeLog;
+use App\Events\ScrapeFinished;
 use App\Models\Stock;
 use App\Models\StockFundamental;
 use Illuminate\Support\Facades\Http;
@@ -84,29 +84,29 @@ class MeroLaganiFundamentalsService
                 [...$data, 'fetched_at' => now()]
             );
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'success',
-                'records_processed' => 1,
-                'message' => sprintf(
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: true,
+                recordsProcessed: 1,
+                message: sprintf(
                     '%s: EPS=%s PE=%s BookValue=%s',
                     $stock->symbol,
                     $data['eps'] ?? 'n/a',
                     $data['pe_ratio'] ?? 'n/a',
                     $data['book_value'] ?? 'n/a'
                 ),
-            ]);
+            );
 
             return $fundamental;
         } catch (Throwable $e) {
             Log::warning('merolagani fundamentals fetch failed', ['symbol' => $stock->symbol, 'error' => $e->getMessage()]);
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'failed',
-                'records_processed' => 0,
-                'message' => $this->truncatedMessage($stock->symbol, $e),
-            ]);
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: false,
+                recordsProcessed: 0,
+                message: $this->truncatedMessage($stock->symbol, $e),
+            );
 
             throw $e;
         }

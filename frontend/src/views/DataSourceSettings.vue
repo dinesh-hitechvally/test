@@ -114,7 +114,7 @@ onMounted(load)
         <h3>Scrape</h3>
         <p class="muted">Hits nepalstock.com or ShareSansar and writes what comes back — the only routes that make an external call.</p>
         <table class="table">
-          <thead><tr><th>Command</th><th>When (NPT)</th><th>Cron (UTC)</th><th>What it does</th><th>URL</th></tr></thead>
+          <thead><tr><th>Job</th><th>When (NPT)</th><th>Cron (UTC)</th><th>What it does</th><th>URL</th></tr></thead>
           <tbody>
             <tr v-for="j in scrapeJobs" :key="j.command">
               <td><code>{{ j.command }}</code></td>
@@ -138,7 +138,7 @@ onMounted(load)
         <h3>Reports</h3>
         <p class="muted">No external call — only recomputes indicators/signals/ML from data this app already has.</p>
         <table class="table">
-          <thead><tr><th>Command</th><th>When (NPT)</th><th>Cron (UTC)</th><th>What it does</th><th>URL</th></tr></thead>
+          <thead><tr><th>Job</th><th>When (NPT)</th><th>Cron (UTC)</th><th>What it does</th><th>URL</th></tr></thead>
           <tbody>
             <tr v-for="j in reportJobs" :key="j.command">
               <td><code>{{ j.command }}</code></td>

@@ -4,24 +4,20 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ScrapeLog;
-use App\Models\Stock;
 use App\Services\MarketData\NepalStockScraperService;
-use App\Services\MarketData\RecalculationPipeline;
 use Illuminate\Http\Request;
 use Throwable;
 
 class ScrapeController extends Controller
 {
-    public function runNepse(NepalStockScraperService $scraper, RecalculationPipeline $pipeline)
+    /** Recalculation of the scraped stocks follows automatically (StockPricesUpdated). */
+    public function runNepse(NepalStockScraperService $scraper)
     {
         try {
             $result = $scraper->scrape();
         } catch (Throwable $e) {
             return response()->json(['message' => 'NEPSE official scrape failed: '.$e->getMessage()], 502);
         }
-
-        $stocks = Stock::whereIn('id', $result['affected_stock_ids'])->get();
-        $pipeline->runForMany($stocks);
 
         return response()->json($result);
     }

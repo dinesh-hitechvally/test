@@ -2,8 +2,10 @@
 
 namespace App\Services\MarketData;
 
+use App\Contracts\PriceHistorySource;
+use App\Events\ScrapeFinished;
+use App\Events\StockPricesUpdated;
 use App\Models\DailyPrice;
-use App\Models\ScrapeLog;
 use App\Models\Stock;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -24,7 +26,7 @@ use Throwable;
  * price chart on an established stock. No Node/browser dependency either
  * way — this is plain HTTP + HTML parsing, same as it always was.
  */
-class SharesansarHistoryService
+class SharesansarHistoryService implements PriceHistorySource
 {
     private const COMPANY_PAGE = 'https://www.sharesansar.com/company/%s';
 
@@ -35,12 +37,10 @@ class SharesansarHistoryService
 
     private const SOURCE_NAME = 'sharesansar.com/history';
 
-    public function __construct(private readonly RecalculationPipeline $pipeline) {}
-
     /**
      * @return array{rows_imported: int, oldest_date: ?string, newest_date: ?string}
      */
-    public function fetchFullHistory(Stock $stock): array
+    public function fetchHistory(Stock $stock): array
     {
         set_time_limit(0); // dozens of paginated requests; a stock with years of history can take a minute or more
 
@@ -72,31 +72,33 @@ class SharesansarHistoryService
             $result = $this->persist($stock, $rows);
             $stock->ensureScrapeStatus()->markHistoryFetched();
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'success',
-                'records_processed' => $result['rows_imported'],
-                'message' => sprintf(
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: true,
+                recordsProcessed: $result['rows_imported'],
+                message: sprintf(
                     '%s: %d rows imported (%s to %s).',
                     $stock->symbol,
                     $result['rows_imported'],
                     $result['oldest_date'],
                     $result['newest_date']
                 ),
-            ]);
+            );
 
-            $this->pipeline->runFor($stock->fresh());
+            // Inside the try on purpose: listeners run synchronously, so a
+            // recalculation failure still surfaces as this fetch failing.
+            StockPricesUpdated::dispatch([$stock->id], self::SOURCE_NAME);
 
             return $result;
         } catch (Throwable $e) {
             Log::warning('ShareSansar full-history fetch failed', ['symbol' => $stock->symbol, 'error' => $e->getMessage()]);
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'failed',
-                'records_processed' => 0,
-                'message' => $this->truncatedMessage($stock->symbol, $e),
-            ]);
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: false,
+                recordsProcessed: 0,
+                message: $this->truncatedMessage($stock->symbol, $e),
+            );
 
             $stock->ensureScrapeStatus()->flagHistoryError($e->getMessage());
 

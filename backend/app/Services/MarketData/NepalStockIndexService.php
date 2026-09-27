@@ -2,8 +2,8 @@
 
 namespace App\Services\MarketData;
 
+use App\Events\ScrapeFinished;
 use App\Models\IndexSnapshot;
-use App\Models\ScrapeLog;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -40,12 +40,12 @@ class NepalStockIndexService
             // value NEPSE returns while closed is often just yesterday's
             // stale close repeated, not a real "today" snapshot worth storing.
             if (! $this->marketStatus->isOpen()) {
-                ScrapeLog::create([
-                    'source' => self::SOURCE_NAME,
-                    'status' => 'success',
-                    'records_processed' => 0,
-                    'message' => 'Market is closed today — nothing synced.',
-                ]);
+                ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: true,
+                recordsProcessed: 0,
+                message: 'Market is closed today — nothing synced.',
+            );
 
                 return ['indices_updated' => 0, 'market_open' => false];
             }
@@ -97,23 +97,23 @@ class NepalStockIndexService
                 update: ['close', 'high', 'low', 'previous_close', 'change', 'change_pct', 'fifty_two_week_high', 'fifty_two_week_low', 'updated_at']
             );
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'success',
-                'records_processed' => count($snapshots),
-                'message' => count($snapshots).' index snapshot(s) updated.',
-            ]);
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: true,
+                recordsProcessed: count($snapshots),
+                message: count($snapshots).' index snapshot(s) updated.',
+            );
 
             return ['indices_updated' => count($snapshots), 'market_open' => true];
         } catch (Throwable $e) {
             Log::warning('NEPSE index sync failed', ['error' => $e->getMessage()]);
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'failed',
-                'records_processed' => 0,
-                'message' => $e->getMessage(),
-            ]);
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: false,
+                recordsProcessed: 0,
+                message: $e->getMessage(),
+            );
 
             throw $e;
         }

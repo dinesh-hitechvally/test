@@ -2,8 +2,10 @@
 
 namespace App\Services\MarketData;
 
+use App\Contracts\PriceHistorySource;
+use App\Events\ScrapeFinished;
+use App\Events\StockPricesUpdated;
 use App\Models\DailyPrice;
-use App\Models\ScrapeLog;
 use App\Models\Stock;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -13,7 +15,7 @@ use Throwable;
 
 /**
  * Fetches one stock's price history from the official nepalstock.com API.
- * NOT the app's primary history source — SharesansarHistoryService::fetchFullHistory()
+ * NOT the app's primary history source — SharesansarHistoryService::fetchHistory()
  * is, precisely because this one empirically only returns roughly the
  * trailing ~1 year no matter how far back it's asked (confirmed against the
  * live site), which isn't enough for a real price chart on an established
@@ -21,7 +23,7 @@ use Throwable;
  * more precise — a real open price is included), reachable via
  * StockController::fetchNepseHistory() but not wired to any button.
  */
-class NepalStockHistoryService
+class NepalStockHistoryService implements PriceHistorySource
 {
     private const BASE_URL = 'https://www.nepalstock.com';
 
@@ -36,7 +38,6 @@ class NepalStockHistoryService
     public function __construct(
         private readonly NepalStockTokenService $tokens,
         private readonly NepalStockSecurityResolver $resolver,
-        private readonly RecalculationPipeline $pipeline,
     ) {}
 
     /**
@@ -55,36 +56,38 @@ class NepalStockHistoryService
             $result = $this->persist($stock, $rows);
 
             // Marks the stock as "history fetched" the same way
-            // SharesansarHistoryService::fetchFullHistory() does, so a manual
+            // SharesansarHistoryService::fetchHistory() does, so a manual
             // call through this service also stops fetch-histories from
             // picking it up again.
             $stock->ensureScrapeStatus()->markHistoryFetched();
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'success',
-                'records_processed' => $result['rows_imported'],
-                'message' => sprintf(
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: true,
+                recordsProcessed: $result['rows_imported'],
+                message: sprintf(
                     '%s: %d rows imported (%s to %s).',
                     $stock->symbol,
                     $result['rows_imported'],
                     $result['oldest_date'],
                     $result['newest_date']
                 ),
-            ]);
+            );
 
-            $this->pipeline->runFor($stock->fresh());
+            // Inside the try on purpose: listeners run synchronously, so a
+            // recalculation failure still surfaces as this fetch failing.
+            StockPricesUpdated::dispatch([$stock->id], self::SOURCE_NAME);
 
             return $result;
         } catch (Throwable $e) {
             Log::warning('NEPSE official history fetch failed', ['symbol' => $stock->symbol, 'error' => $e->getMessage()]);
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'failed',
-                'records_processed' => 0,
-                'message' => $this->truncatedMessage($stock->symbol, $e),
-            ]);
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: false,
+                recordsProcessed: 0,
+                message: $this->truncatedMessage($stock->symbol, $e),
+            );
 
             throw $e;
         }

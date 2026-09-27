@@ -36,6 +36,8 @@ class IndicatorRecalculationService
         $rsi14 = $this->ta->rsi($closes, 14);
         $macd = $this->ta->macd($closes);
         $bb = $this->ta->bollingerBands($closes, 20, 2.0);
+        $percentB = $this->ta->percentB($closes, $bb);
+        $stoch = $this->ta->stochastic($highs, $lows, $closes, 14, 3, 3);
         $atr14 = $this->ta->atr($highs, $lows, $closes, 14);
 
         $rows = [];
@@ -56,13 +58,16 @@ class IndicatorRecalculationService
                 'bb_upper' => $bb['upper'][$i],
                 'bb_middle' => $bb['middle'][$i],
                 'bb_lower' => $bb['lower'][$i],
+                'bb_percent_b' => $percentB[$i],
+                'stoch_k' => $stoch['k'][$i],
+                'stoch_d' => $stoch['d'][$i],
                 'atr_14' => $atr14[$i],
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
         }
 
-        // Chunked — a stock with years of history times 17 columns/row can
+        // Chunked — a stock with years of history times 20 columns/row can
         // exceed MySQL's ~65535 placeholder limit for a single statement
         // (confirmed hitting this for stocks listed since the mid-2000s).
         foreach (array_chunk($rows, 500) as $chunk) {
@@ -72,7 +77,8 @@ class IndicatorRecalculationService
                 update: [
                     'sma_20', 'sma_50', 'sma_100', 'sma_200', 'ema_12', 'ema_26', 'rsi_14',
                     'macd', 'macd_signal', 'macd_histogram',
-                    'bb_upper', 'bb_middle', 'bb_lower', 'atr_14', 'updated_at',
+                    'bb_upper', 'bb_middle', 'bb_lower', 'bb_percent_b', 'stoch_k', 'stoch_d',
+                    'atr_14', 'updated_at',
                 ]
             );
         }

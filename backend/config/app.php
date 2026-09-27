@@ -54,6 +54,11 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // The separate Vue SPA's origin — read through config() (never env()
+    // at runtime, which returns null once `php artisan config:cache` has
+    // run) by AppServiceProvider's password-reset link.
+    'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

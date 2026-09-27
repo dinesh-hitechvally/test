@@ -21,4 +21,18 @@ class Portfolio extends Model
     {
         return $this->hasMany(PortfolioTransaction::class);
     }
+
+    /**
+     * Newest first, with the stock's symbol/name — the order every listing
+     * and export shows transactions in.
+     *
+     * @return HasMany<PortfolioTransaction, $this>
+     */
+    public function transactionHistory(): HasMany
+    {
+        return $this->transactions()
+            ->with('stock:id,symbol,company_name')
+            ->orderByDesc('transaction_date')
+            ->orderByDesc('id');
+    }
 }

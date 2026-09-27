@@ -3,7 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Artisan;
+use App\Services\Cron\CronTask;
+use App\Services\Cron\Tasks\BacktestNextCloseTask;
+use App\Services\Cron\Tasks\BacktestSignalsTask;
+use App\Services\Cron\Tasks\MarketSyncIndexTask;
+use App\Services\Cron\Tasks\MarketSyncTask;
+use App\Services\Cron\Tasks\SyncStockListTask;
+use App\Services\Cron\Tasks\TrainMlTask;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -30,33 +36,35 @@ class ScheduleController extends Controller
      */
     private const JOBS = [
         // group: 'scrape' — hits nepalstock.com/ShareSansar, writes what comes back. Path mirrors routes/web.php's cron/scrape/* group.
-        ['command' => 'stocks:sync-list', 'group' => 'scrape', 'path' => 'scrape/sync-stock-list', 'when' => '06:00 NPT, daily', 'cron_npt' => '0 6 * * *', 'cron_utc' => '15 0 * * *'],
-        ['command' => 'market:sync', 'group' => 'scrape', 'path' => 'scrape/market-sync-stock', 'when' => '15:30 NPT, Mon-Fri', 'cron_npt' => '30 15 * * 1-5', 'cron_utc' => '45 9 * * 1-5'],
-        ['command' => 'market:sync-index', 'group' => 'scrape', 'path' => 'scrape/market-sync-index', 'when' => '15:32 NPT, Mon-Fri', 'cron_npt' => '32 15 * * 1-5', 'cron_utc' => '47 9 * * 1-5'],
+        ['task' => SyncStockListTask::class, 'group' => 'scrape', 'path' => 'scrape/sync-stock-list', 'when' => '06:00 NPT, daily', 'cron_npt' => '0 6 * * *', 'cron_utc' => '15 0 * * *'],
+        ['task' => MarketSyncTask::class, 'group' => 'scrape', 'path' => 'scrape/market-sync-stock', 'when' => '15:30 NPT, Mon-Fri', 'cron_npt' => '30 15 * * 1-5', 'cron_utc' => '45 9 * * 1-5'],
+        ['task' => MarketSyncIndexTask::class, 'group' => 'scrape', 'path' => 'scrape/market-sync-index', 'when' => '15:32 NPT, Mon-Fri', 'cron_npt' => '32 15 * * 1-5', 'cron_utc' => '47 9 * * 1-5'],
 
         // group: 'reports' — no external call, only recomputes from data already in the DB. Path mirrors routes/web.php's cron/reports/* group.
-        ['command' => 'market:recalculate', 'group' => 'reports', 'path' => 'reports/market-recalculate', 'when' => '15:40 NPT, Mon-Fri', 'cron_npt' => '40 15 * * 1-5', 'cron_utc' => '55 9 * * 1-5'],
-        ['command' => 'ml:train-predictor', 'group' => 'reports', 'path' => 'reports/train-ml', 'when' => '03:30 NPT, Monday', 'cron_npt' => '30 3 * * 1', 'cron_utc' => '45 21 * * 0'],
-        ['command' => 'signals:backtest-accuracy', 'group' => 'reports', 'path' => 'reports/backtest-signals', 'when' => '04:00 NPT, Monday', 'cron_npt' => '0 4 * * 1', 'cron_utc' => '15 22 * * 0'],
-        ['command' => 'signals:backtest-next-close', 'group' => 'reports', 'path' => 'reports/backtest-next-close', 'when' => '04:15 NPT, Monday', 'cron_npt' => '15 4 * * 1', 'cron_utc' => '30 22 * * 0'],
+        // No market-recalculate entry: recalculation now follows every price
+        // update automatically (StockPricesUpdated → RecalculateUpdatedStocks).
+        ['task' => TrainMlTask::class, 'group' => 'reports', 'path' => 'reports/train-ml', 'when' => '03:30 NPT, Monday', 'cron_npt' => '30 3 * * 1', 'cron_utc' => '45 21 * * 0'],
+        ['task' => BacktestSignalsTask::class, 'group' => 'reports', 'path' => 'reports/backtest-signals', 'when' => '04:00 NPT, Monday', 'cron_npt' => '0 4 * * 1', 'cron_utc' => '15 22 * * 0'],
+        ['task' => BacktestNextCloseTask::class, 'group' => 'reports', 'path' => 'reports/backtest-next-close', 'when' => '04:15 NPT, Monday', 'cron_npt' => '15 4 * * 1', 'cron_utc' => '30 22 * * 0'],
     ];
 
     public function index()
     {
         $secret = config('services.cron.secret');
-        $registered = Artisan::all();
 
-        $jobs = collect(self::JOBS)->map(function ($job) use ($secret, $registered) {
-            $commandName = strtok($job['command'], ' ');
+        $jobs = collect(self::JOBS)->map(function ($job) use ($secret) {
+            /** @var CronTask $task */
+            $task = app($job['task']);
 
             return [
-                'command' => $job['command'],
+                // Key kept as 'command' — it's what the frontend reads.
+                'command' => $task->name(),
                 'group' => $job['group'],
                 'url' => url('/cron/'.$job['path']).($secret ? '?key='.$secret : ''),
                 'when' => $job['when'],
                 'cron_npt' => $job['cron_npt'],
                 'cron_utc' => $job['cron_utc'],
-                'description' => isset($registered[$commandName]) ? $registered[$commandName]->getDescription() : null,
+                'description' => $task->description(),
             ];
         })->values();
 

@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'stock_id', 'trade_date',
     'sma_20', 'sma_50', 'sma_100', 'sma_200', 'ema_12', 'ema_26', 'rsi_14',
     'macd', 'macd_signal', 'macd_histogram',
-    'bb_upper', 'bb_middle', 'bb_lower', 'atr_14',
+    'bb_upper', 'bb_middle', 'bb_lower', 'bb_percent_b', 'stoch_k', 'stoch_d', 'atr_14',
 ])]
 class TechnicalIndicator extends Model
 {

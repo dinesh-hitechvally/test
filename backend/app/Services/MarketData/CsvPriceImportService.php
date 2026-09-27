@@ -2,6 +2,7 @@
 
 namespace App\Services\MarketData;
 
+use App\Events\StockPricesUpdated;
 use App\Models\DailyPrice;
 use App\Models\Stock;
 use Illuminate\Http\UploadedFile;
@@ -112,10 +113,14 @@ class CsvPriceImportService
             );
         }
 
+        $affectedStockIds = array_values(array_unique(array_map(fn ($s) => $s->id, $stockCache)));
+
+        StockPricesUpdated::dispatch($affectedStockIds, 'csv-import');
+
         return [
             'stocks' => $createdStocks,
             'prices' => count($priceRows),
-            'affected_stock_ids' => array_values(array_unique(array_map(fn ($s) => $s->id, $stockCache))),
+            'affected_stock_ids' => $affectedStockIds,
         ];
     }
 

@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\PriceHistorySource;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Stock\ImportPricesCsvRequest;
+use App\Http\Requests\Stock\StockSignalsRequest;
+use App\Http\Requests\Stock\StoreStockRequest;
 use App\Models\Sector;
 use App\Models\Stock;
 use App\Services\AiStockOpinionService;
@@ -12,8 +16,6 @@ use App\Services\MarketData\MlDirectionPredictorService;
 use App\Services\MarketData\CorporateActionsRefreshService;
 use App\Services\MarketData\NepalStockHistoryService;
 use App\Services\MarketData\NextCloseEstimatorService;
-use App\Services\MarketData\RecalculationPipeline;
-use App\Services\MarketData\SharesansarHistoryService;
 use Illuminate\Http\Request;
 use Throwable;
 
@@ -40,13 +42,9 @@ class StockController extends Controller
         return response()->json($stocks);
     }
 
-    public function store(Request $request)
+    public function store(StoreStockRequest $request)
     {
-        $validated = $request->validate([
-            'symbol' => ['required', 'string', 'max:20', 'unique:stocks,symbol'],
-            'company_name' => ['nullable', 'string', 'max:255'],
-            'sector' => ['nullable', 'string', 'max:100'],
-        ]);
+        $validated = $request->validated();
 
         $validated['symbol'] = strtoupper($validated['symbol']);
 
@@ -110,14 +108,9 @@ class StockController extends Controller
         return response()->json($forecasts);
     }
 
-    public function signals(string $symbol, Request $request)
+    public function signals(string $symbol, StockSignalsRequest $request)
     {
-        $validated = $request->validate([
-            'from' => ['nullable', 'date'],
-            'to' => ['nullable', 'date'],
-            'signal' => ['nullable', 'array'],
-            'signal.*' => ['string', 'in:strong_buy,buy,hold,sell,strong_sell'],
-        ]);
+        $validated = $request->validated();
 
         $stock = $this->findStock($symbol);
         $perPage = min((int) $request->query('per_page', 30), 200);
@@ -221,27 +214,20 @@ class StockController extends Controller
         return response()->json($estimator->getStoredForecast($stock));
     }
 
-    public function importCsv(Request $request, CsvPriceImportService $importer, RecalculationPipeline $pipeline)
+    /** Recalculation of the imported stocks follows automatically (StockPricesUpdated). */
+    public function importCsv(ImportPricesCsvRequest $request, CsvPriceImportService $importer)
     {
-        $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt'],
-            'symbol' => ['nullable', 'string', 'max:20'],
-        ]);
+        $validated = $request->validated();
 
-        $result = $importer->import($validated['file'], $validated['symbol'] ?? null);
-
-        $stocks = Stock::whereIn('id', $result['affected_stock_ids'])->get();
-        $pipeline->runForMany($stocks);
-
-        return response()->json($result);
+        return response()->json($importer->import($validated['file'], $validated['symbol'] ?? null));
     }
 
-    public function fetchFullHistory(string $symbol, SharesansarHistoryService $history)
+    public function fetchFullHistory(string $symbol, PriceHistorySource $history)
     {
         $stock = $this->findStock($symbol);
 
         try {
-            $result = $history->fetchFullHistory($stock);
+            $result = $history->fetchHistory($stock);
         } catch (Throwable $e) {
             return response()->json(['message' => 'Full history fetch failed: '.$e->getMessage()], 502);
         }

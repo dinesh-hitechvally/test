@@ -2,8 +2,8 @@
 
 namespace App\Services\MarketData;
 
+use App\Events\ScrapeFinished;
 use App\Models\Dividend;
-use App\Models\ScrapeLog;
 use App\Models\Stock;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -56,23 +56,23 @@ class NepalStockCorporateActionsService
 
             $count = $this->persist($stock, $response->json() ?? []);
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'success',
-                'records_processed' => $count,
-                'message' => "{$stock->symbol}: {$count} dividend row(s) imported from nepalstock.com.",
-            ]);
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: true,
+                recordsProcessed: $count,
+                message: "{$stock->symbol}: {$count} dividend row(s) imported from nepalstock.com.",
+            );
 
             return ['dividends' => $count];
         } catch (Throwable $e) {
             Log::warning('NEPSE official dividend fetch failed', ['symbol' => $stock->symbol, 'error' => $e->getMessage()]);
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'failed',
-                'records_processed' => 0,
-                'message' => "{$stock->symbol}: {$e->getMessage()}",
-            ]);
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: false,
+                recordsProcessed: 0,
+                message: "{$stock->symbol}: {$e->getMessage()}",
+            );
 
             throw $e;
         }

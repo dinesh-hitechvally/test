@@ -2,56 +2,79 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AiStockOpinion;
-use App\Models\Sector;
+use App\Contracts\PriceHistorySource;
+use App\Events\CronTaskFailed;
 use App\Models\Stock;
-use App\Services\AiStockOpinionService;
-use App\Services\CronAlertService;
-use App\Services\MarketData\MeroLaganiFundamentalsService;
-use App\Services\MarketData\NepalStockCorporateActionsService;
-use App\Services\MarketData\NepalStockSecurityResolver;
-use App\Services\MarketData\SharesansarHistoryService;
-use Illuminate\Http\Client\RequestException;
+use App\Services\Cron\CronTask;
+use App\Services\Cron\CronTaskRunner;
+use App\Services\Cron\Jobs\FetchHistoriesJob;
+use App\Services\Cron\Jobs\GenerateAiOpinionsJob;
+use App\Services\Cron\Jobs\SyncDividendsJob;
+use App\Services\Cron\Jobs\SyncFundamentalsJob;
+use App\Services\Cron\Jobs\SyncSectorsJob;
+use App\Services\Cron\StockBatchJob;
+use App\Services\Cron\StockBatchRunner;
+use App\Services\Cron\Tasks\BacktestNextCloseTask;
+use App\Services\Cron\Tasks\BacktestSignalsTask;
+use App\Services\Cron\Tasks\MarketSyncIndexTask;
+use App\Services\Cron\Tasks\MarketSyncTask;
+use App\Services\Cron\Tasks\RecalculateMarketTask;
+use App\Services\Cron\Tasks\SyncStockListTask;
+use App\Services\Cron\Tasks\TrainMlTask;
+use App\Services\Cron\Tasks\VerifyNepseTokenTask;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Artisan;
 use Throwable;
 
 /**
- * URL-triggered replacement for the Laravel scheduler (routes/console.php's
- * old Schedule:: block) — each method runs exactly the artisan command the
- * scheduler used to run, so an external pinger (cron-job.org, UptimeRobot,
- * a plain crontab `curl` line, anything that can hit a URL on a timer) can
- * drive the whole pipeline without needing real cron/SSH access on the host.
- * Routes live in routes/web.php, gated by the cron.secret middleware — see
- * VerifyCronSecret. Plain text output, not JSON: this is meant to be read
- * as a log line by whatever's calling it, not consumed by the SPA.
+ * URL-triggered replacement for the Laravel scheduler — an external pinger
+ * (cron-job.org, UptimeRobot, a plain crontab `curl` line, anything that
+ * can hit a URL on a timer) drives the whole pipeline without needing real
+ * cron/SSH access on the host. Routes live in routes/web.php, gated by the
+ * cron.secret middleware — see VerifyCronSecret. Plain text output, not
+ * JSON: this is meant to be read as a log line by whatever's calling it,
+ * not consumed by the SPA.
+ *
+ * This class is only the HTTP edge — nothing here goes through artisan.
+ * Each whole-market step is a CronTask (App\Services\Cron\Tasks) run by
+ * CronTaskRunner, and each batched per-stock job is a StockBatchJob
+ * (App\Services\Cron\Jobs) run by StockBatchRunner; both call the
+ * underlying services directly.
+ *
+ * The URLs only START the pipeline — what follows is event-driven. Any
+ * price update (market sync, history fetch, CSV import) fires
+ * StockPricesUpdated, whose listener recalculates exactly those stocks'
+ * indicators/signals/next-close in the same request. Listeners are
+ * synchronous (no queue worker on this hosting), so market-sync's request
+ * now includes the recalculation.
  *
  * Intended timing (NPT = Asia/Kathmandu, UTC+5:45 — see each method; the
  * live, ready-to-paste version with both NPT and UTC cron expressions is
  * also served at GET /api/schedule, ScheduleController::JOBS is the single
  * source of truth if these two ever drift):
  *   stocks:sync-list                06:00 NPT, daily
- *   market:sync                    15:30 NPT, Mon-Fri
+ *   market:sync                    15:30 NPT, Mon-Fri  (+ recalculation, via event)
  *   market:sync-index              15:32 NPT, Mon-Fri
- *   market:recalculate             15:40 NPT, Mon-Fri
  *   ml:train-predictor             03:30 NPT, Monday
  *   signals:backtest-accuracy      04:00 NPT, Monday
  *   signals:backtest-next-close    04:15 NPT, Monday
  *
- * fetch-histories/fetch-history/sync-sectors/sync-dividends/generate-ai-opinions/
- * sync-fundamentals are on-demand (no fixed schedule, safe to ping repeatedly). There's no URL-triggered
- * queue-worker path anymore — it was fully redundant with fetch-histories,
- * which does the same job directly instead of via a queue.
+ * market-recalculate/fetch-histories/fetch-history/sync-sectors/
+ * sync-dividends/ai-opinions/fundamentals/verify-token are on-demand (no
+ * fixed schedule, safe to ping repeatedly, ?limit= per ping for the
+ * batched ones).
  *
- * A failing command (non-zero exit code) or a failed on-demand fetch also
- * goes through CronAlertService — always logged, and additionally posted
- * to Slack / emailed if SLACK_WEBHOOK_URL / CRON_ALERT_EMAIL are set in
- * .env (both optional; unset means log-only, not an error).
+ * A failed task or a failed on-demand fetch fires CronTaskFailed; its
+ * listener (AlertCronFailure → CronAlertService) always logs it, and also
+ * posts to Slack / emails if SLACK_WEBHOOK_URL / CRON_ALERT_EMAIL are set
+ * in .env (both optional; unset means log-only, not an error).
  */
 class CronController extends Controller
 {
-    public function __construct(private readonly CronAlertService $alerts) {}
+    public function __construct(
+        private readonly CronTaskRunner $tasks,
+        private readonly StockBatchRunner $batches,
+    ) {}
 
     /**
      * 06:00 NPT, daily — cron_utc: 15 0 * * *. Ahead of market-sync (which
@@ -59,371 +82,129 @@ class CronController extends Controller
      * brand-new or non-trading listing already has a row before the market
      * opens.
      */
-    public function syncStockList()
+    public function syncStockList(SyncStockListTask $task): Response
     {
-        return $this->run('stocks:sync-list', 'stocks-sync-list.log');
+        return $this->task($task);
     }
 
     /** 15:30 NPT, Mon-Fri — cron_utc: 45 9 * * 1-5 */
-    public function marketSyncStock()
+    public function marketSyncStock(MarketSyncTask $task): Response
     {
-        return $this->run('market:sync', 'market-sync.log');
+        return $this->task($task);
     }
 
-    /** 15:40 NPT, Mon-Fri (after market-sync) — cron_utc: 55 9 * * 1-5 */
-    public function marketRecalculate()
+    /**
+     * On-demand only — the daily recalculation now follows market-sync
+     * automatically (StockPricesUpdated). Useful to re-run today's stocks
+     * by hand, or with ?all=1 to re-score every stock after changing
+     * indicator or signal rules (takes a few minutes).
+     */
+    public function marketRecalculate(Request $request, RecalculateMarketTask $task): Response
     {
-        return $this->run('market:recalculate', 'market-recalculate.log');
+        return $this->task($task->forAll($request->boolean('all')));
     }
 
     /** 15:32 NPT, Mon-Fri — cron_utc: 47 9 * * 1-5 */
-    public function marketSyncIndex()
+    public function marketSyncIndex(MarketSyncIndexTask $task): Response
     {
-        return $this->run('market:sync-index', 'market-sync-index.log');
+        return $this->task($task);
+    }
+
+    /** 03:30 NPT, Monday — cron_utc: 45 21 * * 0 (Sunday in UTC) */
+    public function trainMl(TrainMlTask $task): Response
+    {
+        return $this->task($task);
+    }
+
+    /** 04:00 NPT, Monday — cron_utc: 15 22 * * 0 (Sunday in UTC) */
+    public function backtestSignals(BacktestSignalsTask $task): Response
+    {
+        return $this->task($task);
+    }
+
+    /** 04:15 NPT, Monday — cron_utc: 30 22 * * 0 (Sunday in UTC) */
+    public function backtestNextClose(BacktestNextCloseTask $task): Response
+    {
+        return $this->task($task);
+    }
+
+    /** On-demand diagnostic — run it when every nepalstock.com fetch starts failing at once. */
+    public function verifyNepseToken(VerifyNepseTokenTask $task): Response
+    {
+        return $this->task($task);
     }
 
     /**
      * No fixed timing — this is the on-demand, one-stock counterpart to
      * fetch-histories (which handles the whole market in small batches).
-     * Same ShareSansar full-history fetch as the "Fetch Full History"
-     * button on that stock's detail page, just callable by URL instead of
-     * needing to log into the SPA. Re-running it re-fetches (safe — it's an
-     * upsert), it's not limited to stocks that never had one.
+     * Same full-history fetch as the "Fetch Full History" button on that
+     * stock's detail page, just callable by URL instead of needing to log
+     * into the SPA. Re-running it re-fetches (safe — it's an upsert), it's
+     * not limited to stocks that never had one.
      */
-    public function fetchHistory(string $symbol, SharesansarHistoryService $history)
+    public function fetchHistory(string $symbol, PriceHistorySource $history): Response
     {
         set_time_limit(0);
 
         $stock = Stock::where('symbol', strtoupper($symbol))->first();
 
         if (! $stock) {
-            return response("No stock found for symbol [{$symbol}].", 404)->header('Content-Type', 'text/plain');
+            return $this->plain("No stock found for symbol [{$symbol}].", 404);
         }
 
         try {
-            $result = $history->fetchFullHistory($stock);
+            $result = $history->fetchHistory($stock);
 
-            return response(
+            return $this->plain(
                 "\$ fetch-history {$stock->symbol}\n".
                 "{$result['rows_imported']} rows imported ({$result['oldest_date']} to {$result['newest_date']})."
-            )->header('Content-Type', 'text/plain');
+            );
         } catch (Throwable $e) {
-            $this->alerts->notifyFailure("fetch-history/{$stock->symbol}", $e->getMessage());
+            CronTaskFailed::dispatch("fetch-history/{$stock->symbol}", $e->getMessage());
 
-            return response("Fetch failed for {$stock->symbol}: {$e->getMessage()}", 502)
-                ->header('Content-Type', 'text/plain');
+            return $this->plain("Fetch failed for {$stock->symbol}: {$e->getMessage()}", 502);
         }
     }
 
-    /**
-     * No fixed timing, safe to ping often (e.g. every 15 min) — fetches full
-     * history directly for stocks missing it, a handful at a time (?limit=,
-     * default 5). Deliberately batched small — a web request/reverse-proxy
-     * timeout would otherwise kill a run partway through many stocks, each
-     * needing several paginated ShareSansar requests. That's harmless here:
-     * fetchFullHistory() sets history_fetched_at (on stock_scrape_statuses)
-     * as each stock finishes, so an interrupted run just picks up where it
-     * left off next time it's pinged.
-     *
-     * A stock whose last attempt failed (history_error set) is skipped here
-     * on purpose: without that, a permanently-failing stock (bad symbol,
-     * delisted, source layout changed) would get retried on every single
-     * ping forever. It stays visible on the Data Source Settings page
-     * either way, and clears itself the next time /fetch-history/{symbol}
-     * is run for it manually and succeeds.
-     */
-    public function fetchHistories(Request $request, SharesansarHistoryService $history)
+    public function fetchHistories(Request $request, FetchHistoriesJob $job): Response
     {
-        set_time_limit(0);
-
-        $limit = max(1, (int) $request->query('limit', 1));
-        $pending = fn () => Stock::whereDoesntHave('scrapeStatus', function ($q) {
-            $q->whereNotNull('history_fetched_at')->orWhereNotNull('history_error');
-        });
-
-        $stocks = $pending()->orderBy('id')->limit($limit)->get();
-
-        if ($stocks->isEmpty()) {
-            return response("No stocks are missing full history.\n")->header('Content-Type', 'text/plain');
-        }
-
-        $lines = [];
-
-        foreach ($stocks as $stock) {
-            try {
-                $result = $history->fetchFullHistory($stock);
-                $lines[] = "{$stock->symbol}: {$result['rows_imported']} rows imported ({$result['oldest_date']} to {$result['newest_date']}).";
-            } catch (Throwable $e) {
-                $lines[] = "{$stock->symbol}: failed — {$e->getMessage()}";
-            }
-        }
-
-        $remaining = $pending()->count();
-        $lines[] = "{$remaining} stock(s) still missing history — re-ping this URL to continue.";
-
-        return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
+        return $this->batch($request, $job);
     }
 
-    /**
-     * No fixed timing, safe to ping often — same batched, timeout-proof
-     * shape as fetchHistories() (?limit=, default 5), for the same reason:
-     * a request covering hundreds of stocks would risk a web server timeout,
-     * but each stock's sector is saved as soon as it's fetched, so an
-     * interrupted run just continues on the next ping.
-     */
-    public function syncSectors(Request $request, NepalStockSecurityResolver $resolver)
+    public function syncSectors(Request $request, SyncSectorsJob $job): Response
     {
-        set_time_limit(0);
-
-        $limit = max(1, (int) $request->query('limit', 5));
-        $stocks = Stock::whereNull('sector_id')->orderBy('id')->limit($limit)->get();
-
-        if ($stocks->isEmpty()) {
-            return response("No stocks are missing a sector.\n")->header('Content-Type', 'text/plain');
-        }
-
-        $lines = [];
-
-        foreach ($stocks as $stock) {
-            try {
-                $sector = $resolver->fetchSector($stock);
-
-                if ($sector !== null) {
-                    $stock->update(['sector_id' => Sector::firstOrCreate(['name' => $sector])->id]);
-                    $stock->ensureScrapeStatus()->clearSectorError();
-                    $lines[] = "{$stock->symbol}: {$sector}";
-                } else {
-                    $lines[] = "{$stock->symbol}: no sector returned";
-                }
-            } catch (Throwable $e) {
-                $stock->ensureScrapeStatus()->flagSectorError($e->getMessage());
-                $lines[] = "{$stock->symbol}: failed — {$e->getMessage()}";
-            }
-
-            usleep(300_000); // same polite pacing as stocks:backfill-sectors
-        }
-
-        $remaining = Stock::whereNull('sector_id')->count();
-        $lines[] = "{$remaining} stock(s) still missing a sector — re-ping this URL to continue.";
-
-        return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
+        return $this->batch($request, $job);
     }
 
-    /**
-     * No fixed timing, safe to ping often — same batched, timeout-proof
-     * shape as fetchHistories()/syncSectors() (?limit=, default 5).
-     * Dividend/bonus data (nepalstock.com's only source for it) previously
-     * had no cron path at all, only the manual
-     * stocks:backfill-corporate-actions command or the per-stock "Refresh
-     * Dividend/Bonus Data" button.
-     *
-     * Pending is dividend_fetched_at IS NULL, NOT "zero dividend rows" —
-     * a stock can genuinely have never declared a dividend, which is a
-     * successful fetch, not a pending one. A stock whose last attempt
-     * failed (dividend_error set) is skipped the same way fetchHistories()
-     * skips a failed history fetch, so it isn't retried forever; run
-     * stocks:backfill-corporate-actions --all from the CLI instead if you
-     * need to refresh a stock that already succeeded (e.g. a newly-declared
-     * dividend).
-     */
-    public function syncDividends(Request $request, NepalStockCorporateActionsService $dividends)
+    public function syncDividends(Request $request, SyncDividendsJob $job): Response
     {
-        set_time_limit(0);
-
-        $limit = max(1, (int) $request->query('limit', 5));
-        $pending = fn () => Stock::whereDoesntHave('scrapeStatus', function ($q) {
-            $q->whereNotNull('dividend_fetched_at');
-        });
-
-        $stocks = $pending()->orderBy('id')->limit($limit)->get();
-
-        if ($stocks->isEmpty()) {
-            return response("No stocks are missing dividend data.\n")->header('Content-Type', 'text/plain');
-        }
-
-        $lines = [];
-
-        foreach ($stocks as $stock) {
-            try {
-                $result = $dividends->fetchDividends($stock);
-                $stock->ensureScrapeStatus()->markDividendFetched();
-                $lines[] = "{$stock->symbol}: {$result['dividends']} dividend row(s) imported.";
-            } catch (Throwable $e) {
-                $stock->ensureScrapeStatus()->flagDividendError($e->getMessage());
-                $lines[] = "{$stock->symbol}: failed — {$e->getMessage()}";
-            }
-
-            usleep(500_000); // same polite pacing as stocks:backfill-corporate-actions
-        }
-
-        $remaining = $pending()->count();
-        $lines[] = "{$remaining} stock(s) still missing dividend data — re-ping this URL to continue.";
-
-        return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
+        return $this->batch($request, $job);
     }
 
-    /**
-     * No fixed timing, safe to ping often — same batched shape as
-     * syncDividends()/syncSectors() (?limit=, default 5). Generates a
-     * buy/sell/hold opinion via the Groq API and saves it to
-     * ai_stock_opinions — this is the ONLY place that ever calls the AI;
-     * StockController's ai-opinion endpoint just reads whatever's stored,
-     * so a page load never waits on (or costs) an external AI call.
-     *
-     * "Pending" = a stock with a signal (nothing else shows an AI opinion
-     * next to) whose stored opinion is missing, older than a day
-     * (indicators/signals only change once daily at market close, same
-     * cadence as the ML predictor), or whose last attempt failed more than
-     * 6h ago — a fresh failure is left alone rather than retried
-     * immediately, same "don't hammer a stuck one" reasoning as the other
-     * per-stock cron jobs.
-     */
-    public function generateAiOpinions(Request $request, AiStockOpinionService $ai)
+    public function generateAiOpinions(Request $request, GenerateAiOpinionsJob $job): Response
     {
-        set_time_limit(0);
-
-        if (! $ai->isConfigured()) {
-            return response("AI opinion is not configured on this instance — no GROQ_API_KEY set.\n")->header('Content-Type', 'text/plain');
-        }
-
-        $limit = max(1, (int) $request->query('limit', 1));
-        $staleBefore = now()->subDay();
-        $retryErrorsBefore = now()->subHours(6);
-
-        $pending = fn () => Stock::whereHas('latestSignal')->whereDoesntHave('aiOpinion', function ($q) use ($staleBefore, $retryErrorsBefore) {
-            $q->where('generated_at', '>=', $staleBefore)
-                ->orWhere('error_at', '>=', $retryErrorsBefore);
-        });
-
-        $stocks = $pending()->orderBy('id')->limit($limit)->get();
-
-        if ($stocks->isEmpty()) {
-            return response("No stocks are due for an AI opinion refresh.\n")->header('Content-Type', 'text/plain');
-        }
-
-        $lines = [];
-
-        foreach ($stocks as $stock) {
-            try {
-                $opinion = $ai->generate($stock);
-                AiStockOpinion::updateOrCreate(
-                    ['stock_id' => $stock->id],
-                    [...$opinion, 'generated_at' => now(), 'error' => null, 'error_at' => null]
-                );
-                $lines[] = "{$stock->symbol}: {$opinion['verdict']} ({$opinion['confidence']} confidence)";
-            } catch (Throwable $e) {
-                // A real stock-analysis prompt runs ~3,000 tokens against
-                // Groq's free-tier 8,000-tokens/minute cap — only ~2 calls
-                // fit per minute, so a 429 here is an expected, self-clearing
-                // condition (the token budget refills within seconds), not a
-                // sign this stock is actually broken. Recording it with the
-                // normal 6h error cooldown would leave it stuck long after
-                // the rate limit itself has cleared, so it's deliberately
-                // left untouched instead — still pending, picked up again on
-                // the very next ping.
-                if ($e instanceof RequestException && $e->response->status() === 429) {
-                    $lines[] = "{$stock->symbol}: rate limited — will retry on next ping.";
-
-                    continue;
-                }
-
-                // Any other failure DOES get the 6h cooldown (only touches
-                // error/error_at — never clobbers the last good opinion
-                // still worth showing).
-                AiStockOpinion::updateOrCreate(
-                    ['stock_id' => $stock->id],
-                    ['error' => $e->getMessage(), 'error_at' => now()]
-                );
-                $lines[] = "{$stock->symbol}: failed — {$e->getMessage()}";
-            }
-
-            usleep(500_000); // polite pacing between stocks within this batch
-        }
-
-        $remaining = $pending()->count();
-        $lines[] = "{$remaining} stock(s) still due for an AI opinion — re-ping this URL to continue.";
-
-        return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
+        return $this->batch($request, $job);
     }
 
-    /**
-     * Batched, same on-demand/re-pingable shape as generateAiOpinions() — EPS/
-     * P/E/book value only move quarterly (or drift slowly with price), so a
-     * week-old row is still fine to show; this just keeps every stock from
-     * going more than ~7 days stale, refreshed a `limit`-sized batch per ping.
-     */
-    public function syncFundamentals(Request $request, MeroLaganiFundamentalsService $fundamentals)
+    public function syncFundamentals(Request $request, SyncFundamentalsJob $job): Response
     {
-        set_time_limit(0);
-
-        $limit = max(1, (int) $request->query('limit', 20));
-        $staleBefore = now()->subDays(7);
-
-        $pending = fn () => Stock::whereDoesntHave('fundamental', function ($q) use ($staleBefore) {
-            $q->where('fetched_at', '>=', $staleBefore);
-        });
-
-        $stocks = $pending()->orderBy('id')->limit($limit)->get();
-
-        if ($stocks->isEmpty()) {
-            return response("No stocks are due for a fundamentals refresh.\n")->header('Content-Type', 'text/plain');
-        }
-
-        $lines = [];
-
-        foreach ($stocks as $stock) {
-            try {
-                $data = $fundamentals->syncOne($stock);
-                $lines[] = "{$stock->symbol}: EPS={$data->eps} PE={$data->pe_ratio} BookValue={$data->book_value}";
-            } catch (Throwable $e) {
-                $lines[] = "{$stock->symbol}: failed — {$e->getMessage()}";
-            }
-
-            usleep(500_000); // polite pacing between stocks within this batch
-        }
-
-        $remaining = $pending()->count();
-        $lines[] = "{$remaining} stock(s) still due for a fundamentals refresh — re-ping this URL to continue.";
-
-        return response(implode("\n", $lines))->header('Content-Type', 'text/plain');
+        return $this->batch($request, $job);
     }
 
-    /** 03:30 NPT, Monday — cron_utc: 45 21 * * 0 (Sunday in UTC) */
-    public function trainMl()
+    private function task(CronTask $task): Response
     {
-        return $this->run('ml:train-predictor', 'ml-train.log');
+        return $this->plain($this->tasks->run($task));
     }
 
-    /** 04:00 NPT, Monday — cron_utc: 15 22 * * 0 (Sunday in UTC) */
-    public function backtestSignals()
+    private function batch(Request $request, StockBatchJob $job): Response
     {
-        return $this->run('signals:backtest-accuracy', 'signal-accuracy.log');
+        $limit = $request->query('limit');
+
+        return $this->plain($this->batches->run($job, $limit === null ? null : (int) $limit));
     }
 
-    /** 04:15 NPT, Monday — cron_utc: 30 22 * * 0 (Sunday in UTC) */
-    public function backtestNextClose()
+    private function plain(string $body, int $status = 200): Response
     {
-        return $this->run('signals:backtest-next-close', 'next-close-accuracy.log');
-    }
-
-    private function run(string $signature, string $logFile, array $params = []): Response
-    {
-        set_time_limit(0);
-
-        $exitCode = Artisan::call($signature, $params);
-        $output = Artisan::output();
-
-        file_put_contents(
-            storage_path('logs/'.$logFile),
-            '['.now()->toDateTimeString().'] '.$output,
-            FILE_APPEND
-        );
-
-        if ($exitCode !== 0) {
-            $this->alerts->notifyFailure($signature, $output ?: "Exited with code {$exitCode}, no output.");
-        }
-
-        return response("\$ php artisan {$signature}\n{$output}\n[exit code {$exitCode}]")
-            ->header('Content-Type', 'text/plain');
+        return response($body, $status)->header('Content-Type', 'text/plain');
     }
 }

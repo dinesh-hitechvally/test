@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Watchlist\AddWatchlistItemRequest;
+use App\Http\Requests\Watchlist\SetWatchlistAlertRequest;
+use App\Http\Requests\Watchlist\StoreWatchlistRequest;
 use App\Services\MarketData\MarketReportService;
 use Illuminate\Http\Request;
 
@@ -22,26 +25,18 @@ class WatchlistController extends Controller
         return response()->json($watchlists);
     }
 
-    public function store(Request $request)
+    public function store(StoreWatchlistRequest $request)
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
-        ]);
-
-        $watchlist = $request->user()->watchlists()->create($validated);
+        $watchlist = $request->user()->watchlists()->create($request->validated());
 
         return response()->json($watchlist, 201);
     }
 
-    public function addItem(Request $request, int $watchlistId)
+    public function addItem(AddWatchlistItemRequest $request, int $watchlistId)
     {
         $watchlist = $request->user()->watchlists()->findOrFail($watchlistId);
 
-        $validated = $request->validate([
-            'stock_id' => ['required', 'exists:stocks,id'],
-        ]);
-
-        $watchlist->stocks()->syncWithoutDetaching([$validated['stock_id']]);
+        $watchlist->stocks()->syncWithoutDetaching([$request->validated('stock_id')]);
 
         return response()->json($watchlist->load('stocks'));
     }
@@ -59,14 +54,10 @@ class WatchlistController extends Controller
      * the portfolio stop-loss/target alerts, since a watchlist stock isn't
      * necessarily something you own.
      */
-    public function setAlert(Request $request, int $watchlistId, int $stockId)
+    public function setAlert(SetWatchlistAlertRequest $request, int $watchlistId, int $stockId)
     {
         $watchlist = $request->user()->watchlists()->findOrFail($watchlistId);
-
-        $validated = $request->validate([
-            'alert_price' => ['nullable', 'numeric', 'min:0'],
-            'alert_direction' => ['nullable', 'in:above,below'],
-        ]);
+        $validated = $request->validated();
 
         if (! $watchlist->stocks()->where('stocks.id', $stockId)->exists()) {
             return response()->json(['message' => 'That stock is not on this watchlist.'], 404);

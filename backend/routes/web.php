@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CronController;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 // URL-triggered pipeline — replaces the Laravel scheduler/server cron (see
@@ -90,15 +91,19 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
         // 15:32 NPT, Mon-Fri  |  UTC: 47 9 * * 1-5  (09:47 UTC, Mon-Fri)
         Route::get('/market-sync-index', [CronController::class, 'marketSyncIndex']);
 
+        // On-demand diagnostic, no schedule — mints a nepalstock.com token
+        // and proves it against the real API. First thing to check when
+        // every nepalstock.com fetch starts failing at once.
+        Route::get('/verify-token', [CronController::class, 'verifyNepseToken']);
+
     });
 
     Route::prefix('reports')->group(function () {
 
-        // Recomputes indicators/signals for stocks priced today — no
-        // external call, purely derived from what scrape/market-sync-stock
-        // already wrote. Runs 10 min after it, so the fetch has time to
-        // land first.
-        // 15:40 NPT, Mon-Fri  |  UTC: 55 9 * * 1-5  (09:55 UTC, Mon-Fri)
+        // On-demand, no schedule — recalculation already follows every
+        // price update automatically (StockPricesUpdated event). Re-runs
+        // stocks priced today, or every stock with ?all=1 (after changing
+        // indicator/signal rules).
         Route::get('/market-recalculate', [CronController::class, 'marketRecalculate']);
 
         // Weekly, ~3am NPT (quiet hours, no one's looking at the dashboard)
@@ -116,4 +121,97 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
 
     });
     
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Clear All Cache
+|--------------------------------------------------------------------------
+*/
+Route::get('/clear-cache', function () {
+    $results = [];
+
+    try {
+        $results['config_clear'] = Artisan::call('config:clear');
+        $results['route_clear'] = Artisan::call('route:clear');
+        $results['cache_clear'] = Artisan::call('cache:clear');
+        $results['view_clear'] = Artisan::call('view:clear');
+        $results['optimize_clear'] = Artisan::call('optimize:clear');
+    } catch (\Exception $e) {
+        $results['artisan_error'] = $e->getMessage();
+    }
+
+    $cacheFiles = [
+        base_path('bootstrap/cache/config.php'),
+        base_path('bootstrap/cache/routes-v7.php'),
+        base_path('bootstrap/cache/services.php'),
+        base_path('bootstrap/cache/packages.php'),
+        base_path('bootstrap/cache/events.php'),
+    ];
+
+    $unlinked = [];
+    foreach ($cacheFiles as $file) {
+        if (file_exists($file)) {
+            if (@unlink($file)) {
+                $unlinked[] = basename($file) . ' (deleted)';
+            } else {
+                $unlinked[] = basename($file) . ' (failed to delete)';
+            }
+        }
+    }
+    $results['manually_deleted'] = $unlinked;
+
+    return response()->json([
+        'success' => true,
+        'message' => 'All caches cleared successfully',
+        'details' => $results
+    ]);
+});
+
+Route::get('/check-version', function () {
+    $apiPath = base_path('routes/api.php');
+    $apiContent = file_exists($apiPath) ? file_get_contents($apiPath) : 'File not found';
+    
+    $hasReturns = strpos($apiContent, 'returns') !== false;
+
+    $gitLog = 'git command not run';
+    try {
+        $gitLog = shell_exec('git log -n 1 --oneline 2>&1');
+    } catch (\Exception $e) {
+        $gitLog = $e->getMessage();
+    }
+
+    return response()->json([
+        'has_returns_in_api_php' => $hasReturns,
+        'git_log' => trim($gitLog),
+        'sales_group_snippet' => strpos($apiContent, 'sales') !== false ? substr($apiContent, strpos($apiContent, 'sales'), 500) : 'sales not found',
+    ]);
+});
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Wipe Database + Fresh Migration + Seed
+|--------------------------------------------------------------------------
+*/
+Route::get('/reset-database', function () {
+
+    Artisan::call('db:wipe', [
+        '--force' => true
+    ]);
+
+    Artisan::call('migrate', [
+        '--force' => true
+    ]);
+
+    Artisan::call('db:seed', [
+        '--force' => true
+    ]);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Database wiped, migrated, and seeded successfully'
+    ]);
 });

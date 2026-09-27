@@ -194,27 +194,47 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       </div>
     </div>
 
-    <div v-if="stock.fundamental" class="fundamentals-row">
-      <div class="fundamental-item">
-        <span class="muted small">EPS</span>
-        <span>{{ formatPrice(stock.fundamental.eps) }}<span v-if="stock.fundamental.eps_fiscal_year" class="muted small"> ({{ stock.fundamental.eps_fiscal_year }})</span></span>
+    <div class="card" style="margin-top: 16px">
+      <h3>Fundamentals</h3>
+
+      <div v-if="stock.fundamental" class="fundamentals-row">
+        <div class="fundamental-item">
+          <span class="muted small">EPS</span>
+          <span>{{ formatPrice(stock.fundamental.eps) }}<span v-if="stock.fundamental.eps_fiscal_year" class="muted small"> ({{ stock.fundamental.eps_fiscal_year }})</span></span>
+        </div>
+        <div class="fundamental-item">
+          <span class="muted small">P/E Ratio</span>
+          <span>{{ formatPrice(stock.fundamental.pe_ratio) }}</span>
+        </div>
+        <div class="fundamental-item">
+          <span class="muted small">Book Value</span>
+          <span>Rs. {{ formatPrice(stock.fundamental.book_value) }}</span>
+        </div>
+        <div class="fundamental-item">
+          <span class="muted small">PBV</span>
+          <span>{{ formatPrice(stock.fundamental.pbv) }}</span>
+        </div>
+        <div class="fundamental-item">
+          <span class="muted small">Market Cap</span>
+          <span v-if="stock.fundamental.market_cap !== null">Rs. {{ (stock.fundamental.market_cap / 1e9).toFixed(2) }}B</span>
+          <span v-else class="muted">—</span>
+        </div>
+        <div class="fundamental-item">
+          <span class="muted small">Shares Outstanding</span>
+          <span v-if="stock.fundamental.shares_outstanding !== null">{{ Number(stock.fundamental.shares_outstanding).toLocaleString() }}</span>
+          <span v-else class="muted">—</span>
+        </div>
+        <div class="fundamental-item">
+          <span class="muted small">1-Year Yield</span>
+          <span v-if="stock.fundamental.one_year_yield_pct !== null">{{ formatPrice(stock.fundamental.one_year_yield_pct) }}%</span>
+          <span v-else class="muted">—</span>
+        </div>
       </div>
-      <div class="fundamental-item">
-        <span class="muted small">P/E Ratio</span>
-        <span>{{ formatPrice(stock.fundamental.pe_ratio) }}</span>
-      </div>
-      <div class="fundamental-item">
-        <span class="muted small">Book Value</span>
-        <span>Rs. {{ formatPrice(stock.fundamental.book_value) }}</span>
-      </div>
-      <div class="fundamental-item">
-        <span class="muted small">PBV</span>
-        <span>{{ formatPrice(stock.fundamental.pbv) }}</span>
-      </div>
-      <div class="fundamental-item">
-        <span class="muted small">Market Cap</span>
-        <span>Rs. {{ (stock.fundamental.market_cap / 1e9).toFixed(2) }}B</span>
-      </div>
+      <p v-else class="muted">No fundamental data recorded yet for {{ stock.symbol }}.</p>
+
+      <p v-if="stock.fundamental?.fetched_at" class="muted small" style="margin-top: 10px">
+        Last updated {{ new Date(stock.fundamental.fetched_at).toLocaleDateString() }}
+      </p>
     </div>
 
     <p v-if="prices.length < 20" class="muted card">

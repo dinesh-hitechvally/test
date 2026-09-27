@@ -161,6 +161,76 @@ class TechnicalAnalysisService
     }
 
     /**
+     * Bollinger %B — where the close sits within its bands: 0 = on the
+     * lower band, 1 = on the upper band, below 0 / above 1 = outside them.
+     * Null while the bands aren't available yet, or when they've collapsed
+     * to zero width (a perfectly flat window has no meaningful position).
+     *
+     * @param  float[]  $closes
+     * @param  array{upper: array<int, float|null>, lower: array<int, float|null>}  $bands  output of bollingerBands()
+     * @return array<int, float|null>
+     */
+    public function percentB(array $closes, array $bands): array
+    {
+        $result = array_fill(0, count($closes), null);
+
+        foreach ($closes as $i => $close) {
+            $upper = $bands['upper'][$i] ?? null;
+            $lower = $bands['lower'][$i] ?? null;
+
+            if ($upper !== null && $lower !== null && $upper > $lower) {
+                $result[$i] = ($close - $lower) / ($upper - $lower);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Slow stochastic oscillator: raw %K = where the close sits in the
+     * trailing $period-day high/low range (0-100), smoothed by an SMA of
+     * $kSmoothing to get %K, and %D = an SMA of $dPeriod over that %K.
+     * The standard (14, 3, 3) is the default. A zero-width range (high ==
+     * low for the whole window) reads as a neutral 50 rather than a
+     * divide-by-zero.
+     *
+     * @param  float[]  $highs
+     * @param  float[]  $lows
+     * @param  float[]  $closes
+     * @return array{k: array<int, float|null>, d: array<int, float|null>}
+     */
+    public function stochastic(array $highs, array $lows, array $closes, int $period = 14, int $kSmoothing = 3, int $dPeriod = 3): array
+    {
+        $count = count($closes);
+        $rawK = [];
+
+        for ($i = $period - 1; $i < $count; $i++) {
+            $highest = max(array_slice($highs, $i - $period + 1, $period));
+            $lowest = min(array_slice($lows, $i - $period + 1, $period));
+            $rawK[] = $highest > $lowest ? ($closes[$i] - $lowest) / ($highest - $lowest) * 100 : 50.0;
+        }
+
+        // Smoothed on the dense (no-null) series, then shifted back into
+        // place — same approach macd() uses for its signal line.
+        $kDense = $this->sma($rawK, $kSmoothing);
+        $dDense = $this->sma(array_values(array_filter($kDense, fn ($v) => $v !== null)), $dPeriod);
+
+        $k = array_fill(0, $count, null);
+        $d = array_fill(0, $count, null);
+        $firstK = $period - 1;
+        $firstD = $firstK + $kSmoothing - 1;
+
+        foreach ($kDense as $j => $value) {
+            $k[$firstK + $j] = $value;
+        }
+        foreach ($dDense as $j => $value) {
+            $d[$firstD + $j] = $value;
+        }
+
+        return ['k' => $k, 'd' => $d];
+    }
+
+    /**
      * @param  float[]  $highs
      * @param  float[]  $lows
      * @param  float[]  $closes

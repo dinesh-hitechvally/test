@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\SavedScreen\StoreSavedScreenRequest;
 use Illuminate\Http\Request;
 
 class SavedScreenController extends Controller
@@ -12,14 +13,9 @@ class SavedScreenController extends Controller
         return response()->json($request->user()->savedScreens()->latest()->get());
     }
 
-    public function store(Request $request)
+    public function store(StoreSavedScreenRequest $request)
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
-            'filters' => ['required', 'array'],
-        ]);
-
-        $screen = $request->user()->savedScreens()->create($validated);
+        $screen = $request->user()->savedScreens()->create($request->validated());
 
         return response()->json($screen, 201);
     }

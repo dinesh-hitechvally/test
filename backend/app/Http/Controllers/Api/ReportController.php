@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Report\RuleScanRequest;
 use App\Models\Sector;
 use App\Models\SignalAccuracyStat;
 use App\Models\Stock;
@@ -270,13 +271,9 @@ class ReportController extends Controller
      * least one (mode=any) or all (mode=all) of the requested rule keys.
      * Reads already-stored rule_keys — nothing is recomputed live.
      */
-    public function ruleScan(Request $request, MarketReportService $reports)
+    public function ruleScan(RuleScanRequest $request, MarketReportService $reports)
     {
-        $validated = $request->validate([
-            'rules' => ['required', 'array', 'min:1'],
-            'rules.*' => ['string'],
-            'mode' => ['nullable', 'in:any,all'],
-        ]);
+        $validated = $request->validated();
 
         $requested = array_values(array_unique($validated['rules']));
         $invalid = array_filter($requested, fn ($key) => ! SignalRules::isValidKey($key));

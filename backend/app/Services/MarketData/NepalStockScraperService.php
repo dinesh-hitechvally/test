@@ -2,8 +2,9 @@
 
 namespace App\Services\MarketData;
 
+use App\Events\ScrapeFinished;
+use App\Events\StockPricesUpdated;
 use App\Models\DailyPrice;
-use App\Models\ScrapeLog;
 use App\Models\Stock;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -45,12 +46,12 @@ class NepalStockScraperService
             // stray ping on a non-trading day can never leave today's
             // daily_prices wrong.
             if (! $this->marketStatus->isOpen()) {
-                ScrapeLog::create([
-                    'source' => self::SOURCE_NAME,
-                    'status' => 'success',
-                    'records_processed' => 0,
-                    'message' => 'Market is closed today — nothing synced.',
-                ]);
+                ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: true,
+                recordsProcessed: 0,
+                message: 'Market is closed today — nothing synced.',
+            );
 
                 return ['created_stocks' => 0, 'updated_prices' => 0, 'affected_stock_ids' => [], 'market_open' => false];
             }
@@ -70,30 +71,35 @@ class NepalStockScraperService
 
             $result = $this->persist($rows);
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'success',
-                'records_processed' => count($rows),
-                'message' => sprintf(
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: true,
+                recordsProcessed: count($rows),
+                message: sprintf(
                     '%d stocks created, %d price rows upserted.',
                     $result['created_stocks'],
                     $result['updated_prices']
                 ),
-            ]);
-
-            return [...$result, 'market_open' => true];
+            );
         } catch (Throwable $e) {
             Log::warning('NEPSE official scrape failed', ['error' => $e->getMessage()]);
 
-            ScrapeLog::create([
-                'source' => self::SOURCE_NAME,
-                'status' => 'failed',
-                'records_processed' => 0,
-                'message' => $e->getMessage(),
-            ]);
+            ScrapeFinished::dispatch(
+                source: self::SOURCE_NAME,
+                succeeded: false,
+                recordsProcessed: 0,
+                message: $e->getMessage(),
+            );
 
             throw $e;
         }
+
+        // Outside the try: today's prices are already saved and logged as a
+        // successful scrape, so a failure in a (synchronous) listener — the
+        // recalculation — must not be recorded as the scrape failing.
+        StockPricesUpdated::dispatch($result['affected_stock_ids'], self::SOURCE_NAME);
+
+        return [...$result, 'market_open' => true];
     }
 
     /**

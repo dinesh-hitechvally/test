@@ -2,38 +2,36 @@
 
 namespace App\Services;
 
+use App\Contracts\AiOpinionProvider;
 use App\Models\SignalAccuracyStat;
 use App\Models\Stock;
 use App\Services\MarketData\MarketReportService;
 use App\Services\MarketData\MlDirectionPredictorService;
 use App\Services\MarketData\TechnicalAnalysisReportService;
-use Illuminate\Support\Facades\Http;
-use RuntimeException;
 use Throwable;
 
 /**
- * Generates a buy/sell/hold opinion via Groq's free-tier API, fed the same
- * technical/dividend/signal/ML context the Analyst Report page already
+ * Generates a buy/sell/hold opinion via the bound AiOpinionProvider, fed the
+ * same technical/dividend/signal/ML context the Analyst Report page already
  * assembles (see ReportController::analyst()) — a 4th independent "lens"
  * alongside the technical read, rule-based signal, and ML predictor, not a
  * replacement for any of them.
  *
- * Generation only ever happens from the cron pipeline (CronController's
- * batched generate-ai-opinions endpoint) — never from a user-facing
- * request — and is persisted to ai_stock_opinions. Reading an opinion
- * (getStoredOpinion()) is a plain DB lookup with no external call, so it's
- * safe to show on every page load with no button/latency/quota concern.
+ * Generation only ever happens from the cron pipeline (GenerateAiOpinionsJob,
+ * run by the batched /cron/scrape/ai-opinions endpoint) — never from a
+ * user-facing request — and is persisted to ai_stock_opinions. Reading an
+ * opinion (getStoredOpinion()) is a plain DB lookup with no external call,
+ * so it's safe to show on every page load with no button/latency/quota
+ * concern.
  *
- * Third provider this app has used for this feature (Gemini, then Claude,
- * now Groq — see git history) — Groq hosts open-weight models (Llama,
- * etc.) behind an OpenAI-compatible chat-completions API, with a genuinely
- * free tier (no billing setup) but real per-minute rate limits.
+ * Which LLM actually answers isn't this class's concern — that's
+ * AiOpinionProvider (currently GroqOpinionProvider, bound in
+ * AppServiceProvider). This class only owns what gets asked.
  */
 class AiStockOpinionService
 {
-    private const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
-
     public function __construct(
+        private readonly AiOpinionProvider $provider,
         private readonly MarketReportService $reports,
         private readonly TechnicalAnalysisReportService $technical,
         private readonly MlDirectionPredictorService $predictor,
@@ -41,7 +39,7 @@ class AiStockOpinionService
 
     public function isConfigured(): bool
     {
-        return filled(config('services.groq.api_key'));
+        return $this->provider->isConfigured();
     }
 
     /**
@@ -66,64 +64,15 @@ class AiStockOpinionService
     }
 
     /**
-     * Calls Groq and returns the parsed opinion — throws on any failure.
-     * Callers (the cron endpoint) are responsible for persisting the
-     * result; this method never touches the database itself.
-     *
-     * Uses forced tool-calling (OpenAI-compatible function-calling, not
-     * just "ask for JSON in the prompt") for reliable structured output —
-     * same reasoning Gemini's responseSchema / Claude's tool_choice served
-     * here with the earlier providers.
+     * Asks the bound AiOpinionProvider and returns the parsed opinion —
+     * throws on any failure. Callers (the cron job) are responsible for
+     * persisting the result; this method never touches the database itself.
      *
      * @return array{verdict: string, confidence: string, reasoning: string}
      */
     public function generate(Stock $stock): array
     {
-        $prompt = $this->buildPrompt($stock, $this->buildContext($stock));
-
-        $response = Http::timeout(40)
-            ->withToken(config('services.groq.api_key'))
-            // Transient overload/rate-limit responses are retried a
-            // couple of times with a short delay before giving up.
-            ->retry(2, 1500, throw: false)
-            ->post(self::ENDPOINT, [
-                'model' => config('services.groq.model'),
-                'messages' => [['role' => 'user', 'content' => $prompt]],
-                'tools' => [[
-                    'type' => 'function',
-                    'function' => [
-                        'name' => 'record_opinion',
-                        'description' => 'Record the buy/hold/sell opinion for this stock.',
-                        'parameters' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'verdict' => ['type' => 'string', 'enum' => ['buy', 'hold', 'sell']],
-                                'confidence' => ['type' => 'string', 'enum' => ['low', 'medium', 'high']],
-                                'reasoning' => ['type' => 'string'],
-                            ],
-                            'required' => ['verdict', 'confidence', 'reasoning'],
-                        ],
-                    ],
-                ]],
-                'tool_choice' => ['type' => 'function', 'function' => ['name' => 'record_opinion']],
-            ]);
-
-        $response->throw();
-
-        // OpenAI-compatible shape: the tool call's arguments come back as a
-        // JSON *string*, not a nested object — needs its own decode.
-        $arguments = $response->json('choices.0.message.tool_calls.0.function.arguments');
-        $parsed = json_decode((string) $arguments, true);
-
-        if (! is_array($parsed) || ! isset($parsed['verdict'], $parsed['confidence'], $parsed['reasoning'])) {
-            throw new RuntimeException('Groq returned an unexpected response shape.');
-        }
-
-        return [
-            'verdict' => $parsed['verdict'],
-            'confidence' => $parsed['confidence'],
-            'reasoning' => $parsed['reasoning'],
-        ];
+        return $this->provider->requestOpinion($this->buildPrompt($stock, $this->buildContext($stock)));
     }
 
     /**

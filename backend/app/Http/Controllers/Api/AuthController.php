@@ -3,25 +3,24 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ForgotPasswordRequest;
+use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\ResetPasswordRequest;
+use App\Http\Requests\Auth\UpdatePasswordRequest;
+use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Models\LoginHistory;
 use App\Services\LoginGeolocationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
-use Illuminate\Validation\Rules\Password;
 use Throwable;
 
 class AuthController extends Controller
 {
-    public function login(Request $request, LoginGeolocationService $geolocation)
+    public function login(LoginRequest $request, LoginGeolocationService $geolocation)
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required'],
-        ]);
-
-        if (! Auth::attempt($credentials, remember: true)) {
+        if (! Auth::attempt($request->validated(), remember: true)) {
             return response()->json(['message' => 'Invalid credentials.'], 422);
         }
 
@@ -71,16 +70,11 @@ class AuthController extends Controller
         return response()->json(['user' => $request->user()]);
     }
 
-    public function updateProfile(Request $request)
+    public function updateProfile(UpdateProfileRequest $request)
     {
         $user = $request->user();
 
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,'.$user->id],
-        ]);
-
-        $user->update($validated);
+        $user->update($request->validated());
 
         return response()->json(['user' => $user->fresh()]);
     }
@@ -95,16 +89,9 @@ class AuthController extends Controller
         return response()->json($history);
     }
 
-    public function updatePassword(Request $request)
+    public function updatePassword(UpdatePasswordRequest $request)
     {
-        $user = $request->user();
-
-        $validated = $request->validate([
-            'current_password' => ['required', 'current_password'],
-            'password' => ['required', 'confirmed', Password::defaults()],
-        ]);
-
-        $user->update(['password' => Hash::make($validated['password'])]);
+        $request->user()->update(['password' => Hash::make($request->validated('password'))]);
 
         return response()->json(['message' => 'Password updated.']);
     }
@@ -118,26 +105,18 @@ class AuthController extends Controller
      * (currently 'log' in dev, so the link lands in storage/logs/laravel.log
      * instead of a real inbox until real SMTP is configured).
      */
-    public function forgotPassword(Request $request)
+    public function forgotPassword(ForgotPasswordRequest $request)
     {
-        $validated = $request->validate(['email' => ['required', 'email']]);
-
-        $status = PasswordBroker::sendResetLink($validated);
+        $status = PasswordBroker::sendResetLink($request->validated());
 
         return $status === PasswordBroker::RESET_LINK_SENT
             ? response()->json(['message' => __($status)])
             : response()->json(['message' => __($status)], 422);
     }
 
-    public function resetPassword(Request $request)
+    public function resetPassword(ResetPasswordRequest $request)
     {
-        $validated = $request->validate([
-            'token' => ['required'],
-            'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', Password::defaults()],
-        ]);
-
-        $status = PasswordBroker::reset($validated, function ($user, $password) {
+        $status = PasswordBroker::reset($request->validated(), function ($user, $password) {
             $user->update(['password' => Hash::make($password)]);
         });
 

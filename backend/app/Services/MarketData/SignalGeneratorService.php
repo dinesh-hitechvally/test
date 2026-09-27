@@ -25,6 +25,14 @@ class SignalGeneratorService
     private const CROSS_MIN_GAP_PCT = 0.5;
 
     /**
+     * Raw points → the stored -1..1 score. The directional rules are the
+     * two bullish and two bearish mean-reversion rules (weight ±1 each), so
+     * ±2 raw = both agreeing = ±1.0. classify()'s thresholds are this same
+     * scale: 0.5 = one rule, 1.0 = both.
+     */
+    private const SCORE_SCALE = 2;
+
+    /**
      * Recompute and upsert buy/sell/hold signals for a stock's full history,
      * from its already-recalculated technical_indicators + daily_prices.
      */
@@ -40,6 +48,7 @@ class SignalGeneratorService
 
         $rows = [];
         $previous = null;
+        $lastBearishAllowed = false;
         // Golden/death cross confirmation state — must persist across the
         // whole history, unlike every other rule below which only ever
         // looks at today vs. yesterday.
@@ -59,22 +68,26 @@ class SignalGeneratorService
             $close = $price?->close_price !== null ? (float) $price->close_price : null;
             $previousClose = $previous !== null ? $prices->get($previous->trade_date->toDateString()) : null;
             $previousClose = $previousClose?->close_price !== null ? (float) $previousClose->close_price : null;
-            [$crossScore, $crossReason, $crossKey] = $this->goldenDeathCross($indicator, $crossState);
-            [$ruleScore, $reasons, $ruleKeys] = $this->score($indicator, $previous, $close, $previousClose);
+            [$crossReason, $crossKey] = $this->goldenDeathCross($indicator, $crossState);
+            [$reasons, $ruleKeys] = $this->detectRules($indicator, $previous, $close, $previousClose);
 
-            // Both contributions are raw (weight 2 for the cross, weight 1
-            // for everything else) — normalized once here, not inside
-            // score(), so the two can be combined on the same scale.
-            $score = ($crossScore + $ruleScore) / 6;
             if ($crossReason !== null) {
                 array_unshift($reasons, $crossReason);
                 array_unshift($ruleKeys, $crossKey);
             }
 
+            // Every fired rule is recorded (reasons + rule_keys, so the
+            // feed and the rule scanner see all of them), but only the
+            // rules with a non-zero SignalRules weight move the score —
+            // see SignalRules::RULES for which ones and why.
+            $score = max(-1.0, min(1.0, SignalRules::rawScore($ruleKeys) / self::SCORE_SCALE));
+            $bearishAllowed = $this->isBelowLongTermTrend($indicator, $close);
+            $lastBearishAllowed = $bearishAllowed;
+
             $rows[] = [
                 'stock_id' => $stock->id,
                 'trade_date' => $date,
-                'signal' => $this->classify($score),
+                'signal' => $this->classify($score, $bearishAllowed),
                 'score' => round($score, 4),
                 'reasons' => json_encode($reasons ?: ['No strong signals — indicators are neutral']),
                 'rule_keys' => json_encode($ruleKeys),
@@ -115,7 +128,7 @@ class SignalGeneratorService
             $existingKeys = json_decode($rows[$lastIndex]['rule_keys'], true);
 
             $rows[$lastIndex]['score'] = round($adjustedScore, 4);
-            $rows[$lastIndex]['signal'] = $this->classify($adjustedScore);
+            $rows[$lastIndex]['signal'] = $this->classify($adjustedScore, $lastBearishAllowed);
             $rows[$lastIndex]['reasons'] = json_encode(array_values([...$existingReasons, ...$valuationReasons]));
             $rows[$lastIndex]['rule_keys'] = json_encode([...$existingKeys, ...$valuationKeys]);
         }
@@ -137,11 +150,11 @@ class SignalGeneratorService
      * the key is what the rule scanner filters on, the text is what the
      * signal feed displays. Keep the two in sync when editing a condition.
      *
-     * Returns the RAW (pre-/6) score — the golden/death cross rule is
-     * handled separately by goldenDeathCross() since, unlike every rule
-     * here, it needs state carried across the whole history, not just
-     * today vs. yesterday. generate() adds the two raw contributions
-     * together and normalizes once.
+     * Only DETECTS which rules fired — how much each one counts is
+     * SignalRules::RULES' 'weight', applied by generate(). The golden/death
+     * cross rule is detected separately by goldenDeathCross() since, unlike
+     * every rule here, it needs state carried across the whole history, not
+     * just today vs. yesterday.
      *
      * The two bearish oscillator rules (RSI, Bollinger) are deliberately NOT
      * the mirror image of their bullish counterparts. They used to be a
@@ -160,93 +173,121 @@ class SignalGeneratorService
      * bullish side is left as a level test since it already backtests
      * positive; changing what isn't broken would just add unvalidated risk.
      *
-     * @return array{0: float, 1: string[], 2: string[]}
+     * @return array{0: string[], 1: string[]} reasons, rule keys
      */
-    private function score($today, $yesterday, ?float $close, ?float $previousClose): array
+    private function detectRules($today, $yesterday, ?float $close, ?float $previousClose): array
     {
-        $score = 0.0;
         $reasons = [];
         $ruleKeys = [];
 
-        // Short-term SMA20/50 crossover (weight 1)
+        // Short-term SMA20/50 crossover
         if ($today->sma_20 !== null && $today->sma_50 !== null
             && $yesterday?->sma_20 !== null && $yesterday?->sma_50 !== null) {
             if ($yesterday->sma_20 <= $yesterday->sma_50 && $today->sma_20 > $today->sma_50) {
-                $score += 1;
                 $reasons[] = 'SMA20 crossed above SMA50 (short-term bullish)';
                 $ruleKeys[] = 'sma_20_50_bull_cross';
             } elseif ($yesterday->sma_20 >= $yesterday->sma_50 && $today->sma_20 < $today->sma_50) {
-                $score -= 1;
                 $reasons[] = 'SMA20 crossed below SMA50 (short-term bearish)';
                 $ruleKeys[] = 'sma_20_50_bear_cross';
             }
         }
 
-        // RSI oversold entry (weight 1, level test — kept as-is, backtests positive)
+        // RSI oversold entry (level test)
         if ($today->rsi_14 !== null) {
             $rsi = (float) $today->rsi_14;
             if ($rsi < 30) {
-                $score += 1;
                 $reasons[] = sprintf('RSI %.1f — oversold', $rsi);
                 $ruleKeys[] = 'rsi_oversold';
             }
         }
 
-        // RSI overbought rollover (weight 1): fires once, when RSI drops back
+        // RSI overbought rollover: fires once, when RSI drops back
         // through 70 from above — momentum has already turned, not merely
         // "still high."
         if ($today->rsi_14 !== null && $yesterday?->rsi_14 !== null) {
             $rsi = (float) $today->rsi_14;
             $previousRsi = (float) $yesterday->rsi_14;
             if ($previousRsi > 70 && $rsi <= 70) {
-                $score -= 1;
                 $reasons[] = sprintf('RSI rolled over from overbought (%.1f → %.1f)', $previousRsi, $rsi);
                 $ruleKeys[] = 'rsi_overbought';
             }
         }
 
-        // MACD/signal crossover (weight 1)
+        // MACD/signal crossover
         if ($today->macd !== null && $today->macd_signal !== null
             && $yesterday?->macd !== null && $yesterday?->macd_signal !== null) {
             if ($yesterday->macd <= $yesterday->macd_signal && $today->macd > $today->macd_signal) {
-                $score += 1;
                 $reasons[] = 'MACD bullish crossover';
                 $ruleKeys[] = 'macd_bull_cross';
             } elseif ($yesterday->macd >= $yesterday->macd_signal && $today->macd < $today->macd_signal) {
-                $score -= 1;
                 $reasons[] = 'MACD bearish crossover';
                 $ruleKeys[] = 'macd_bear_cross';
             }
         }
 
-        // Lower Bollinger touch (weight 1, level test — kept as-is, backtests positive)
-        if ($close !== null && $today->bb_lower !== null) {
-            if ($close <= (float) $today->bb_lower) {
-                $score += 1;
-                $reasons[] = 'Price at/below lower Bollinger Band — potential rebound';
-                $ruleKeys[] = 'bb_lower_touch';
+        $percentB = $this->percentB($close, $today);
+        $previousPercentB = $this->percentB($previousClose, $yesterday);
+
+        // Bollinger %B at/below 0 = close on or under the lower band
+        // (level test).
+        if ($percentB !== null && $percentB <= 0) {
+            $reasons[] = sprintf('Bollinger %%B %.2f — at/below lower band, potential rebound', $percentB);
+            $ruleKeys[] = 'bb_lower_touch';
+        }
+
+        // Bollinger %B rejection: fires once, when %B drops back
+        // under 1 after having been at/above it the previous day — a
+        // rejection from the upper band, not merely "still up there."
+        if ($percentB !== null && $previousPercentB !== null && $previousPercentB >= 1 && $percentB < 1) {
+            $reasons[] = sprintf('Bollinger %%B fell back from %.2f to %.2f — rejected from upper band, potential pullback', $previousPercentB, $percentB);
+            $ruleKeys[] = 'bb_upper_touch';
+        }
+
+        // Stochastic %K/%D crossover, only counted inside the
+        // extreme zones — a cross in the 20-80 middle is noise. Like the
+        // RSI/Bollinger bearish rules, a crossover fires once per event
+        // rather than on every day the oscillator sits at an extreme.
+        if ($today->stoch_k !== null && $today->stoch_d !== null
+            && $yesterday?->stoch_k !== null && $yesterday?->stoch_d !== null) {
+            $k = (float) $today->stoch_k;
+            $d = (float) $today->stoch_d;
+            $previousK = (float) $yesterday->stoch_k;
+            $previousD = (float) $yesterday->stoch_d;
+
+            if ($previousK <= $previousD && $k > $d && $d < 20) {
+                $reasons[] = sprintf('Stochastic %%K crossed above %%D while oversold (%%K %.1f, %%D %.1f)', $k, $d);
+                $ruleKeys[] = 'stoch_bull_cross';
+            } elseif ($previousK >= $previousD && $k < $d && $d > 80) {
+                $reasons[] = sprintf('Stochastic %%K crossed below %%D while overbought (%%K %.1f, %%D %.1f)', $k, $d);
+                $ruleKeys[] = 'stoch_bear_cross';
             }
         }
 
-        // Upper Bollinger rejection (weight 1): fires once, when price closes
-        // back inside the band after having tagged/exceeded the upper band
-        // the previous day — a rejection, not merely "still up there."
-        if ($close !== null && $previousClose !== null && $today->bb_upper !== null && $yesterday?->bb_upper !== null) {
-            $upperYesterday = (float) $yesterday->bb_upper;
-            $upperToday = (float) $today->bb_upper;
-            if ($previousClose >= $upperYesterday && $close < $upperToday) {
-                $score -= 1;
-                $reasons[] = 'Price rejected from upper Bollinger Band — potential pullback';
-                $ruleKeys[] = 'bb_upper_touch';
-            }
+        return [$reasons, $ruleKeys];
+    }
+
+    /**
+     * Computed from the close and that day's bands rather than read from
+     * the stored bb_percent_b column, so the rule is always consistent
+     * with the bands it's judged against (and works on rows recalculated
+     * before that column existed). Same formula as
+     * TechnicalAnalysisService::percentB().
+     */
+    private function percentB(?float $close, $indicator): ?float
+    {
+        if ($close === null || $indicator?->bb_upper === null || $indicator?->bb_lower === null) {
+            return null;
         }
 
-        return [$score, $reasons, $ruleKeys];
+        $upper = (float) $indicator->bb_upper;
+        $lower = (float) $indicator->bb_lower;
+
+        return $upper > $lower ? ($close - $lower) / ($upper - $lower) : null;
     }
 
     /**
      * A small, bounded valuation nudge from EPS/P-E/PBV — capped at ±0.23
-     * total (well under the 0.3 buy/sell threshold on its own), so it can
+     * total (well under the 0.5 buy/sell threshold on its own), so it can
      * only tilt an already-close-to-the-line call, never manufacture one
      * from nothing. Called from generate() ONLY for a stock's single most
      * recent row — see the call site's comment for why: StockFundamental
@@ -314,12 +355,12 @@ class SignalGeneratorService
      * exactly once per crossing, not every day the gap stays wide).
      *
      * @param  array{side: ?string, streak: int, confirmed: bool}  $state
-     * @return array{0: float, 1: ?string, 2: ?string}
+     * @return array{0: ?string, 1: ?string} reason, rule key
      */
     private function goldenDeathCross($today, array &$state): array
     {
         if ($today->sma_50 === null || $today->sma_200 === null || (float) $today->sma_200 === 0.0) {
-            return [0.0, null, null];
+            return [null, null];
         }
 
         $sma50 = (float) $today->sma_50;
@@ -335,54 +376,64 @@ class SignalGeneratorService
         }
 
         if ($state['confirmed'] || $state['streak'] < self::CROSS_CONFIRM_DAYS) {
-            return [0.0, null, null];
+            return [null, null];
         }
 
         $gapPct = abs($sma50 - $sma200) / $sma200 * 100;
 
         if ($gapPct < self::CROSS_MIN_GAP_PCT) {
-            return [0.0, null, null];
+            return [null, null];
         }
 
         $state['confirmed'] = true;
 
         return $side === 'above'
-            ? [2.0, sprintf('Golden cross: SMA50 has held %.2f%% above SMA200 for %d+ days (long-term bullish)', $gapPct, self::CROSS_CONFIRM_DAYS), 'golden_cross']
-            : [-2.0, sprintf('Death cross: SMA50 has held %.2f%% below SMA200 for %d+ days (long-term bearish)', $gapPct, self::CROSS_CONFIRM_DAYS), 'death_cross'];
+            ? [sprintf('Golden cross: SMA50 has held %.2f%% above SMA200 for %d+ days (long-term bullish)', $gapPct, self::CROSS_CONFIRM_DAYS), 'golden_cross']
+            : [sprintf('Death cross: SMA50 has held %.2f%% below SMA200 for %d+ days (long-term bearish)', $gapPct, self::CROSS_CONFIRM_DAYS), 'death_cross'];
     }
 
     /**
-     * Thresholds are set in terms of raw (pre-/6) rule weight so they're easy
-     * to reason about: 0.3 ≈ 2 points (two weight-1 rules agreeing, or one
-     * weight-2 cross alone), 0.5 ≈ 3 points. A single weight-1 rule alone
-     * (1/6 = 0.167) no longer clears the buy/sell bar on its own — backtesting
-     * showed single-indicator triggers accounted for ~99.97% of directional
-     * calls and dragged accuracy below the "did price just keep drifting"
-     * baseline, so a directional signal now requires real confluence.
+     * 0.5 = one directional (mean-reversion) rule, 1.0 = both agreeing —
+     * see SCORE_SCALE. Bearish tiers additionally require
+     * $bearishAllowed (close below SMA200 — see isBelowLongTermTrend()).
      *
-     * The buy/sell bar was previously ASYMMETRIC (buy fires at raw>=2, sell
-     * only at raw<=-3) because a chronological 70/30 backtest found that
-     * raw=-2 (mostly the RSI-overbought + upper-Bollinger-Band combo, ~90%
-     * of that bucket) underperformed baseline while its bullish mirror
-     * beat it. The cause turned out to be the shape of the bearish rules
-     * themselves, not the threshold: rsi_overbought/bb_upper_touch were a
-     * level test that fired on every day a stock sat overbought, which in a
-     * trending market mostly means "still going up," not "about to fall."
-     * score() now fires those two rules on rollover/rejection instead (see
-     * its own docblock) — re-run `signals:backtest-accuracy` after that
-     * change and confirm the 'sell' bucket clears baseline before trusting
-     * this threshold in production; if it still doesn't, tighten this back
-     * to raw<=-3 rather than shipping a coin-flip-or-worse bearish tier
-     * again.
+     * Chosen from a chronological 70/30 walk-forward backtest (30-day
+     * horizon, ~256k stock-days, tuned on the earlier 70% of dates and
+     * confirmed on the later 30% it never saw). Edge = win rate minus the
+     * same period's unfiltered baseline, in points:
+     *
+     *                  this scheme      previous (all rules, raw/6 ≥0.3/0.5)
+     *   strong_buy    +5.0 / +4.5       +14.1 / -3.1   (didn't hold up)
+     *   buy           +1.5 / +2.5        +2.3 / +2.3
+     *   sell          +0.4 / +5.7        -6.0 / +1.9
+     *   strong_sell  +10.7 / +8.2        -2.5 / +0.6
+     *
+     * Every tier beats baseline in both periods, and each strong tier beats
+     * its normal tier in both — the previous scheme managed neither. Re-run
+     * the signal backtest (/cron/reports/backtest-signals) after any change
+     * to SignalRules weights or these thresholds and check the same thing
+     * before trusting it.
      */
-    private function classify(float $score): string
+    private function classify(float $score, bool $bearishAllowed): string
     {
         return match (true) {
-            $score >= 0.5 => 'strong_buy',
-            $score >= 0.3 => 'buy',
-            $score <= -0.5 => 'strong_sell',
-            $score <= -0.3 => 'sell',
+            $score >= 1.0 => 'strong_buy',
+            $score >= 0.5 => 'buy',
+            $bearishAllowed && $score <= -1.0 => 'strong_sell',
+            $bearishAllowed && $score <= -0.5 => 'sell',
             default => 'hold',
         };
+    }
+
+    /**
+     * Bearish calls only count while the stock is already below its
+     * 200-day average. Overbought/rejection rules firing inside an uptrend
+     * were what made 'sell' lose to baseline (average +3.7% forward return
+     * after a sell) — in an uptrend they mark a pause, not a top. No
+     * SMA200 yet (under ~200 days of history) means no bearish call.
+     */
+    private function isBelowLongTermTrend($indicator, ?float $close): bool
+    {
+        return $close !== null && $indicator->sma_200 !== null && $close < (float) $indicator->sma_200;
     }
 }
