@@ -1,7 +1,31 @@
-# Vue 3 + Vite
+# Share Market Signals — frontend
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+The Vue 3 single-page app for Share Market Signals. It talks to the Laravel API in `../backend`. See the [main README](../README.md) for the whole project.
 
-## Recommended IDE Setup
+## Setup
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
+```bash
+npm install
+echo "VITE_API_URL=http://localhost:8000" > .env   # where the backend runs
+npm run dev                                         # http://localhost:5173
+```
+
+## Build
+
+```bash
+npm run build      # uses .env.production — set VITE_API_URL there to the live API
+```
+
+Upload the contents of `dist/`.
+
+## Where things are
+
+```
+src/views/        one file per page
+src/components/   shared pieces (tables, charts, layout)
+src/stores/       Pinia stores
+src/api/client.js the axios client (session-cookie auth with the backend)
+src/directives/   v-align-numbers — right-aligns number columns in tables
+```
+
+Put `v-align-numbers` on every new `<table>` so its price and number columns right-align.

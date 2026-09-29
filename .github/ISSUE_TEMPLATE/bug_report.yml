@@ -1,0 +1,67 @@
+name: Bug report
+description: Something isn't working as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. **Security problems don't belong here** — please use the repository's Security tab → "Report a vulnerability" instead (see SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead?
+      placeholder: On the Portfolio page, the unrealized P&L for NABIL shows Rs. 0 after I added a buy.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to Portfolio → Holdings
+        2. Add a buy of 10 NABIL at 565
+        3. See the P&L column
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Market data / price sync
+        - Signals / indicators
+        - Reports
+        - Portfolio
+        - Watchlists / alerts
+        - Login / account
+        - Cron tasks (/cron/* URLs)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where did it happen?
+      options:
+        - Production
+        - Local development
+    validations:
+      required: true
+
+  - type: input
+    id: stock
+    attributes:
+      label: Stock symbol and date (if relevant)
+      placeholder: NABIL, 2026-09-28
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error messages, logs or screenshots
+      description: For a cron task, paste its output (the part ending in [ok] or [failed]). Remove any secrets such as ?key=… before pasting.
+      render: text
