@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import client from '../api/client'
+import * as authApi from '../api/auth'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -23,8 +23,7 @@ async function saveProfile() {
   profileMessage.value = ''
   profileError.value = ''
   try {
-    const { data } = await client.put('/user/profile', { name: name.value, email: email.value })
-    auth.user = data.user
+    auth.user = await authApi.updateProfile({ name: name.value, email: email.value })
     profileMessage.value = 'Profile updated.'
   } catch (e) {
     profileError.value = e.response?.data?.message || 'Could not update profile.'
@@ -38,7 +37,7 @@ async function savePassword() {
   passwordMessage.value = ''
   passwordError.value = ''
   try {
-    await client.put('/user/password', {
+    await authApi.updatePassword({
       current_password: currentPassword.value,
       password: newPassword.value,
       password_confirmation: newPasswordConfirm.value,
@@ -57,10 +56,9 @@ async function savePassword() {
 
 <template>
   <div>
-    <h1>Profile</h1>
+    <PageHeader title="Profile" />
 
-    <div class="card form-stack" style="margin-top: 16px">
-      <h3>Account details</h3>
+    <Card title="Account details" class="form-stack" style="margin-top: 16px">
       <input v-model="name" class="input" placeholder="Name" />
       <input v-model="email" type="email" class="input" placeholder="Email" />
       <p v-if="profileMessage" class="muted">{{ profileMessage }}</p>
@@ -68,10 +66,9 @@ async function savePassword() {
       <button class="btn" :disabled="profileSaving" @click="saveProfile" style="align-self: flex-start">
         {{ profileSaving ? 'Saving…' : 'Save' }}
       </button>
-    </div>
+    </Card>
 
-    <div class="card form-stack" style="margin-top: 16px">
-      <h3>Change password</h3>
+    <Card title="Change password" class="form-stack" style="margin-top: 16px">
       <input v-model="currentPassword" type="password" class="input" placeholder="Current password" />
       <input v-model="newPassword" type="password" class="input" placeholder="New password" />
       <input v-model="newPasswordConfirm" type="password" class="input" placeholder="Confirm new password" />
@@ -80,6 +77,6 @@ async function savePassword() {
       <button class="btn" :disabled="passwordSaving" @click="savePassword" style="align-self: flex-start">
         {{ passwordSaving ? 'Saving…' : 'Change Password' }}
       </button>
-    </div>
+    </Card>
   </div>
 </template>

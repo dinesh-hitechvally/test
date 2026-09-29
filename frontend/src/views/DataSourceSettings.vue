@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as marketApi from '../api/market'
 import { useStocksStore } from '../stores/stocks'
 import { useSortableTable } from '../composables/useSortableTable'
 
@@ -10,22 +9,20 @@ const flaggedStocks = ref([])
 const secretConfigured = ref(true)
 const loading = ref(true)
 
-const { sorted: sortedLogs, toggleSort, sortIndicator } = useSortableTable(
+const logsTable = useSortableTable(
   computed(() => store.scrapeLogs),
   { defaultKey: 'created_at', defaultDir: 'desc' }
 )
+const { sorted: sortedLogs } = logsTable
 
-const {
-  sorted: sortedFlagged,
-  toggleSort: toggleFlaggedSort,
-  sortIndicator: flaggedSortIndicator,
-} = useSortableTable(flaggedStocks, { defaultKey: 'scrape_error_at', defaultDir: 'desc' })
+const flaggedTable = useSortableTable(flaggedStocks, { defaultKey: 'scrape_error_at', defaultDir: 'desc' })
+const { sorted: sortedFlagged } = flaggedTable
 
 async function load() {
   loading.value = true
-  const [scheduleRes] = await Promise.all([client.get('/schedule'), store.fetchScrapeLogs()])
-  flaggedStocks.value = scheduleRes.data.flagged_stocks
-  secretConfigured.value = scheduleRes.data.secret_configured
+  const [status] = await Promise.all([marketApi.dataSourceStatus(), store.fetchScrapeLogs()])
+  flaggedStocks.value = status.flagged_stocks
+  secretConfigured.value = status.secret_configured
   loading.value = false
 }
 
@@ -36,17 +33,16 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Data Source / Scrape Settings</h1>
-    <p class="muted">
+    <PageHeader title="Data Source / Scrape Settings">
       Data is fetched by the <code>/cron/*</code> URLs (see <code>routes/web.php</code>), scheduled in cPanel cron.
-    </p>
+    </PageHeader>
 
     <p v-if="!loading && !secretConfigured" class="error-text card" style="margin-top: 12px">
       <code>CRON_SECRET</code> isn't set in the backend's <code>.env</code> — every cron URL will 403 until it is.
     </p>
 
-    <div v-if="!loading" class="card" style="margin-top: 12px">
-      <h3>Stocks with Data Issues <span v-if="sortedFlagged.length" class="badge sell">{{ sortedFlagged.length }}</span></h3>
+    <Card v-if="!loading" style="margin-top: 12px">
+      <template #title>Stocks with Data Issues <span v-if="sortedFlagged.length" class="badge sell">{{ sortedFlagged.length }}</span></template>
       <p class="muted">
         A stock lands here when its last full-history, sector, or dividend fetch failed — not a retry, just a flag so a
         failure doesn't sit silently in a log file. Cleared automatically the next time that same fetch succeeds (e.g.
@@ -56,16 +52,16 @@ onMounted(load)
       <table v-align-numbers class="table" v-if="sortedFlagged.length">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleFlaggedSort('symbol')">Symbol {{ flaggedSortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleFlaggedSort('company_name')">Company {{ flaggedSortIndicator('company_name') }}</th>
-            <th class="sortable" @click="toggleFlaggedSort('scrape_error_source')">Failed on {{ flaggedSortIndicator('scrape_error_source') }}</th>
+            <SortableTh :table="flaggedTable" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="flaggedTable" column="company_name">Company</SortableTh>
+            <SortableTh :table="flaggedTable" column="scrape_error_source">Failed on</SortableTh>
             <th>Error</th>
-            <th class="sortable" @click="toggleFlaggedSort('scrape_error_at')">When {{ flaggedSortIndicator('scrape_error_at') }}</th>
+            <SortableTh :table="flaggedTable" column="scrape_error_at">When</SortableTh>
           </tr>
         </thead>
         <tbody>
           <tr v-for="s in sortedFlagged" :key="s.id">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+            <td><StockLink :symbol="s.symbol" /></td>
             <td class="muted">{{ s.company_name || '—' }}</td>
             <td><span class="badge sell">{{ sourceLabels[s.scrape_error_source] || s.scrape_error_source }}</span></td>
             <td class="muted">{{ s.scrape_error }}</td>
@@ -73,20 +69,19 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">No flagged stocks right now — every full-history and sector fetch that's been tried has succeeded.</p>
-    </div>
+      <EmptyState v-else>No flagged stocks right now — every full-history and sector fetch that's been tried has succeeded.</EmptyState>
+    </Card>
 
-    <div class="card" style="margin-top: 16px">
-      <h3>Recent Scrape Activity</h3>
-      <p v-if="loading" class="muted">Loading…</p>
+    <Card title="Recent Scrape Activity" style="margin-top: 16px">
+      <LoadingState v-if="loading" />
       <table v-align-numbers class="table" v-else-if="store.scrapeLogs.length">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('source')">Source {{ sortIndicator('source') }}</th>
-            <th class="sortable" @click="toggleSort('status')">Status {{ sortIndicator('status') }}</th>
-            <th class="sortable" @click="toggleSort('records_processed')">Records {{ sortIndicator('records_processed') }}</th>
+            <SortableTh :table="logsTable" column="source">Source</SortableTh>
+            <SortableTh :table="logsTable" column="status">Status</SortableTh>
+            <SortableTh :table="logsTable" column="records_processed">Records</SortableTh>
             <th>Message</th>
-            <th class="sortable" @click="toggleSort('created_at')">When {{ sortIndicator('created_at') }}</th>
+            <SortableTh :table="logsTable" column="created_at">When</SortableTh>
           </tr>
         </thead>
         <tbody>
@@ -99,8 +94,8 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">No scrape activity logged yet.</p>
-    </div>
+      <EmptyState v-else>No scrape activity logged yet.</EmptyState>
+    </Card>
   </div>
 </template>
 

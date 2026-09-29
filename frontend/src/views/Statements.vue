@@ -17,16 +17,15 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Statements</h1>
-    <p class="muted">
+    <PageHeader title="Statements">
       Export your current portfolio — holdings, transactions, and realized gains/losses — as a document. For
       per-transaction realized-gain detail on screen, see
       <RouterLink :to="{ name: 'portfolio-reports' }">Realized P/L / Tax Report</RouterLink>.
-    </p>
+    </PageHeader>
 
-    <p v-if="!store.activePortfolioId" class="muted">Loading your portfolio…</p>
+    <LoadingState v-if="!store.activePortfolioId">Loading your portfolio…</LoadingState>
 
-    <div v-else class="card export-options">
+    <Card v-else class="export-options">
       <a class="export-card" :href="pdfUrl">
         <strong>PDF Statement</strong>
         <span class="muted">Summary, holdings, and realized gains/losses — formatted for printing or sharing.</span>
@@ -39,7 +38,7 @@ onMounted(async () => {
         <strong>CSV</strong>
         <span class="muted">Plain-text holdings + transactions, one file — easiest to import elsewhere.</span>
       </a>
-    </div>
+    </Card>
   </div>
 </template>
 

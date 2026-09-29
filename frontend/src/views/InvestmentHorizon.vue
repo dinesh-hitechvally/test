@@ -1,15 +1,13 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
-import { formatPrice } from '../utils/format'
+import * as reportsApi from '../api/reports'
+import { changeTone, formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const TIERS = [
   {
     key: 'short',
     label: 'Short-Term',
-    endpoint: '/reports/short-term',
     scoreKey: 'short_term_score',
     signalKey: 'short_term_signal',
     description:
@@ -18,7 +16,6 @@ const TIERS = [
   {
     key: 'mid',
     label: 'Mid-Term',
-    endpoint: '/reports/mid-term',
     scoreKey: 'mid_term_score',
     signalKey: 'mid_term_signal',
     description:
@@ -27,7 +24,6 @@ const TIERS = [
   {
     key: 'long',
     label: 'Long-Term',
-    endpoint: '/reports/long-term',
     scoreKey: 'long_term_score',
     signalKey: null,
     description:
@@ -45,11 +41,9 @@ const currentTier = computed(() => TIERS.find((t) => t.key === activeTier.value)
 
 async function loadTier(key) {
   if (loaded.value[key] || loading.value[key]) return
-  const tier = TIERS.find((t) => t.key === key)
   loading.value[key] = true
   try {
-    const { data: res } = await client.get(tier.endpoint)
-    data.value[key] = res.candidates
+    data.value[key] = await reportsApi.horizons[key]()
     loaded.value[key] = true
   } finally {
     loading.value[key] = false
@@ -71,9 +65,12 @@ const rowsShort = computed(() => bySide(data.value.short, 'short_term_signal'))
 const rowsMid = computed(() => bySide(data.value.mid, 'mid_term_signal'))
 const rowsLong = computed(() => data.value.long)
 
-const { sorted: sortedShort, toggleSort: toggleShort, sortIndicator: indicatorShort } = useSortableTable(rowsShort, { defaultKey: 'short_term_score', defaultDir: 'desc' })
-const { sorted: sortedMid, toggleSort: toggleMid, sortIndicator: indicatorMid } = useSortableTable(rowsMid, { defaultKey: 'mid_term_score', defaultDir: 'desc' })
-const { sorted: sortedLong, toggleSort: toggleLong, sortIndicator: indicatorLong } = useSortableTable(rowsLong, { defaultKey: 'long_term_score', defaultDir: 'desc' })
+const tableShort = useSortableTable(rowsShort, { defaultKey: 'short_term_score', defaultDir: 'desc' })
+const tableMid = useSortableTable(rowsMid, { defaultKey: 'mid_term_score', defaultDir: 'desc' })
+const tableLong = useSortableTable(rowsLong, { defaultKey: 'long_term_score', defaultDir: 'desc' })
+const { sorted: sortedShort } = tableShort
+const { sorted: sortedMid } = tableMid
+const { sorted: sortedLong } = tableLong
 
 const sorted = computed(() => {
   if (activeTier.value === 'short') return sortedShort.value
@@ -81,11 +78,6 @@ const sorted = computed(() => {
 
   return sortedLong.value
 })
-
-function changeTone(pct) {
-  if (pct === null || pct === undefined) return ''
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
-}
 
 function selectTier(key) {
   activeTier.value = key
@@ -95,8 +87,7 @@ function selectTier(key) {
 
 <template>
   <div>
-    <h1>Investment Horizon</h1>
-    <p class="muted">Find buy and sell candidates by holding period — short-term (days/weeks), mid-term (weeks/months), and long-term (buy-and-hold).</p>
+    <PageHeader title="Investment Horizon">Find buy and sell candidates by holding period — short-term (days/weeks), mid-term (weeks/months), and long-term (buy-and-hold).</PageHeader>
 
     <div class="filters">
       <button v-for="t in TIERS" :key="t.key" class="btn-secondary btn" :class="{ active: activeTier === t.key }" @click="selectTier(t.key)">
@@ -111,31 +102,31 @@ function selectTier(key) {
       <button class="btn-secondary btn small" :class="{ active: activeSide === 'sell' }" @click="activeSide = 'sell'">Sell / Avoid Candidates</button>
     </div>
 
-    <div class="card" style="margin-top: 12px">
-      <p v-if="loading[activeTier]" class="muted">Scoring every stock — this can take a moment…</p>
+    <Card style="margin-top: 12px">
+      <LoadingState v-if="loading[activeTier]">Scoring every stock — this can take a moment…</LoadingState>
       <template v-else>
         <p class="muted">{{ sorted.length }} candidate{{ sorted.length === 1 ? '' : 's' }}.</p>
 
         <table v-align-numbers v-if="activeTier === 'short'" class="table">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleShort('symbol')">Symbol {{ indicatorShort('symbol') }}</th>
-              <th class="sortable" @click="toggleShort('sector')">Sector {{ indicatorShort('sector') }}</th>
-              <th class="sortable" @click="toggleShort('close')">Price {{ indicatorShort('close') }}</th>
-              <th class="sortable" @click="toggleShort('change_pct')">% Chg {{ indicatorShort('change_pct') }}</th>
-              <th class="sortable" @click="toggleShort('short_term_score')">Score {{ indicatorShort('short_term_score') }}</th>
-              <th class="sortable" @click="toggleShort('short_term_signal')">Signal {{ indicatorShort('short_term_signal') }}</th>
-              <th class="sortable" @click="toggleShort('rsi_14')">RSI {{ indicatorShort('rsi_14') }}</th>
+              <SortableTh :table="tableShort" column="symbol">Symbol</SortableTh>
+              <SortableTh :table="tableShort" column="sector">Sector</SortableTh>
+              <SortableTh :table="tableShort" column="close">Price</SortableTh>
+              <SortableTh :table="tableShort" column="change_pct">% Chg</SortableTh>
+              <SortableTh :table="tableShort" column="short_term_score">Score</SortableTh>
+              <SortableTh :table="tableShort" column="short_term_signal">Signal</SortableTh>
+              <SortableTh :table="tableShort" column="rsi_14">RSI</SortableTh>
             </tr>
           </thead>
           <tbody>
             <tr v-for="s in sorted" :key="s.stock_id" :title="s.reasons.join(' · ')">
-              <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+              <td><StockLink :symbol="s.symbol" /></td>
               <td class="muted">{{ s.sector || '—' }}</td>
               <td>{{ formatPrice(s.close) }}</td>
               <td :class="changeTone(s.change_pct)">{{ s.change_pct !== null ? `${s.change_pct > 0 ? '+' : ''}${s.change_pct}%` : '—' }}</td>
               <td><strong>{{ s.short_term_score }}</strong></td>
-              <td><span class="badge" :class="s.short_term_signal">{{ s.short_term_signal.replace('_', ' ') }}</span></td>
+              <td><SignalBadge :signal="s.short_term_signal" /></td>
               <td class="muted">{{ s.rsi_14 !== null ? s.rsi_14.toFixed(1) : '—' }}</td>
             </tr>
             <tr v-if="sorted.length === 0">
@@ -147,23 +138,23 @@ function selectTier(key) {
         <table v-align-numbers v-else-if="activeTier === 'mid'" class="table">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleMid('symbol')">Symbol {{ indicatorMid('symbol') }}</th>
-              <th class="sortable" @click="toggleMid('sector')">Sector {{ indicatorMid('sector') }}</th>
-              <th class="sortable" @click="toggleMid('close')">Price {{ indicatorMid('close') }}</th>
-              <th class="sortable" @click="toggleMid('mid_term_score')">Score {{ indicatorMid('mid_term_score') }}</th>
-              <th class="sortable" @click="toggleMid('mid_term_signal')">Signal {{ indicatorMid('mid_term_signal') }}</th>
-              <th class="sortable" @click="toggleMid('rsi_14')">RSI {{ indicatorMid('rsi_14') }}</th>
-              <th class="sortable" @click="toggleMid('return_6m_pct')">6mo Return {{ indicatorMid('return_6m_pct') }}</th>
-              <th class="sortable" @click="toggleMid('volatility_pct')">Volatility {{ indicatorMid('volatility_pct') }}</th>
+              <SortableTh :table="tableMid" column="symbol">Symbol</SortableTh>
+              <SortableTh :table="tableMid" column="sector">Sector</SortableTh>
+              <SortableTh :table="tableMid" column="close">Price</SortableTh>
+              <SortableTh :table="tableMid" column="mid_term_score">Score</SortableTh>
+              <SortableTh :table="tableMid" column="mid_term_signal">Signal</SortableTh>
+              <SortableTh :table="tableMid" column="rsi_14">RSI</SortableTh>
+              <SortableTh :table="tableMid" column="return_6m_pct">6mo Return</SortableTh>
+              <SortableTh :table="tableMid" column="volatility_pct">Volatility</SortableTh>
             </tr>
           </thead>
           <tbody>
             <tr v-for="s in sorted" :key="s.stock_id" :title="s.reasons.join(' · ')">
-              <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+              <td><StockLink :symbol="s.symbol" /></td>
               <td class="muted">{{ s.sector || '—' }}</td>
               <td>{{ formatPrice(s.close) }}</td>
               <td><strong>{{ s.mid_term_score }}</strong></td>
-              <td><span class="badge" :class="s.mid_term_signal">{{ s.mid_term_signal.replace('_', ' ') }}</span></td>
+              <td><SignalBadge :signal="s.mid_term_signal" /></td>
               <td class="muted">{{ s.rsi_14 !== null ? s.rsi_14.toFixed(1) : '—' }}</td>
               <td :class="changeTone(s.return_6m_pct)">{{ s.return_6m_pct !== null ? `${s.return_6m_pct > 0 ? '+' : ''}${s.return_6m_pct}%` : 'not enough data' }}</td>
               <td class="muted">{{ s.volatility_pct !== null ? `${s.volatility_pct}%` : 'not enough data' }}</td>
@@ -177,20 +168,20 @@ function selectTier(key) {
         <table v-align-numbers v-else class="table">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleLong('symbol')">Symbol {{ indicatorLong('symbol') }}</th>
-              <th class="sortable" @click="toggleLong('sector')">Sector {{ indicatorLong('sector') }}</th>
-              <th class="sortable" @click="toggleLong('close')">Price {{ indicatorLong('close') }}</th>
-              <th class="sortable" @click="toggleLong('long_term_score')">Score {{ indicatorLong('long_term_score') }}</th>
-              <th class="sortable" @click="toggleLong('dividend_years_recorded')">Div. Years {{ indicatorLong('dividend_years_recorded') }}</th>
-              <th class="sortable" @click="toggleLong('avg_total_dividend_pct')">Avg Div % {{ indicatorLong('avg_total_dividend_pct') }}</th>
-              <th class="sortable" @click="toggleLong('right_share_count')">Right Shares {{ indicatorLong('right_share_count') }}</th>
-              <th class="sortable" @click="toggleLong('volatility_pct')">Volatility {{ indicatorLong('volatility_pct') }}</th>
-              <th class="sortable" @click="toggleLong('return_3y_pct')">3yr Return {{ indicatorLong('return_3y_pct') }}</th>
+              <SortableTh :table="tableLong" column="symbol">Symbol</SortableTh>
+              <SortableTh :table="tableLong" column="sector">Sector</SortableTh>
+              <SortableTh :table="tableLong" column="close">Price</SortableTh>
+              <SortableTh :table="tableLong" column="long_term_score">Score</SortableTh>
+              <SortableTh :table="tableLong" column="dividend_years_recorded">Div. Years</SortableTh>
+              <SortableTh :table="tableLong" column="avg_total_dividend_pct">Avg Div %</SortableTh>
+              <SortableTh :table="tableLong" column="right_share_count">Right Shares</SortableTh>
+              <SortableTh :table="tableLong" column="volatility_pct">Volatility</SortableTh>
+              <SortableTh :table="tableLong" column="return_3y_pct">3yr Return</SortableTh>
             </tr>
           </thead>
           <tbody>
             <tr v-for="s in sorted" :key="s.stock_id" :title="s.reasons.join(' · ')">
-              <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+              <td><StockLink :symbol="s.symbol" /></td>
               <td class="muted">{{ s.sector || '—' }}</td>
               <td>{{ formatPrice(s.close) }}</td>
               <td><strong>{{ s.long_term_score }}</strong></td>
@@ -206,7 +197,7 @@ function selectTier(key) {
           </tbody>
         </table>
       </template>
-    </div>
+    </Card>
   </div>
 </template>
 

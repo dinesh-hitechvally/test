@@ -1,19 +1,20 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import client from '../api/client'
+import * as marketApi from '../api/market'
+import * as reportsApi from '../api/reports'
+import * as stocksApi from '../api/stocks'
 import { useStocksStore } from '../stores/stocks'
 import { toHeikinAshi } from '../utils/chartTransforms'
-import CandlestickChart from '../components/CandlestickChart.vue'
-import OhlcBarChart from '../components/OhlcBarChart.vue'
-import PriceLineChart from '../components/PriceLineChart.vue'
-import RenkoChart from '../components/RenkoChart.vue'
-import KagiChart from '../components/KagiChart.vue'
-import PointFigureChart from '../components/PointFigureChart.vue'
-import TrendChart from '../components/TrendChart.vue'
-import SectorPerformanceChart from '../components/SectorPerformanceChart.vue'
-import StatCard from '../components/StatCard.vue'
-import SearchableSelect from '../components/SearchableSelect.vue'
+import { changeTone } from '../utils/format'
+import CandlestickChart from '../components/charts/CandlestickChart.vue'
+import OhlcBarChart from '../components/charts/OhlcBarChart.vue'
+import PriceLineChart from '../components/charts/PriceLineChart.vue'
+import RenkoChart from '../components/charts/RenkoChart.vue'
+import KagiChart from '../components/charts/KagiChart.vue'
+import PointFigureChart from '../components/charts/PointFigureChart.vue'
+import TrendChart from '../components/charts/TrendChart.vue'
+import SectorPerformanceChart from '../components/charts/SectorPerformanceChart.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -46,11 +47,6 @@ const chartType = ref('candlestick')
 
 const INDEX_COLORS = ['#2563eb', '#dc2626', '#15803d', '#d97706']
 
-function changeTone(value) {
-  if (value === null || value === undefined) return ''
-  return value > 0 ? 'positive' : value < 0 ? 'negative' : ''
-}
-
 // --- Overall (market-wide) ---
 const indices = ref([])
 const marketTrend = ref(null)
@@ -61,9 +57,9 @@ async function loadOverall() {
   if (overallLoaded) return
   overallLoading.value = true
   try {
-    const [indicesRes, marketRes] = await Promise.all([client.get('/indices'), client.get('/reports/market')])
-    indices.value = indicesRes.data
-    marketTrend.value = marketRes.data
+    const [indicesData, market] = await Promise.all([marketApi.indices(), reportsApi.market()])
+    indices.value = indicesData
+    marketTrend.value = market
     overallLoaded = true
   } finally {
     overallLoading.value = false
@@ -87,9 +83,9 @@ const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.sy
 
 async function loadSectorList() {
   if (sectorListLoaded) return
-  const [sectorsRes, marketRes] = await Promise.all([client.get('/reports/sectors'), client.get('/reports/market')])
-  sectors.value = sectorsRes.data
-  sectorPerformance.value = marketRes.data.sector_performance
+  const [sectorList, market] = await Promise.all([reportsApi.sectors(), reportsApi.market()])
+  sectors.value = sectorList
+  sectorPerformance.value = market.sector_performance
   sectorListLoaded = true
   if (sectors.value.length && !selectedSector.value) selectedSector.value = sectors.value[0].sector
 }
@@ -98,8 +94,7 @@ async function loadSectorTrend() {
   if (!selectedSector.value) return
   sectorLoading.value = true
   try {
-    const { data } = await client.get('/reports/sector', { params: { name: selectedSector.value } })
-    sectorTrendData.value = data
+    sectorTrendData.value = await reportsApi.sector(selectedSector.value)
   } finally {
     sectorLoading.value = false
   }
@@ -140,8 +135,7 @@ async function loadStock() {
 
   stockLoading.value = true
   try {
-    const { data } = await client.get(`/stocks/${selectedStock.value}/prices`, { params: { days: days.value } })
-    prices.value = data
+    prices.value = await stocksApi.prices(selectedStock.value, days.value)
   } finally {
     stockLoading.value = false
   }
@@ -204,8 +198,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Stock Charts</h1>
-    <p class="muted">Pick a report type, then narrow it down with a sector or stock and a chart style.</p>
+    <PageHeader title="Stock Charts">Pick a report type, then narrow it down with a sector or stock and a chart style.</PageHeader>
 
     <div class="card">
       <div class="picker-row">
@@ -246,7 +239,7 @@ onMounted(async () => {
 
     <!-- Overall -->
     <template v-if="reportType === 'overall'">
-      <p v-if="overallLoading" class="muted" style="margin-top: 16px">Loading…</p>
+      <LoadingState v-if="overallLoading" style="margin-top: 16px" />
       <template v-else-if="marketTrend">
         <div class="grid grid-cards" style="margin-top: 16px">
           <StatCard
@@ -259,36 +252,32 @@ onMounted(async () => {
           />
         </div>
 
-        <div class="card" style="margin-top: 16px" v-for="(idx, i) in indices" :key="`chart-${idx.index_name}`">
-          <h3>{{ idx.index_name }}</h3>
+        <Card :title="idx.index_name" style="margin-top: 16px" v-for="(idx, i) in indices" :key="`chart-${idx.index_name}`">
           <TrendChart :labels="idx.history.map((h) => h.trade_date)" :series="[{ label: idx.index_name, data: idx.history.map((h) => h.close), color: INDEX_COLORS[i % INDEX_COLORS.length] }]" :height="200" />
-        </div>
+        </Card>
 
-        <div class="card" style="margin-top: 16px">
-          <h3>Market Breadth — Last 30 Days</h3>
+        <Card title="Market Breadth — Last 30 Days" style="margin-top: 16px">
           <TrendChart :labels="trendLabels" :series="breadthSeries" />
-        </div>
+        </Card>
       </template>
     </template>
 
     <!-- Sector -->
     <template v-else-if="reportType === 'sector'">
-      <div class="card" style="margin-top: 16px">
-        <h3>Sector Performance (Today)</h3>
+      <Card title="Sector Performance (Today)" style="margin-top: 16px">
         <SectorPerformanceChart :sectors="sectorPerformance" />
-      </div>
+      </Card>
 
-      <p v-if="sectorLoading" class="muted" style="margin-top: 16px">Loading…</p>
-      <div class="card" style="margin-top: 16px" v-else-if="sectorTrendData">
-        <h3>{{ selectedSector }} — Advancing vs. Declining (Last 30 Days)</h3>
+      <LoadingState v-if="sectorLoading" style="margin-top: 16px" />
+      <Card :title="`${selectedSector} — Advancing vs. Declining (Last 30 Days)`" style="margin-top: 16px" v-else-if="sectorTrendData">
         <TrendChart :labels="sectorTrendLabels" :series="sectorTrendSeries" />
-      </div>
+      </Card>
     </template>
 
     <!-- Stock -->
     <template v-else>
-      <p v-if="stockLoading" class="muted" style="margin-top: 16px">Loading…</p>
-      <p v-else-if="!selectedStock" class="muted" style="margin-top: 16px">Select a stock above to see its chart.</p>
+      <LoadingState v-if="stockLoading" style="margin-top: 16px" />
+      <EmptyState v-else-if="!selectedStock" style="margin-top: 16px">Select a stock above to see its chart.</EmptyState>
       <div class="card" style="margin-top: 16px" v-else>
         <CandlestickChart v-if="chartType === 'candlestick'" :prices="prices" />
         <CandlestickChart v-else-if="chartType === 'heikin'" :prices="heikinPrices" />

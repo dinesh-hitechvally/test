@@ -1,15 +1,14 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import client from '../api/client'
+import * as reportsApi from '../api/reports'
 import { useStocksStore } from '../stores/stocks'
 import { useAuthStore } from '../stores/auth'
-import { formatPrice } from '../utils/format'
-import StatCard from '../components/StatCard.vue'
-import SignalDistributionChart from '../components/SignalDistributionChart.vue'
-import MarketBreadthChart from '../components/MarketBreadthChart.vue'
-import SectorBreakdownChart from '../components/SectorBreakdownChart.vue'
-import NavIcon from '../components/NavIcon.vue'
+import { changeTone, formatPrice } from '../utils/format'
+import SignalDistributionChart from '../components/charts/SignalDistributionChart.vue'
+import MarketBreadthChart from '../components/charts/MarketBreadthChart.vue'
+import SectorBreakdownChart from '../components/charts/SectorBreakdownChart.vue'
+import NavIcon from '../components/layout/NavIcon.vue'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const store = useStocksStore()
@@ -24,7 +23,7 @@ const greeting = computed(() => {
 
 const todayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
-const { sorted: sortedSignals, toggleSort, sortIndicator } = useSortableTable(
+const signals = useSortableTable(
   computed(() => store.todaySignals),
   {
     valueGetters: {
@@ -35,6 +34,7 @@ const { sorted: sortedSignals, toggleSort, sortIndicator } = useSortableTable(
     },
   }
 )
+const { sorted: sortedSignals } = signals
 const router = useRouter()
 const activeFilter = ref('')
 const report = ref(null)
@@ -55,23 +55,13 @@ async function loadSignals() {
 
 async function loadReport() {
   loadingReport.value = true
-  const { data } = await client.get('/reports/dashboard')
-  report.value = data
+  report.value = await reportsApi.dashboard()
   loadingReport.value = false
 }
 
 function setFilter(value) {
   activeFilter.value = value
   loadSignals()
-}
-
-function formatSignal(label) {
-  return label.replace('_', ' ')
-}
-
-function changeTone(pct) {
-  if (pct === null || pct === undefined) return ''
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
 }
 
 onMounted(async () => {
@@ -109,49 +99,49 @@ onMounted(async () => {
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr 1fr; margin-top: 16px">
-        <div class="card">
+        <Card>
           <h3 class="card-heading"><span class="card-icon"><NavIcon name="target" /></span>Signal Distribution</h3>
           <SignalDistributionChart :counts="report.signal_counts" />
-        </div>
-        <div class="card">
+        </Card>
+        <Card>
           <h3 class="card-heading"><span class="card-icon"><NavIcon name="pulse" /></span>Market Breadth</h3>
           <MarketBreadthChart :breadth="report.breadth" />
-        </div>
-        <div class="card">
+        </Card>
+        <Card>
           <h3 class="card-heading"><span class="card-icon"><NavIcon name="chart" /></span>Sector Breakdown</h3>
           <SectorBreakdownChart :sectors="report.sector_breakdown" />
-        </div>
+        </Card>
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
-        <div class="card">
+        <Card>
           <h3 class="card-heading positive-heading"><span class="card-icon positive-icon"><NavIcon name="target" /></span>Top Gainers</h3>
           <table v-align-numbers class="table">
             <tbody>
               <tr v-for="m in report.movers.gainers" :key="m.stock_id">
-                <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>
+                <td><StockLink :symbol="m.symbol" /></td>
                 <td class="muted">{{ m.company_name }}</td>
                 <td>Rs. {{ formatPrice(m.close) }}</td>
                 <td :class="changeTone(m.change_pct)">{{ m.change_pct > 0 ? '+' : '' }}{{ m.change_pct }}%</td>
               </tr>
             </tbody>
           </table>
-          <p v-if="report.movers.gainers.length === 0" class="muted">Not enough data yet.</p>
-        </div>
-        <div class="card">
+          <EmptyState v-if="report.movers.gainers.length === 0">Not enough data yet.</EmptyState>
+        </Card>
+        <Card>
           <h3 class="card-heading negative-heading"><span class="card-icon negative-icon"><NavIcon name="target" /></span>Top Losers</h3>
           <table v-align-numbers class="table">
             <tbody>
               <tr v-for="m in report.movers.losers" :key="m.stock_id">
-                <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>
+                <td><StockLink :symbol="m.symbol" /></td>
                 <td class="muted">{{ m.company_name }}</td>
                 <td>Rs. {{ formatPrice(m.close) }}</td>
                 <td :class="changeTone(m.change_pct)">{{ m.change_pct > 0 ? '+' : '' }}{{ m.change_pct }}%</td>
               </tr>
             </tbody>
           </table>
-          <p v-if="report.movers.losers.length === 0" class="muted">Not enough data yet.</p>
-        </div>
+          <EmptyState v-if="report.movers.losers.length === 0">Not enough data yet.</EmptyState>
+        </Card>
       </div>
     </template>
 
@@ -171,19 +161,19 @@ onMounted(async () => {
       </button>
     </div>
 
-    <p v-if="store.todaySignals.length === 0" class="muted" style="margin-top: 20px">
+    <EmptyState v-if="store.todaySignals.length === 0" style="margin-top: 20px">
       No signals yet — the scheduled market sync pulls today's prices automatically, or import historical CSVs from
       the Stocks page so indicators have enough history to compute (at least 20 trading days).
-    </p>
+    </EmptyState>
 
-    <div class="card" style="margin-top: 20px" v-if="store.todaySignals.length">
+    <Card style="margin-top: 20px" v-if="store.todaySignals.length">
       <table v-align-numbers class="table signal-table">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
-            <th class="sortable" @click="toggleSort('price')">Price {{ sortIndicator('price') }}</th>
-            <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+            <SortableTh :table="signals" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="signals" column="company_name">Company</SortableTh>
+            <SortableTh :table="signals" column="price">Price</SortableTh>
+            <SortableTh :table="signals" column="signal">Signal</SortableTh>
             <th>Reasons</th>
           </tr>
         </thead>
@@ -199,7 +189,7 @@ onMounted(async () => {
             </td>
             <td class="muted">{{ stock.company_name }}</td>
             <td>Rs. {{ formatPrice(stock.latest_price?.close_price) }}</td>
-            <td><span class="badge" :class="stock.latest_signal.signal">{{ formatSignal(stock.latest_signal.signal) }}</span></td>
+            <td><SignalBadge :signal="stock.latest_signal.signal" /></td>
             <td>
               <ul class="reasons">
                 <li v-for="(reason, i) in stock.latest_signal.reasons" :key="i">{{ reason }}</li>
@@ -208,7 +198,7 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-    </div>
+    </Card>
   </div>
 </template>
 

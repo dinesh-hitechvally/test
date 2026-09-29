@@ -1,12 +1,11 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
-import client from '../api/client'
+import { useRoute, useRouter } from 'vue-router'
+import * as reportsApi from '../api/reports'
+import * as stocksApi from '../api/stocks'
 import { useStocksStore } from '../stores/stocks'
-import { formatPrice } from '../utils/format'
-import StatCard from '../components/StatCard.vue'
-import PriceChart from '../components/PriceChart.vue'
-import SearchableSelect from '../components/SearchableSelect.vue'
+import { changeTone, formatPrice, formatSignal } from '../utils/format'
+import PriceChart from '../components/charts/PriceChart.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,11 +19,6 @@ const loading = ref(false)
 const error = ref('')
 
 const RETURN_LABELS = { '1w': '1 Week', '1m': '1 Month', '3m': '3 Months', '6m': '6 Months', '1y': '1 Year', ytd: 'YTD' }
-
-function tone(pct) {
-  if (pct === null || pct === undefined) return 'neutral'
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : 'neutral'
-}
 
 const returnRows = computed(() => {
   if (!report.value) return []
@@ -42,11 +36,11 @@ async function loadReport() {
   error.value = ''
   try {
     const [reportRes, pricesRes] = await Promise.all([
-      client.get(`/reports/stock/${selected.value}`),
-      client.get(`/stocks/${selected.value}/prices`, { params: { days: 180 } }),
+      reportsApi.stock(selected.value),
+      stocksApi.prices(selected.value, 180),
     ])
-    report.value = reportRes.data
-    prices.value = pricesRes.data
+    report.value = reportRes
+    prices.value = pricesRes
   } catch (e) {
     error.value = e.response?.data?.message || 'Failed to load stock report.'
     report.value = null
@@ -76,14 +70,13 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Stock Report</h1>
-    <p class="muted">Pick a stock to see its returns over standard lookback periods, recent signal activity, and price trend.</p>
+    <PageHeader title="Stock Report">Pick a stock to see its returns over standard lookback periods, recent signal activity, and price trend.</PageHeader>
 
-    <div class="card">
+    <Card>
       <SearchableSelect v-model="selected" :options="stockOptions" style="max-width: 340px" placeholder="Select a stock…" @change="onSelect" />
-    </div>
+    </Card>
 
-    <p v-if="loading" class="muted" style="margin-top: 16px">Loading…</p>
+    <LoadingState v-if="loading" style="margin-top: 16px" />
     <p v-else-if="error" class="muted" style="margin-top: 16px">{{ error }}</p>
 
     <template v-else-if="report">
@@ -92,25 +85,24 @@ onMounted(async () => {
         <StatCard
           label="Today's Change"
           :value="report.change_pct !== null ? `${report.change_pct > 0 ? '+' : ''}${report.change_pct}%` : '—'"
-          :tone="tone(report.change_pct)"
+          :tone="changeTone(report.change_pct, 'neutral')"
         />
         <StatCard label="Sector" :value="report.stock.sector || 'Other'" />
-        <StatCard label="Latest Signal" :value="report.latest_signal ? report.latest_signal.signal.replace('_', ' ') : 'No data'" />
+        <StatCard label="Latest Signal" :value="report.latest_signal ? formatSignal(report.latest_signal.signal) : 'No data'" />
       </div>
 
-      <div class="card" style="margin-top: 16px">
+      <Card style="margin-top: 16px">
         <div class="card-head">
           <h3 style="margin: 0">{{ report.stock.symbol }} — {{ report.stock.company_name }}</h3>
-          <RouterLink :to="{ name: 'stock-detail', params: { symbol: report.stock.symbol } }" class="btn-secondary btn">
+          <StockLink :symbol="report.stock.symbol" class="btn-secondary btn">
             Full Stock Detail
-          </RouterLink>
+          </StockLink>
         </div>
         <PriceChart :prices="prices" />
-      </div>
+      </Card>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
-        <div class="card">
-          <h3>Returns</h3>
+        <Card title="Returns">
           <table v-align-numbers class="table">
             <thead>
               <tr><th>Period</th><th>Return</th></tr>
@@ -118,25 +110,24 @@ onMounted(async () => {
             <tbody>
               <tr v-for="r in returnRows" :key="r.key">
                 <td>{{ r.label }}</td>
-                <td :class="tone(r.value)">{{ r.value !== null ? `${r.value > 0 ? '+' : ''}${r.value}%` : '—' }}</td>
+                <td :class="changeTone(r.value, 'neutral')">{{ r.value !== null ? `${r.value > 0 ? '+' : ''}${r.value}%` : '—' }}</td>
               </tr>
             </tbody>
           </table>
-        </div>
-        <div class="card">
-          <h3>Signals — Last 90 Days</h3>
+        </Card>
+        <Card title="Signals — Last 90 Days">
           <table v-align-numbers class="table">
             <thead>
               <tr><th>Signal</th><th>Days Triggered</th></tr>
             </thead>
             <tbody>
               <tr v-for="signal in ['strong_buy', 'buy', 'hold', 'sell', 'strong_sell']" :key="signal">
-                <td><span class="badge" :class="signal">{{ signal.replace('_', ' ') }}</span></td>
+                <td><SignalBadge :signal="signal" /></td>
                 <td>{{ report.signal_counts_90d[signal] ?? 0 }}</td>
               </tr>
             </tbody>
           </table>
-        </div>
+        </Card>
       </div>
     </template>
 

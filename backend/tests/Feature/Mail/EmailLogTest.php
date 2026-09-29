@@ -56,7 +56,7 @@ class EmailLogTest extends TestCase
 
     public function test_the_password_reset_email_is_recorded_but_its_body_never_is(): void
     {
-        $this->postJson('/api/forgot-password', ['email' => 'test@example.com'])->assertOk();
+        $this->graphQL('mutation { forgotPassword(email: "test@example.com") }')->assertJsonMissingPath('errors');
 
         $log = EmailLog::sole();
         $this->assertSame(EmailLog::STATUS_SENT, $log->status);
@@ -69,7 +69,7 @@ class EmailLogTest extends TestCase
     {
         $this->useFailingMailer();
 
-        $this->postJson('/api/forgot-password', ['email' => 'test@example.com'])->assertServerError();
+        $this->graphQL('mutation { forgotPassword(email: "test@example.com") }')->assertGraphQLErrorMessage('Internal server error');
 
         $log = EmailLog::sole();
         $this->assertSame(EmailLog::STATUS_FAILED, $log->status);
@@ -97,11 +97,10 @@ class EmailLogTest extends TestCase
         EmailLog::create(['status' => EmailLog::STATUS_FAILED, 'mailer' => 'smtp', 'to' => ['b@example.com'], 'subject' => 'B', 'error' => 'x', 'attempted_at' => now()]);
         Sanctum::actingAs($this->user);
 
-        $this->getJson('/api/email-logs')->assertOk()->assertJsonPath('total', 2);
-        $this->getJson('/api/email-logs?status=failed')
-            ->assertOk()
-            ->assertJsonPath('total', 1)
-            ->assertJsonPath('data.0.subject', 'B');
+        $this->graphQL('{ emailLogs { total } }')->assertJsonPath('data.emailLogs.total', 2);
+        $this->graphQL('{ emailLogs(status: "failed") { total data { subject } } }')
+            ->assertJsonPath('data.emailLogs.total', 1)
+            ->assertJsonPath('data.emailLogs.data.0.subject', 'B');
     }
 
     private function useFailingMailer(): void

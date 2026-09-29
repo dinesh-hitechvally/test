@@ -108,9 +108,8 @@ class CronTasksTest extends TestCase
     {
         Sanctum::actingAs(User::create(['name' => 'T', 'email' => 't@example.com', 'password' => 'password']));
 
-        $this->getJson('/api/schedule')
-            ->assertOk()
-            ->assertExactJson(['secret_configured' => true, 'flagged_stocks' => []]);
+        $this->graphQL('{ dataSourceStatus { secret_configured flagged_stocks { symbol } } }')
+            ->assertExactJson(['data' => ['dataSourceStatus' => ['secret_configured' => true, 'flagged_stocks' => []]]]);
     }
 
     private function price(Stock $stock, string $date): void

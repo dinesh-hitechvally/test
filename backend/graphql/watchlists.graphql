@@ -1,0 +1,44 @@
+type Watchlist {
+    id: Int!
+    user_id: Int
+    name: String!
+    created_at: String
+    updated_at: String
+    stocks: [Stock!]
+}
+
+"The watchlist ↔ stock link, with its price alert."
+type WatchlistItem {
+    id: Int
+    watchlist_id: Int
+    stock_id: Int
+    alert_price: String
+    alert_direction: String
+}
+
+type SavedScreen {
+    id: Int!
+    user_id: Int
+    name: String!
+    "The screener filters, as saved."
+    filters: JSON
+    created_at: String
+    updated_at: String
+}
+
+extend type Query @guard {
+    "The user's watchlists, each stock with its latest price, signal and today's change_pct."
+    watchlists: [Watchlist!]! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@watchlists")
+    savedScreens: [SavedScreen!]! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@savedScreens")
+}
+
+extend type Mutation @guard {
+    createWatchlist(name: String): Watchlist! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@createWatchlist")
+    addWatchlistStock(watchlist_id: Int!, stock_id: Int): Watchlist! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@addStock")
+    removeWatchlistStock(watchlist_id: Int!, stock_id: Int!): String! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@removeStock")
+    "Set or clear (nulls) a price alert on one watchlist stock. direction: above | below."
+    setWatchlistAlert(watchlist_id: Int!, stock_id: Int!, alert_price: Float, alert_direction: String): String!
+        @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@setAlert")
+    createSavedScreen(name: String, filters: JSON): SavedScreen! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@createSavedScreen")
+    deleteSavedScreen(id: Int!): String! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@deleteSavedScreen")
+}

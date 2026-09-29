@@ -10,12 +10,20 @@ app/
 ├── Contracts/            Interfaces for swappable parts (AI provider, price-history source).
 │                         Bound to implementations in AppServiceProvider::$bindings.
 ├── Events/               Facts the app announces ("prices changed", "a scrape finished").
+├── GraphQL/              The SPA's API (POST /graphql, Lighthouse). Schema in ../graphql/*.graphql.
+│   ├── Resolvers/        One class per area (Auth, Stock, Market, Report, Portfolio, Watchlist);
+│   │                     each field is a one-line call into a service.
+│   ├── Resolver          Base: plain() (same JSON as the models serialise to), validated()
+│   │                     (runs a FormRequest on the field's args).
+│   └── ErrorHandler · ApiError   Errors carry extensions.status (401/404/422/502) and
+│                         extensions.validation (the FormRequest's per-field messages).
 ├── Listeners/            What happens in response. Wired in AppServiceProvider::LISTENERS.
 ├── Http/
-│   ├── Controllers/Api/  JSON endpoints for the SPA (routes/api.php, auth:sanctum).
+│   ├── Controllers/Api/  The file transfers that stay plain HTTP (routes/api.php): the price CSV
+│   │                     upload and the portfolio CSV/PDF/Excel downloads.
 │   ├── Controllers/      CronController — one invokable action behind every /cron/* URL.
 │   ├── Middleware/       VerifyCronSecret (?key= on every /cron/* URL).
-│   └── Requests/         One FormRequest per input, grouped by area.
+│   └── Requests/         One FormRequest per input, grouped by area (used by resolvers too).
 ├── Models/               Eloquent models (one per table).
 ├── Providers/            AppServiceProvider — contract bindings + event wiring.
 ├── Tasks/                Background units of work, grouped by domain like Services/.
@@ -61,19 +69,28 @@ app/
 ```
 
 Tests mirror this: `tests/Feature/{Analysis,Auth,Cron,Events,Portfolio,Watchlists}`, `tests/Unit/{Analysis,DataSources}`.
+Feature tests call the API with `$this->graphQL($query, $variables)`.
 
 ## How a request flows
 
 ```
-SPA ──HTTP──▶ Controllers/Api ──▶ FormRequest (validation) ──▶ Service ──▶ Model/DB
+SPA ──POST /graphql──▶ Resolver ──▶ FormRequest (validation) ──▶ Service ──▶ Model/DB
+SPA ──file up/down──▶ Controllers/Api ──▶ Service
 Pinger ─GET─▶ /cron/<path> ──▶ VerifyCronSecret ──▶ CronController ──▶ TaskRunner ──▶ Task ──▶ Service
 ```
 
-**Controllers only call things.** A controller method does at most three
-things: validate (FormRequest), call a service / task / event, and turn the
-result into an HTTP response (including status codes like 404/422/502). No
-queries, loops or response assembly in a controller — that belongs in a
-service. No `$request->validate()`, no `new SomeService()`.
+**Resolvers and controllers only call things.** A resolver method (or
+controller action) does at most three things: validate (`$this->validated(SomeRequest::class, $args)`
+in a resolver, a type-hinted FormRequest in a controller), call a service /
+task / event, and return the result (`$this->plain(...)`) or throw
+`ApiError($message, $status)`. No queries, loops or response assembly — that
+belongs in a service. No `new SomeService()`.
+
+**GraphQL auth:** `/graphql` runs Sanctum's stateful middleware, so it uses the
+same session cookie as before. Every field except `me`, `login`,
+`forgotPassword` and `resetPassword` is `@guard`ed. Parsed queries are cached as
+PHP files in `bootstrap/cache` (`LIGHTHOUSE_QUERY_CACHE_MODE=opcache`), and
+`php artisan lighthouse:clear-cache` clears the cached schema after a schema change.
 
 ## Event workflow
 
@@ -86,7 +103,7 @@ waits for them.
 | `StockPricesUpdated` | market sync, history fetch (either source), CSV import | `RecalculateUpdatedStocks` → RecalculationPipeline for those stocks |
 | `ScrapeFinished` | every external fetch, success or failure | `RecordScrapeLog` → `scrape_logs` row |
 | `TaskFailed` | TaskRunner (any failed task) | `AlertTaskFailure` → FailureAlertService |
-| `UserLoggedIn` | AuthController::login | `RecordLoginHistory` → LoginHistoryService (IP, device, location) |
+| `UserLoggedIn` | the `login` mutation (AuthResolver) | `RecordLoginHistory` → LoginHistoryService (IP, device, location) |
 | Laravel `MessageSending` / `MessageSent` | every email, whatever sends it | `RecordEmailSending` / `RecordEmailSent` → EmailLogService |
 
 **Email log:** every email gets an `email_logs` row — status (`sending` → `sent`, `logged` when
@@ -94,7 +111,7 @@ the mailer is `log` so it was NOT delivered, or `failed` + the error), recipient
 mailer, message id, what sent it, and the matching user. Laravel has no "mail failed" event, so a
 transport exception is caught by the hook in `bootstrap/app.php`; code that catches a mail error
 itself must `report($e)` for the row to be marked failed. Bodies are never stored (reset links
-are secrets). Read it at `GET /api/email-logs?status=failed`.
+are secrets). Read it with the `emailLogs(status: "failed")` GraphQL query.
 
 So the daily chain is: **market sync → `StockPricesUpdated` → recalculation**,
 all in one request. Listeners are registered explicitly (discovery is off in
@@ -134,7 +151,8 @@ The app has no console commands of its own — every task runs through these URL
 | A new background task | a `Task` (or `PerStockTask` for per-stock work) in `Tasks/<Domain>/`. To trigger it by URL, add a route in `routes/web.php` (`->defaults('task', MyTask::class)`); schedule it in cPanel cron; if it needs URL input, override `withRequest()`. To run it from code: `app(TaskRunner::class)->run(app(MyTask::class))`. |
 | Swap the AI provider | a new `AiOpinionProvider` implementation + one line in `AppServiceProvider::$bindings` |
 | A new portfolio export format | a `PortfolioExporter` implementation + route |
-| A new API endpoint | FormRequest in `Http/Requests/<Area>/`, the logic in a service method, and a one-line controller method that calls it |
+| A new API field | the type + field in `graphql/<area>.graphql` (`@field(resolver: ...)`, `@guard` via the `extend type` block), a FormRequest in `Http/Requests/<Area>/` if it takes input, the logic in a service method, and a one-line resolver method; then add the query to the matching `frontend/src/api/<area>.js` |
+| A new file upload/download | a controller action in `Controllers/Api/` + a route in `routes/api.php` (GraphQL is for JSON only) |
 
 ## Conventions
 
@@ -153,6 +171,7 @@ Upload changed files, then on the server:
 composer dump-autoload -o
 php artisan migrate --force      # when there's a new migration
 php artisan optimize:clear       # clears cached config/routes/events
+php artisan lighthouse:clear-cache   # when a graphql/*.graphql file changed
 ```
 
 After changing indicator or signal logic: open `/cron/reports/market-recalculate?all=1&key=…`,

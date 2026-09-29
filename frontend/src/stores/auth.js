@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import client, { ensureCsrfCookie } from '../api/client'
+import { ensureCsrfCookie } from '../api/client'
+import * as authApi from '../api/auth'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -12,8 +13,7 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     async fetchUser() {
       try {
-        const { data } = await client.get('/user')
-        this.user = data.user
+        this.user = await authApi.me()
       } catch {
         this.user = null
       } finally {
@@ -22,21 +22,19 @@ export const useAuthStore = defineStore('auth', {
     },
     async login(credentials) {
       await ensureCsrfCookie()
-      await client.post('/login', credentials)
+      await authApi.login(credentials)
       await this.fetchUser()
     },
     async forgotPassword(email) {
       await ensureCsrfCookie()
-      const { data } = await client.post('/forgot-password', { email })
-      return data.message
+      return authApi.forgotPassword(email)
     },
     async resetPassword(payload) {
       await ensureCsrfCookie()
-      const { data } = await client.post('/reset-password', payload)
-      return data.message
+      return authApi.resetPassword(payload)
     },
     async logout() {
-      await client.post('/logout')
+      await authApi.logout()
       this.user = null
     },
   },

@@ -1,10 +1,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import client from '../api/client'
+import * as stocksApi from '../api/stocks'
 import { useStocksStore } from '../stores/stocks'
-import { formatPrice } from '../utils/format'
-import ComparisonChart from '../components/ComparisonChart.vue'
-import SearchableSelect from '../components/SearchableSelect.vue'
+import { changeTone, formatPrice } from '../utils/format'
+import ComparisonChart from '../components/charts/ComparisonChart.vue'
 
 const stocksStore = useStocksStore()
 const selected = ref([])
@@ -39,11 +38,6 @@ function removeStock(symbol) {
   loadComparison()
 }
 
-function changeTone(pct) {
-  if (pct === null || pct === undefined) return ''
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
-}
-
 async function loadComparison() {
   const thisRequest = ++requestSeq
 
@@ -58,11 +52,11 @@ async function loadComparison() {
   try {
     const results = await Promise.all(
       selected.value.map(async (symbol) => {
-        const [pricesRes, indicatorsRes] = await Promise.all([
-          client.get(`/stocks/${symbol}/prices`, { params: { days: 180 } }),
-          client.get(`/stocks/${symbol}/indicators`, { params: { days: 180 } }),
+        const [prices, indicators] = await Promise.all([
+          stocksApi.prices(symbol, 180),
+          stocksApi.indicators(symbol, 180),
         ])
-        return { symbol, prices: pricesRes.data, indicators: indicatorsRes.data }
+        return { symbol, prices, indicators }
       })
     )
 
@@ -118,8 +112,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Compare Stocks</h1>
-    <p class="muted">Pick up to 4 stocks to overlay their price performance (normalized to % change) and compare key stats.</p>
+    <PageHeader title="Compare Stocks">Pick up to 4 stocks to overlay their price performance (normalized to % change) and compare key stats.</PageHeader>
 
     <div class="card" style="margin-bottom: 20px">
       <div class="picker-row">
@@ -140,7 +133,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <p v-if="loading" class="muted">Loading comparison…</p>
+    <LoadingState v-if="loading">Loading comparison…</LoadingState>
 
     <template v-else-if="selected.length">
       <div class="card">
@@ -160,7 +153,7 @@ onMounted(async () => {
               <td :class="changeTone(s.change_pct)">{{ s.change_pct !== null ? `${s.change_pct > 0 ? '+' : ''}${s.change_pct}%` : '—' }}</td>
               <td>{{ s.rsi !== null ? Number(s.rsi).toFixed(1) : '—' }}</td>
               <td>
-                <span v-if="s.signal" class="badge" :class="s.signal">{{ s.signal.replace('_', ' ') }}</span>
+                <SignalBadge v-if="s.signal" :signal="s.signal" />
                 <span v-else class="muted">No data</span>
               </td>
             </tr>
@@ -169,7 +162,7 @@ onMounted(async () => {
       </div>
     </template>
 
-    <p v-else class="muted">Add at least one stock above to get started.</p>
+    <EmptyState v-else>Add at least one stock above to get started.</EmptyState>
   </div>
 </template>
 

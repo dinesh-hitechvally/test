@@ -1,0 +1,229 @@
+type Stock {
+    id: Int!
+    symbol: String!
+    nepse_security_id: Int
+    sector_id: Int
+    company_name: String
+    share_group: String
+    is_active: Boolean
+    created_at: String
+    updated_at: String
+    "The sector's name."
+    sector: String
+    "Today's % move (on lists that include it)."
+    change_pct: Float
+    latest_price: DailyPrice
+    latest_signal: Signal
+    latest_indicator: TechnicalIndicator
+    fundamental: StockFundamental
+    ai_opinion: AiStockOpinion
+    "On a watchlist's stocks: the alert set for this stock."
+    pivot: WatchlistItem
+}
+
+"A stock as a nested reference (e.g. on a transaction)."
+type StockRef {
+    id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+}
+
+type DailyPrice {
+    id: Int
+    stock_id: Int
+    trade_date: String!
+    open_price: String
+    high_price: String
+    low_price: String
+    close_price: String
+    volume: Int
+    turnover: String
+    created_at: String
+    updated_at: String
+}
+
+type Signal {
+    id: Int
+    stock_id: Int
+    trade_date: String!
+    signal: String!
+    score: String
+    reasons: [String!]
+    rule_keys: [String!]
+    price_at_signal: String
+    created_at: String
+    updated_at: String
+    "On signal history: what the next-close estimator projected that day."
+    forecast_price: Float
+}
+
+type TechnicalIndicator {
+    id: Int
+    stock_id: Int
+    trade_date: String!
+    sma_20: String
+    sma_50: String
+    sma_100: String
+    sma_200: String
+    ema_12: String
+    ema_26: String
+    rsi_14: String
+    macd: String
+    macd_signal: String
+    macd_histogram: String
+    bb_upper: String
+    bb_middle: String
+    bb_lower: String
+    bb_percent_b: String
+    stoch_k: String
+    stoch_d: String
+    atr_14: String
+    created_at: String
+    updated_at: String
+}
+
+type Forecast {
+    trade_date: String!
+    next_close: String
+}
+
+type StockFundamental {
+    id: Int
+    stock_id: Int
+    eps: String
+    eps_fiscal_year: String
+    pe_ratio: String
+    book_value: String
+    pbv: String
+    market_cap: String
+    shares_outstanding: String
+    one_year_yield_pct: String
+    fetched_at: String
+    created_at: String
+    updated_at: String
+}
+
+type AiStockOpinion {
+    id: Int
+    stock_id: Int
+    verdict: String
+    confidence: String
+    reasoning: String
+    generated_at: String
+    error: String
+    error_at: String
+    created_at: String
+    updated_at: String
+}
+
+type Dividend {
+    id: Int!
+    stock_id: Int
+    fiscal_year: String
+    bonus_share_pct: String
+    cash_dividend_pct: String
+    total_dividend_pct: String
+    announcement_date: String
+    distribution_date: String
+    book_closure_date: String
+    bonus_listing_date: String
+    created_at: String
+    updated_at: String
+}
+
+type RightShare {
+    id: Int!
+    stock_id: Int
+    ratio: String
+    total_units: String
+    issue_price: String
+    opening_date: String
+    closing_date: String
+    book_closure_date: String
+    listing_date: String
+    issue_manager: String
+    status: String
+    created_at: String
+    updated_at: String
+}
+
+type SignalHistoryPage {
+    data: [Signal!]!
+    page: Int!
+    per_page: Int!
+    total: Int!
+    total_pages: Int!
+}
+
+type MlPrediction {
+    direction: String!
+    probability: Float!
+    as_of_date: String
+}
+
+type MlModelMetrics {
+    trained_at: String
+    horizon_days: Int
+    accuracy: Float
+    baseline_accuracy: Float
+    beats_baseline: Boolean
+    precision: Float
+    recall: Float
+    test_samples: Int
+    stocks_used: Int
+}
+
+type MlPredictionReport {
+    prediction: MlPrediction
+    model: MlModelMetrics
+}
+
+"The stored AI opinion — or available: false with a message."
+type AiOpinion {
+    available: Boolean!
+    message: String
+    verdict: String
+    confidence: String
+    reasoning: String
+    generated_at: String
+}
+
+"The stored next-close estimate — or available: false with a message."
+type NextCloseForecast {
+    available: Boolean!
+    message: String
+    trade_date: String
+    next_close: Float
+    reasons: [String!]
+}
+
+type CorporateActionsRefresh {
+    dividends: Int!
+    right_shares: Int!
+    sources: [String!]!
+}
+
+extend type Query @guard {
+    "Every stock (or those whose symbol/name matches search), with today's change_pct."
+    stocks(search: String): [Stock!]! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@stocks")
+    stock(symbol: String!): Stock! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@stock")
+    "The newest `days` rows, oldest → newest."
+    stockPrices(symbol: String!, days: Int = 365): [DailyPrice!]! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@prices")
+    stockIndicators(symbol: String!, days: Int = 365): [TechnicalIndicator!]! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@indicators")
+    stockForecasts(symbol: String!, days: Int = 365): [Forecast!]! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@forecasts")
+    "Paged back from the newest matching signal."
+    stockSignals(symbol: String!, from: String, to: String, signal: [String!], page: Int = 1, per_page: Int = 30): SignalHistoryPage!
+        @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@signalHistory")
+    stockMlPrediction(symbol: String!): MlPredictionReport! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@mlPrediction")
+    stockAiOpinion(symbol: String!): AiOpinion! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@aiOpinion")
+    stockNextCloseForecast(symbol: String!): NextCloseForecast! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@nextCloseForecast")
+    stockDividends(symbol: String!): [Dividend!]! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@dividends")
+    stockRightShares(symbol: String!): [RightShare!]! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@rightShares")
+}
+
+extend type Mutation @guard {
+    createStock(symbol: String, company_name: String, sector: String): Stock! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@createStock")
+    "Re-fetch a stock's dividend/bonus data from nepalstock.com."
+    refreshCorporateActions(symbol: String!): CorporateActionsRefresh! @field(resolver: "App\\GraphQL\\Resolvers\\StockResolver@refreshCorporateActions")
+}

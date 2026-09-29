@@ -10,10 +10,11 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
-import client, { apiBaseUrl } from '../api/client'
+import { apiBaseUrl } from '../api/client'
+import * as portfolioApi from '../api/portfolio'
 import { usePortfolioStore } from '../stores/portfolio'
-import { formatPrice } from '../utils/format'
-import StatCard from '../components/StatCard.vue'
+import { changeTone, formatPrice } from '../utils/format'
+import StatCard from '../components/ui/StatCard.vue'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 
@@ -54,16 +55,11 @@ const options = {
   scales: { x: { ticks: { maxTicksLimit: 10 } } },
 }
 
-function changeTone(value) {
-  if (value === null || value === undefined) return 'neutral'
-  return value > 0 ? 'positive' : value < 0 ? 'negative' : 'neutral'
-}
-
 async function load() {
   loading.value = true
   if (store.portfolios.length === 0) await store.fetchPortfolios()
   if (store.activePortfolioId) {
-    const { data } = await client.get(`/portfolios/${store.activePortfolioId}/performance`)
+    const data = await portfolioApi.performance(store.activePortfolioId)
     history.value = data.history
     metrics.value = data.metrics
   }
@@ -80,10 +76,10 @@ onMounted(load)
       <a v-if="store.activePortfolioId" class="btn-secondary btn" :href="exportUrl">Export CSV</a>
     </div>
 
-    <p v-if="loading" class="muted">Loading…</p>
-    <p v-else-if="history.length === 0" class="muted card">
+    <LoadingState v-if="loading" />
+    <EmptyState v-else-if="history.length === 0" class="card">
       No performance history yet — add a buy transaction on the Portfolio page to start tracking value over time.
-    </p>
+    </EmptyState>
     <template v-else>
       <div class="grid grid-cards">
         <StatCard label="Current Value" :value="`Rs. ${formatPrice(metrics.current_value)}`" />
@@ -91,22 +87,22 @@ onMounted(load)
         <StatCard
           label="Total P&L"
           :value="`Rs. ${formatPrice(metrics.total_pnl)}`"
-          :tone="changeTone(metrics.total_pnl)"
+          :tone="changeTone(metrics.total_pnl, 'neutral')"
           :sub="metrics.total_pnl_pct !== null ? `${metrics.total_pnl_pct > 0 ? '+' : ''}${metrics.total_pnl_pct}%` : ''"
         />
         <StatCard
           label="XIRR (Annualized)"
           :value="metrics.xirr_pct !== null ? `${metrics.xirr_pct > 0 ? '+' : ''}${metrics.xirr_pct}%` : 'N/A'"
-          :tone="changeTone(metrics.xirr_pct)"
+          :tone="changeTone(metrics.xirr_pct, 'neutral')"
           sub="Money-weighted return"
         />
       </div>
 
-      <div class="card" style="margin-top: 16px">
+      <Card style="margin-top: 16px">
         <div style="height: 360px">
           <Line :data="chartData" :options="options" />
         </div>
-      </div>
+      </Card>
 
       <div class="grid grid-cards" style="margin-top: 16px">
         <StatCard

@@ -1,41 +1,26 @@
 <script setup>
 import { computed, onMounted } from 'vue'
 import { usePortfolioStore } from '../stores/portfolio'
-import { formatPrice } from '../utils/format'
+import { changeTone, formatPrice } from '../utils/format'
 import { apiBaseUrl } from '../api/client'
-import StatCard from '../components/StatCard.vue'
+import StatCard from '../components/ui/StatCard.vue'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
 
 const exportUrl = computed(() => `${apiBaseUrl}/api/portfolios/${store.activePortfolioId}/export`)
 
-const {
-  sorted: sortedHoldings,
-  toggleSort: toggleHoldingsSort,
-  sortIndicator: holdingsSortIndicator,
-} = useSortableTable(
+const holdingsTable = useSortableTable(
   computed(() => store.detail?.holdings ?? []),
   { valueGetters: { signal: (h) => h.latest_signal?.signal ?? null } }
 )
+const { sorted: sortedHoldings } = holdingsTable
 
-const {
-  sorted: sortedRealized,
-  toggleSort: toggleRealizedSort,
-  sortIndicator: realizedSortIndicator,
-} = useSortableTable(
+const realizedTable = useSortableTable(
   computed(() => store.detail?.realized ?? []),
   { defaultKey: 'transaction_date', defaultDir: 'desc' }
 )
-
-function changeTone(value) {
-  if (value === null || value === undefined) return ''
-  return value > 0 ? 'positive' : value < 0 ? 'negative' : ''
-}
-
-function formatSignal(label) {
-  return label.replace('_', ' ')
-}
+const { sorted: sortedRealized } = realizedTable
 
 async function load() {
   if (store.portfolios.length === 0) await store.fetchPortfolios()
@@ -54,7 +39,7 @@ onMounted(load)
       <a v-if="store.activePortfolioId" class="btn" :href="exportUrl">Export CSV</a>
     </div>
 
-    <p v-if="!store.detail" class="muted">Loading…</p>
+    <LoadingState v-if="!store.detail" />
     <template v-else>
       <div class="grid grid-cards">
         <StatCard label="Total Invested" :value="`Rs. ${formatPrice(store.detail.summary.total_invested)}`" />
@@ -71,18 +56,17 @@ onMounted(load)
         />
       </div>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>Holdings Summary</h3>
+      <Card title="Holdings Summary" style="margin-top: 16px">
         <table v-align-numbers class="table" v-if="store.detail.holdings.length">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleHoldingsSort('symbol')">Symbol {{ holdingsSortIndicator('symbol') }}</th>
-              <th class="sortable" @click="toggleHoldingsSort('quantity')">Qty {{ holdingsSortIndicator('quantity') }}</th>
-              <th class="sortable" @click="toggleHoldingsSort('avg_cost')">Avg Cost {{ holdingsSortIndicator('avg_cost') }}</th>
-              <th class="sortable" @click="toggleHoldingsSort('invested')">Invested {{ holdingsSortIndicator('invested') }}</th>
-              <th class="sortable" @click="toggleHoldingsSort('current_value')">Current Value {{ holdingsSortIndicator('current_value') }}</th>
-              <th class="sortable" @click="toggleHoldingsSort('unrealized_pnl')">Unrealized P&L {{ holdingsSortIndicator('unrealized_pnl') }}</th>
-              <th class="sortable" @click="toggleHoldingsSort('signal')">Signal {{ holdingsSortIndicator('signal') }}</th>
+              <SortableTh :table="holdingsTable" column="symbol">Symbol</SortableTh>
+              <SortableTh :table="holdingsTable" column="quantity">Qty</SortableTh>
+              <SortableTh :table="holdingsTable" column="avg_cost">Avg Cost</SortableTh>
+              <SortableTh :table="holdingsTable" column="invested">Invested</SortableTh>
+              <SortableTh :table="holdingsTable" column="current_value">Current Value</SortableTh>
+              <SortableTh :table="holdingsTable" column="unrealized_pnl">Unrealized P&L</SortableTh>
+              <SortableTh :table="holdingsTable" column="signal">Signal</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -94,26 +78,25 @@ onMounted(load)
               <td>{{ h.current_value !== null ? formatPrice(h.current_value) : '—' }}</td>
               <td :class="changeTone(h.unrealized_pnl)">{{ h.unrealized_pnl !== null ? formatPrice(h.unrealized_pnl) : '—' }}</td>
               <td>
-                <span v-if="h.latest_signal" class="badge" :class="h.latest_signal.signal">{{ formatSignal(h.latest_signal.signal) }}</span>
+                <SignalBadge v-if="h.latest_signal" :signal="h.latest_signal.signal" />
                 <span v-else class="muted">No data</span>
               </td>
             </tr>
           </tbody>
         </table>
-        <p v-else class="muted">No open holdings.</p>
-      </div>
+        <EmptyState v-else>No open holdings.</EmptyState>
+      </Card>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>Realized Gains/Losses</h3>
+      <Card title="Realized Gains/Losses" style="margin-top: 16px">
         <table v-align-numbers class="table" v-if="store.detail.realized.length">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleRealizedSort('transaction_date')">Date {{ realizedSortIndicator('transaction_date') }}</th>
-              <th class="sortable" @click="toggleRealizedSort('symbol')">Symbol {{ realizedSortIndicator('symbol') }}</th>
-              <th class="sortable" @click="toggleRealizedSort('quantity')">Qty Sold {{ realizedSortIndicator('quantity') }}</th>
-              <th class="sortable" @click="toggleRealizedSort('sell_price')">Sell Price {{ realizedSortIndicator('sell_price') }}</th>
-              <th class="sortable" @click="toggleRealizedSort('avg_cost_at_time')">Avg Cost {{ realizedSortIndicator('avg_cost_at_time') }}</th>
-              <th class="sortable" @click="toggleRealizedSort('realized_pnl')">Realized P&L {{ realizedSortIndicator('realized_pnl') }}</th>
+              <SortableTh :table="realizedTable" column="transaction_date">Date</SortableTh>
+              <SortableTh :table="realizedTable" column="symbol">Symbol</SortableTh>
+              <SortableTh :table="realizedTable" column="quantity">Qty Sold</SortableTh>
+              <SortableTh :table="realizedTable" column="sell_price">Sell Price</SortableTh>
+              <SortableTh :table="realizedTable" column="avg_cost_at_time">Avg Cost</SortableTh>
+              <SortableTh :table="realizedTable" column="realized_pnl">Realized P&L</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -127,8 +110,8 @@ onMounted(load)
             </tr>
           </tbody>
         </table>
-        <p v-else class="muted">No sales yet.</p>
-      </div>
+        <EmptyState v-else>No sales yet.</EmptyState>
+      </Card>
     </template>
   </div>
 </template>

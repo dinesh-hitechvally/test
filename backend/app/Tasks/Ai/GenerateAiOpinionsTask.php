@@ -11,8 +11,8 @@ use Illuminate\Http\Client\RequestException;
 use Throwable;
 
 /**
- * The ONLY place that ever calls the AI — StockController's ai-opinion
- * endpoint just reads whatever's stored, so a page load never waits on (or
+ * The ONLY place that ever calls the AI — the stockAiOpinion GraphQL query
+ * just reads whatever's stored, so a page load never waits on (or
  * costs) an external AI call.
  *
  * "Pending" = a stock with a signal (nothing else shows an AI opinion next

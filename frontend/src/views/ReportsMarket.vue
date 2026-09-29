@@ -1,26 +1,21 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import client from '../api/client'
-import { formatPrice } from '../utils/format'
-import StatCard from '../components/StatCard.vue'
-import MarketBreadthChart from '../components/MarketBreadthChart.vue'
-import SignalDistributionChart from '../components/SignalDistributionChart.vue'
-import SectorPerformanceChart from '../components/SectorPerformanceChart.vue'
-import TrendChart from '../components/TrendChart.vue'
+import * as reportsApi from '../api/reports'
+import { changeTone, formatPrice } from '../utils/format'
+import MarketBreadthChart from '../components/charts/MarketBreadthChart.vue'
+import SignalDistributionChart from '../components/charts/SignalDistributionChart.vue'
+import SectorPerformanceChart from '../components/charts/SectorPerformanceChart.vue'
+import TrendChart from '../components/charts/TrendChart.vue'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const report = ref(null)
 const loading = ref(true)
 
-const { sorted: sortedSectors, toggleSort, sortIndicator } = useSortableTable(
+const sectors = useSortableTable(
   computed(() => report.value?.sector_performance ?? [])
 )
-
-function changeTone(pct) {
-  if (pct === null || pct === undefined) return ''
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
-}
+const { sorted: sortedSectors } = sectors
 
 const trendLabels = computed(() => report.value?.trend.map((t) => t.trade_date) ?? [])
 
@@ -35,8 +30,7 @@ const turnoverSeries = computed(() => [
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/reports/market')
-  report.value = data
+  report.value = await reportsApi.market()
   loading.value = false
 }
 
@@ -45,10 +39,9 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Market Report</h1>
-    <p class="muted">A whole-market view — breadth, sector performance, and the biggest movers, as of the latest scrape.</p>
+    <PageHeader title="Market Report">A whole-market view — breadth, sector performance, and the biggest movers, as of the latest scrape.</PageHeader>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
 
     <template v-else-if="report">
       <div class="grid grid-cards">
@@ -59,40 +52,34 @@ onMounted(load)
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
-        <div class="card">
-          <h3>Market Breadth</h3>
+        <Card title="Market Breadth">
           <MarketBreadthChart :breadth="report.breadth" />
-        </div>
-        <div class="card">
-          <h3>Signal Distribution</h3>
+        </Card>
+        <Card title="Signal Distribution">
           <SignalDistributionChart :counts="report.signal_counts" />
-        </div>
+        </Card>
       </div>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>Advancing vs. Declining — Last 30 Days</h3>
+      <Card title="Advancing vs. Declining — Last 30 Days" style="margin-top: 16px">
         <TrendChart :labels="trendLabels" :series="breadthSeries" />
-      </div>
+      </Card>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>Market Turnover — Last 30 Days</h3>
+      <Card title="Market Turnover — Last 30 Days" style="margin-top: 16px">
         <TrendChart :labels="trendLabels" :series="turnoverSeries" />
-      </div>
+      </Card>
 
       <div class="grid" style="grid-template-columns: 1.3fr 1fr; margin-top: 16px">
-        <div class="card">
-          <h3>Sector Performance (Today)</h3>
+        <Card title="Sector Performance (Today)">
           <SectorPerformanceChart :sectors="report.sector_performance" />
-        </div>
-        <div class="card">
-          <h3>Sector Breakdown</h3>
+        </Card>
+        <Card title="Sector Breakdown">
           <table v-align-numbers class="table">
             <thead>
               <tr>
-                <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
-                <th class="sortable" @click="toggleSort('stock_count')">Stocks {{ sortIndicator('stock_count') }}</th>
-                <th class="sortable" @click="toggleSort('advancing')">Adv/Dec {{ sortIndicator('advancing') }}</th>
-                <th class="sortable" @click="toggleSort('avg_change_pct')">Avg % {{ sortIndicator('avg_change_pct') }}</th>
+                <SortableTh :table="sectors" column="sector">Sector</SortableTh>
+                <SortableTh :table="sectors" column="stock_count">Stocks</SortableTh>
+                <SortableTh :table="sectors" column="advancing">Adv/Dec</SortableTh>
+                <SortableTh :table="sectors" column="avg_change_pct">Avg %</SortableTh>
               </tr>
             </thead>
             <tbody>
@@ -106,38 +93,36 @@ onMounted(load)
               </tr>
             </tbody>
           </table>
-        </div>
+        </Card>
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
-        <div class="card">
-          <h3>Top Gainers</h3>
+        <Card title="Top Gainers">
           <table v-align-numbers class="table">
             <tbody>
               <tr v-for="m in report.movers.gainers" :key="m.stock_id">
-                <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>
+                <td><StockLink :symbol="m.symbol" /></td>
                 <td class="muted">{{ m.company_name }}</td>
                 <td>Rs. {{ formatPrice(m.close) }}</td>
                 <td :class="changeTone(m.change_pct)">{{ m.change_pct > 0 ? '+' : '' }}{{ m.change_pct }}%</td>
               </tr>
             </tbody>
           </table>
-          <p v-if="report.movers.gainers.length === 0" class="muted">Not enough data yet.</p>
-        </div>
-        <div class="card">
-          <h3>Top Losers</h3>
+          <EmptyState v-if="report.movers.gainers.length === 0">Not enough data yet.</EmptyState>
+        </Card>
+        <Card title="Top Losers">
           <table v-align-numbers class="table">
             <tbody>
               <tr v-for="m in report.movers.losers" :key="m.stock_id">
-                <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>
+                <td><StockLink :symbol="m.symbol" /></td>
                 <td class="muted">{{ m.company_name }}</td>
                 <td>Rs. {{ formatPrice(m.close) }}</td>
                 <td :class="changeTone(m.change_pct)">{{ m.change_pct > 0 ? '+' : '' }}{{ m.change_pct }}%</td>
               </tr>
             </tbody>
           </table>
-          <p v-if="report.movers.losers.length === 0" class="muted">Not enough data yet.</p>
-        </div>
+          <EmptyState v-if="report.movers.losers.length === 0">Not enough data yet.</EmptyState>
+        </Card>
       </div>
     </template>
   </div>

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as watchlistsApi from '../api/watchlists'
 import { formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
@@ -22,17 +22,17 @@ const alertRows = computed(() => {
   return rows
 })
 
-const { sorted, toggleSort, sortIndicator } = useSortableTable(alertRows, {
+const alertsTable = useSortableTable(alertRows, {
   valueGetters: {
     symbol: (r) => r.stock.symbol,
     status: (r) => (r.triggered ? 1 : 0),
   },
 })
+const { sorted } = alertsTable
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/watchlists')
-  watchlists.value = data
+  watchlists.value = await watchlistsApi.list()
   loading.value = false
 }
 
@@ -41,28 +41,27 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Price Alerts</h1>
-    <p class="muted">
+    <PageHeader title="Price Alerts">
       Every price alert set across your watchlists (separate from the portfolio stop-loss/target alerts, which live
       on the Portfolio page). Manage individual alerts from <RouterLink :to="{ name: 'watchlist' }">Watchlist</RouterLink>.
-    </p>
+    </PageHeader>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
 
-    <div v-else class="card">
+    <Card v-else>
       <table v-align-numbers class="table" v-if="alertRows.length">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('watchlist')">Watchlist {{ sortIndicator('watchlist') }}</th>
-            <th class="sortable" @click="toggleSort('current')">Current Price {{ sortIndicator('current') }}</th>
-            <th class="sortable" @click="toggleSort('target')">Alert Condition {{ sortIndicator('target') }}</th>
-            <th class="sortable" @click="toggleSort('status')">Status {{ sortIndicator('status') }}</th>
+            <SortableTh :table="alertsTable" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="alertsTable" column="watchlist">Watchlist</SortableTh>
+            <SortableTh :table="alertsTable" column="current">Current Price</SortableTh>
+            <SortableTh :table="alertsTable" column="target">Alert Condition</SortableTh>
+            <SortableTh :table="alertsTable" column="status">Status</SortableTh>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in sorted" :key="`${row.watchlist}-${row.stock.id}`">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: row.stock.symbol } }">{{ row.stock.symbol }}</RouterLink></td>
+            <td><StockLink :symbol="row.stock.symbol" /></td>
             <td class="muted">{{ row.watchlist }}</td>
             <td>{{ row.current !== null ? `Rs. ${formatPrice(row.current)}` : '—' }}</td>
             <td>{{ row.direction === 'above' ? 'Above' : 'Below' }} Rs. {{ formatPrice(row.target) }}</td>
@@ -74,7 +73,7 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">No price alerts set yet — add one from any stock on your Watchlist.</p>
-    </div>
+      <EmptyState v-else>No price alerts set yet — add one from any stock on your Watchlist.</EmptyState>
+    </Card>
   </div>
 </template>

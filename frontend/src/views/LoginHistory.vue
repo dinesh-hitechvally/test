@@ -1,12 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import client from '../api/client'
+import * as authApi from '../api/auth'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const history = ref([])
 const loading = ref(true)
 
-const { sorted, toggleSort, sortIndicator } = useSortableTable(history, { defaultKey: 'logged_in_at', defaultDir: 'desc' })
+const historyTable = useSortableTable(history, { defaultKey: 'logged_in_at', defaultDir: 'desc' })
+const { sorted } = historyTable
 
 function location(row) {
   return [row.city, row.region, row.country].filter(Boolean).join(', ') || '—'
@@ -35,8 +36,7 @@ function device(userAgent) {
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/user/login-history')
-  history.value = data
+  history.value = await authApi.loginHistory()
   loading.value = false
 }
 
@@ -45,18 +45,17 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Login History</h1>
-    <p class="muted">The last 50 times your account signed in — IP address, approximate location, and device.</p>
+    <PageHeader title="Login History">The last 50 times your account signed in — IP address, approximate location, and device.</PageHeader>
 
-    <p v-if="loading" class="muted" style="margin-top: 16px">Loading…</p>
+    <LoadingState v-if="loading" style="margin-top: 16px" />
 
-    <div v-else class="card" style="margin-top: 16px">
+    <Card v-else style="margin-top: 16px">
       <p class="muted">{{ sorted.length }} login{{ sorted.length === 1 ? '' : 's' }} recorded.</p>
       <table v-align-numbers class="table">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('logged_in_at')">When {{ sortIndicator('logged_in_at') }}</th>
-            <th class="sortable" @click="toggleSort('ip_address')">IP Address {{ sortIndicator('ip_address') }}</th>
+            <SortableTh :table="historyTable" column="logged_in_at">When</SortableTh>
+            <SortableTh :table="historyTable" column="ip_address">IP Address</SortableTh>
             <th>Location</th>
             <th>Device</th>
           </tr>
@@ -73,6 +72,6 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-    </div>
+    </Card>
   </div>
 </template>

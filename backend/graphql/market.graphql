@@ -1,0 +1,149 @@
+type TradeSetup {
+    bias: String
+    entry_reference: Float
+    target: Float
+    stop_loss: Float
+    risk_per_share: Float
+    reward_per_share: Float
+    risk_reward_ratio: Float
+    attractive: Boolean
+}
+
+"A buy/sell signal with a price target/stop-loss attached."
+type ActionableSignal {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    close: String
+    signal: String!
+    score: Float
+    reasons: [String!]
+    trade_setup: TradeSetup
+}
+
+"A holding past its stop-loss/target (kind: portfolio) or a watched stock past its alert price (kind: watchlist)."
+type PriceAlert {
+    kind: String!
+    portfolio_id: Int
+    portfolio_name: String
+    watchlist_id: Int
+    watchlist_name: String
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    current_price: Float
+    stop_loss: Float
+    target_price: Float
+    status: String
+    alert_price: Float
+    alert_direction: String
+}
+
+type IndexSnapshot {
+    id: Int
+    index_name: String!
+    trade_date: String!
+    close: String
+    high: String
+    low: String
+    previous_close: String
+    change: String
+    change_pct: String
+    fifty_two_week_high: String
+    fifty_two_week_low: String
+    created_at: String
+    updated_at: String
+}
+
+type IndexPoint {
+    trade_date: String!
+    close: Float!
+}
+
+type IndexSeries {
+    index_name: String!
+    latest: IndexSnapshot!
+    history: [IndexPoint!]!
+}
+
+type SignalAccuracyStat {
+    id: Int
+    signal_type: String!
+    horizon_days: Int
+    sample_size: Int
+    win_rate: String
+    avg_forward_return_pct: String
+    baseline_win_rate: String
+    computed_at: String
+    created_at: String
+    updated_at: String
+}
+
+type SignalAccuracyReport {
+    available: Boolean!
+    computed_at: String
+    horizon_days: Int
+    stats: [SignalAccuracyStat!]
+    disclaimer: String
+}
+
+type FlaggedStock {
+    id: Int!
+    symbol: String!
+    company_name: String
+    scrape_error_source: String!
+    scrape_error: String
+    scrape_error_at: String
+}
+
+type DataSourceStatus {
+    secret_configured: Boolean!
+    flagged_stocks: [FlaggedStock!]!
+}
+
+type CandlestickMatch {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    trade_date: String!
+    pattern: String!
+    signal: String!
+}
+
+type FiftyTwoWeekRow {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    current_price: Float
+    high_52w: Float
+    low_52w: Float
+    pct_from_high: Float
+    pct_from_low: Float
+}
+
+type ScrapeLog {
+    id: Int!
+    source: String!
+    status: String!
+    records_processed: Int
+    message: String
+    created_at: String
+    updated_at: String
+}
+
+extend type Query @guard {
+    "Every stock's most recent signal (optionally one signal type), highest score first."
+    todaySignals(signal: String): [Stock!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@todaySignals")
+    "Buy (or sell) signals with a trade setup. bias: buy | sell."
+    actionableSignals(bias: String = "buy"): [ActionableSignal!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@actionableSignals")
+    signalAccuracy: SignalAccuracyReport! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@signalAccuracy")
+    priceAlerts: [PriceAlert!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@priceAlerts")
+    indices(days: Int = 90): [IndexSeries!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@indices")
+    candlestickPatterns: [CandlestickMatch!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@candlestickPatterns")
+    screener: [Stock!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@screener")
+    fiftyTwoWeek: [FiftyTwoWeekRow!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@fiftyTwoWeek")
+    scrapeLogs(limit: Int = 20): [ScrapeLog!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@scrapeLogs")
+    dataSourceStatus: DataSourceStatus! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@dataSourceStatus")
+}

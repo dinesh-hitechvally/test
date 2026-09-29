@@ -1,0 +1,317 @@
+type SignalCounts {
+    strong_buy: Int!
+    buy: Int!
+    hold: Int!
+    sell: Int!
+    strong_sell: Int!
+}
+
+type Breadth {
+    advancing: Int!
+    declining: Int!
+    unchanged: Int!
+}
+
+type StockTotals {
+    stocks: Int!
+    with_signals: Int!
+}
+
+type Mover {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    close: Float
+    previous_close: Float
+    change_pct: Float
+    turnover: Float
+}
+
+type Movers {
+    gainers: [Mover!]!
+    losers: [Mover!]!
+}
+
+type SectorPerformance {
+    sector: String!
+    stock_count: Int!
+    advancing: Int!
+    declining: Int!
+    avg_change_pct: Float
+    total_turnover: Float
+}
+
+type TrendPoint {
+    trade_date: String!
+    advancing: Int!
+    declining: Int!
+    total_turnover: Float
+}
+
+type DashboardReport {
+    totals: StockTotals!
+    last_scrape: ScrapeLog
+    signal_counts: SignalCounts!
+    breadth: Breadth!
+    sector_breakdown: [SectorPerformance!]!
+    movers: Movers!
+}
+
+type MarketOverview {
+    totals: StockTotals!
+    signal_counts: SignalCounts!
+    breadth: Breadth!
+    movers: Movers!
+    sector_performance: [SectorPerformance!]!
+    trend: [TrendPoint!]!
+}
+
+type SectorSummary {
+    sector: String!
+    stock_count: Int!
+}
+
+type SectorTotals {
+    stock_count: Int!
+    advancing: Int!
+    declining: Int!
+}
+
+type SectorReport {
+    sector: String!
+    totals: SectorTotals!
+    signal_counts: SignalCounts!
+    avg_change_pct: Float
+    stocks: [Stock!]!
+    top_gainers: [Stock!]!
+    top_losers: [Stock!]!
+    trend: [TrendPoint!]!
+}
+
+type StockIdentity {
+    symbol: String!
+    company_name: String
+    sector: String
+}
+
+type StockReport {
+    stock: StockIdentity!
+    latest_price: DailyPrice
+    latest_signal: Signal
+    change_pct: Float
+    "Period returns in %, keyed 1w, 1m, 3m, 6m, 1y, ytd."
+    returns: JSON
+    "Signal type → count over the last 90 days (only types that occurred)."
+    signal_counts_90d: JSON
+}
+
+type TechnicalReportPage {
+    stock: StockIdentity!
+    "The full technical-analysis document (trend, support/resistance, patterns, indicators, trade setup…), or {available: false, message}."
+    report: JSON!
+}
+
+type RightShareSummary {
+    id: Int!
+    year: String
+    ratio: String
+    pct: Float
+    issue_price: Float
+    opening_date: String
+    closing_date: String
+    listing_date: String
+    status: String
+}
+
+type DividendSummary {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    close: Float
+    latest_fiscal_year: String
+    latest_cash_pct: Float
+    latest_bonus_pct: Float
+    latest_total_pct: Float
+    dividend_yield_pct: Float
+    actual_total_yield_pct: Float
+    years_recorded: Int
+    avg_total_dividend_pct: Float
+    latest_signal: String
+    history: [Dividend!]!
+    right_share_count: Int
+    latest_right_share_ratio: String
+    latest_right_share_pct: Float
+    latest_right_share_year: String
+    right_share_history: [RightShareSummary!]!
+    "Only on top picks."
+    pick_score: Float
+    "Only on top picks."
+    reasons: [String!]
+}
+
+type DividendTotals {
+    stocks_with_dividends: Int!
+    avg_yield_pct: Float
+    top_yield_pct: Float
+    stocks_with_right_shares: Int!
+}
+
+type DividendReport {
+    totals: DividendTotals!
+    top_picks: [DividendSummary!]!
+    stocks: [DividendSummary!]!
+}
+
+type NextCloseAccuracy {
+    available: Boolean!
+    sample_size: Int
+    stocks_used: Int
+    mape: Float
+    naive_mape: Float
+    direction_accuracy: Float
+    beats_baseline: Boolean
+    computed_at: String
+}
+
+type LongTermCandidate {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    share_group: String
+    close: Float
+    dividend_years_recorded: Int
+    avg_total_dividend_pct: Float
+    right_share_count: Int
+    return_3y_pct: Float
+    volatility_pct: Float
+    avg_turnover: Float
+    latest_signal: String
+    long_term_score: Float
+    reasons: [String!]
+}
+
+type MidTermCandidate {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    share_group: String
+    close: Float
+    change_pct: Float
+    turnover: Float
+    sma_50: Float
+    sma_200: Float
+    rsi_14: Float
+    return_6m_pct: Float
+    volatility_pct: Float
+    mid_term_score: Float
+    mid_term_signal: String
+    reasons: [String!]
+}
+
+type ShortTermCandidate {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    share_group: String
+    close: Float
+    change_pct: Float
+    turnover: Float
+    sma_20: Float
+    sma_50: Float
+    rsi_14: Float
+    macd_histogram: Float
+    bb_upper: Float
+    bb_lower: Float
+    short_term_score: Float
+    short_term_signal: String
+    reasons: [String!]
+}
+
+type AnalystSignalAccuracy {
+    sample_size: Int
+    win_rate: Float
+    baseline_win_rate: Float
+    horizon_days: Int
+}
+
+type AnalystSignal {
+    signal: String!
+    score: Float
+    reasons: [String!]
+    trade_date: String
+    accuracy: AnalystSignalAccuracy
+}
+
+type AnalystMlPrediction {
+    direction: String!
+    probability: Float!
+    as_of_date: String
+    horizon_days: Int
+    model_accuracy: Float
+    model_baseline_accuracy: Float
+    beats_baseline: Boolean
+}
+
+type AnalystReport {
+    stock: StockIdentity!
+    latest_price: DailyPrice
+    change_pct: Float
+    returns: JSON
+    "Same document as TechnicalReportPage.report."
+    technical: JSON!
+    dividend: DividendSummary
+    signal: AnalystSignal
+    ml_prediction: AnalystMlPrediction
+}
+
+type SignalRule {
+    key: String!
+    label: String!
+    direction: String!
+}
+
+type RuleRef {
+    key: String!
+    label: String!
+}
+
+type RuleScanMatch {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    close: String
+    change_pct: Float
+    signal: String
+    trade_date: String
+    matched_rules: [RuleRef!]!
+}
+
+type RuleScanResult {
+    mode: String!
+    requested_rules: [String!]!
+    matched_count: Int!
+    stocks: [RuleScanMatch!]!
+}
+
+extend type Query @guard {
+    dashboardReport: DashboardReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@dashboard")
+    marketReport: MarketOverview! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@market")
+    sectors: [SectorSummary!]! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@sectors")
+    sectorReport(name: String!): SectorReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@sector")
+    stockReport(symbol: String!): StockReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@stock")
+    technicalReport(symbol: String!): TechnicalReportPage! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@technical")
+    analystReport(symbol: String!): AnalystReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@analyst")
+    dividendReport(sector: String): DividendReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@dividends")
+    nextCloseAccuracy: NextCloseAccuracy! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@nextCloseAccuracy")
+    longTermCandidates(sector: String): [LongTermCandidate!]! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@longTerm")
+    midTermCandidates(sector: String): [MidTermCandidate!]! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@midTerm")
+    shortTermCandidates(sector: String): [ShortTermCandidate!]! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@shortTerm")
+    signalRules: [SignalRule!]! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@signalRules")
+    "Stocks whose latest signal fired any (mode: any) or all (mode: all) of the given rule keys."
+    ruleScan(rules: [String!]!, mode: String): RuleScanResult! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@ruleScan")
+}

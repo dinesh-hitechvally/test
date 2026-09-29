@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as authApi from '../api/auth'
+import * as marketApi from '../api/market'
 import { useAuthStore } from '../stores/auth'
 import { useStocksStore } from '../stores/stocks'
 import { getNotificationPrefs } from '../utils/notificationPrefs'
@@ -46,13 +47,13 @@ const SECTIONS = [
 
 async function load() {
   loading.value = true
-  const [usersRes, scheduleRes] = await Promise.all([
-    client.get('/users'),
-    client.get('/schedule'),
+  const [users, schedule] = await Promise.all([
+    authApi.users(),
+    marketApi.dataSourceStatus(),
     stocksStore.fetchScrapeLogs(),
   ])
-  userCount.value = usersRes.data.length
-  scheduleCount.value = scheduleRes.data.length
+  userCount.value = users.length
+  scheduleCount.value = schedule.length
   loading.value = false
 }
 
@@ -61,10 +62,9 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Settings</h1>
-    <p class="muted">Account, notifications, data source, and the people on this instance.</p>
+    <PageHeader title="Settings">Account, notifications, data source, and the people on this instance.</PageHeader>
 
-    <div class="card" style="margin-top: 16px">
+    <Card style="margin-top: 16px">
       <div class="account-row">
         <div>
           <p class="muted small">Signed in as</p>
@@ -90,7 +90,7 @@ onMounted(load)
           </div>
         </div>
       </div>
-    </div>
+    </Card>
 
     <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
       <RouterLink v-for="s in SECTIONS" :key="s.to" :to="{ name: s.to }" class="card section-card">

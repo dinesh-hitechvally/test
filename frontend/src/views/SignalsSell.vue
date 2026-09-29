@@ -1,14 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as marketApi from '../api/market'
 import { formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const rows = ref([])
 const loading = ref(true)
 
-const { sorted, toggleSort, sortIndicator } = useSortableTable(rows, {
+const table = useSortableTable(rows, {
   defaultKey: 'score',
   defaultDir: 'asc',
   valueGetters: {
@@ -18,11 +17,11 @@ const { sorted, toggleSort, sortIndicator } = useSortableTable(rows, {
     risk_reward_ratio: (s) => s.trade_setup?.risk_reward_ratio ?? null,
   },
 })
+const { sorted } = table
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/signals/actionable', { params: { bias: 'sell' } })
-  rows.value = data
+  rows.value = await marketApi.actionableSignals('sell')
   loading.value = false
 }
 
@@ -35,35 +34,34 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Sell Signals</h1>
-    <p class="muted">
+    <PageHeader title="Sell Signals">
       Every stock currently flagged Sell or Strong Sell, ranked by score — highest conviction first. NEPSE doesn't
       allow short-selling, so this is for existing holders deciding whether to exit: "Target" is how far it may still
       fall, "Invalidation" is the level above which the bearish read would be wrong. Not financial advice.
-    </p>
+    </PageHeader>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
 
-    <div v-else class="card">
+    <Card v-else>
       <table v-align-numbers class="table" v-if="rows.length">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
-            <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
-            <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
-            <th class="sortable" @click="toggleSort('target')">Target {{ sortIndicator('target') }}</th>
-            <th class="sortable" @click="toggleSort('stop_loss')">Invalidation {{ sortIndicator('stop_loss') }}</th>
-            <th class="sortable" @click="toggleSort('risk_reward_ratio')">R:R {{ sortIndicator('risk_reward_ratio') }}</th>
+            <SortableTh :table="table" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="table" column="company_name">Company</SortableTh>
+            <SortableTh :table="table" column="close">Price</SortableTh>
+            <SortableTh :table="table" column="signal">Signal</SortableTh>
+            <SortableTh :table="table" column="target">Target</SortableTh>
+            <SortableTh :table="table" column="stop_loss">Invalidation</SortableTh>
+            <SortableTh :table="table" column="risk_reward_ratio">R:R</SortableTh>
             <th>Reasons</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="s in sorted" :key="s.stock_id">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+            <td><StockLink :symbol="s.symbol" /></td>
             <td class="muted">{{ s.company_name }}</td>
             <td>Rs. {{ formatPrice(s.close) }}</td>
-            <td><span class="badge" :class="s.signal">{{ s.signal.replace('_', ' ') }}</span></td>
+            <td><SignalBadge :signal="s.signal" /></td>
             <template v-if="s.trade_setup">
               <td>Rs. {{ formatPrice(s.trade_setup.target) }}</td>
               <td class="muted">Rs. {{ formatPrice(s.trade_setup.stop_loss) }}</td>
@@ -85,8 +83,8 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">No sell-leaning signals right now.</p>
-    </div>
+      <EmptyState v-else>No sell-leaning signals right now.</EmptyState>
+    </Card>
   </div>
 </template>
 

@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as reportsApi from '../api/reports'
 
 const sectors = ref([])
 const loading = ref(true)
@@ -20,7 +20,7 @@ function tileStyle(pct) {
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/reports/market')
+  const data = await reportsApi.market()
   sectors.value = [...data.sector_performance].sort((a, b) => (b.avg_change_pct ?? -999) - (a.avg_change_pct ?? -999))
   loading.value = false
 }
@@ -30,10 +30,9 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Sector Overview</h1>
-    <p class="muted">Today's average move per sector — tile size roughly reflects how many stocks are in it, color reflects today's average change.</p>
+    <PageHeader title="Sector Overview">Today's average move per sector — tile size roughly reflects how many stocks are in it, color reflects today's average change.</PageHeader>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
 
     <div v-else class="heatmap">
       <RouterLink

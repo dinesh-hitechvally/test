@@ -11,7 +11,7 @@ function txTotal(tx) {
   return tx.quantity * tx.price + (tx.type === 'buy' ? Number(tx.fees) : -Number(tx.fees))
 }
 
-const { sorted, toggleSort, sortIndicator } = useSortableTable(
+const txTable = useSortableTable(
   computed(() => store.transactions),
   {
     defaultKey: 'transaction_date',
@@ -22,6 +22,7 @@ const { sorted, toggleSort, sortIndicator } = useSortableTable(
     },
   }
 )
+const { sorted } = txTable
 
 onMounted(async () => {
   await store.fetchPortfolios()
@@ -31,23 +32,22 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Transactions</h1>
-    <p class="muted">
+    <PageHeader title="Transactions">
       Full buy/sell history log. To add or delete a transaction, use
       <RouterLink :to="{ name: 'portfolio' }">Portfolio Overview</RouterLink>.
-    </p>
+    </PageHeader>
 
-    <div class="card">
+    <Card>
       <table v-align-numbers class="table" v-if="store.transactions.length">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('transaction_date')">Date {{ sortIndicator('transaction_date') }}</th>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('type')">Type {{ sortIndicator('type') }}</th>
-            <th class="sortable" @click="toggleSort('quantity')">Qty {{ sortIndicator('quantity') }}</th>
-            <th class="sortable" @click="toggleSort('price')">Price {{ sortIndicator('price') }}</th>
-            <th class="sortable" @click="toggleSort('fees')">Fees {{ sortIndicator('fees') }}</th>
-            <th class="sortable" @click="toggleSort('total')">Total {{ sortIndicator('total') }}</th>
+            <SortableTh :table="txTable" column="transaction_date">Date</SortableTh>
+            <SortableTh :table="txTable" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="txTable" column="type">Type</SortableTh>
+            <SortableTh :table="txTable" column="quantity">Qty</SortableTh>
+            <SortableTh :table="txTable" column="price">Price</SortableTh>
+            <SortableTh :table="txTable" column="fees">Fees</SortableTh>
+            <SortableTh :table="txTable" column="total">Total</SortableTh>
             <th>Notes</th>
           </tr>
         </thead>
@@ -55,7 +55,7 @@ onMounted(async () => {
           <tr v-for="tx in sorted" :key="tx.id">
             <td>{{ tx.transaction_date }}</td>
             <td>
-              <RouterLink v-if="tx.stock" :to="{ name: 'stock-detail', params: { symbol: tx.stock.symbol } }">{{ tx.stock.symbol }}</RouterLink>
+              <StockLink v-if="tx.stock" :symbol="tx.stock.symbol" />
             </td>
             <td><span class="badge" :class="tx.type">{{ tx.type }}</span></td>
             <td>{{ tx.quantity }}</td>
@@ -66,7 +66,7 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">No transactions yet.</p>
-    </div>
+      <EmptyState v-else>No transactions yet.</EmptyState>
+    </Card>
   </div>
 </template>

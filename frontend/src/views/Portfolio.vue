@@ -1,12 +1,11 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as reportsApi from '../api/reports'
 import { usePortfolioStore } from '../stores/portfolio'
 import { useStocksStore } from '../stores/stocks'
-import { formatPrice } from '../utils/format'
-import StatCard from '../components/StatCard.vue'
-import SearchableSelect from '../components/SearchableSelect.vue'
+import { changeTone, formatPrice } from '../utils/format'
+import StatCard from '../components/ui/StatCard.vue'
+import SearchableSelect from '../components/ui/SearchableSelect.vue'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
@@ -15,7 +14,7 @@ const stocksStore = useStocksStore()
 const portfolioOptions = computed(() => store.portfolios.map((p) => ({ value: p.id, label: p.name })))
 const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.id, label: `${s.symbol} — ${s.company_name}` })))
 
-const { sorted: sortedHoldings, toggleSort, sortIndicator } = useSortableTable(
+const holdingsTable = useSortableTable(
   computed(() => store.detail?.holdings ?? []),
   {
     valueGetters: {
@@ -24,6 +23,7 @@ const { sorted: sortedHoldings, toggleSort, sortIndicator } = useSortableTable(
     },
   }
 )
+const { sorted: sortedHoldings } = holdingsTable
 
 const showNewPortfolioForm = ref(false)
 const newPortfolioName = ref('')
@@ -136,7 +136,7 @@ async function suggestLevels() {
   suggesting.value = true
   suggestionNote.value = ''
   try {
-    const { data } = await client.get(`/reports/technical/${editingTargetFor.value.symbol}`)
+    const data = await reportsApi.technical(editingTargetFor.value.symbol)
     const sr = data.report?.support_resistance
     // Deliberately from support/resistance, not trade_setup — trade_setup is
     // framed for opening a fresh position in whatever direction the trend
@@ -203,15 +203,6 @@ function statusBadge(status) {
   }[status] || null
 }
 
-function changeTone(value) {
-  if (value === null || value === undefined) return ''
-  return value > 0 ? 'positive' : value < 0 ? 'negative' : ''
-}
-
-function formatSignal(label) {
-  return label.replace('_', ' ')
-}
-
 // Only reload on an actual portfolio switch (via the dropdown) — the
 // initial assignment from fetchPortfolios() is already handled by the
 // explicit loadActive() call in onMounted below, so skip that first
@@ -246,15 +237,14 @@ onMounted(async () => {
       </div>
     </div>
 
-    <p v-if="!store.activePortfolioId" class="muted">Loading your portfolio…</p>
+    <LoadingState v-if="!store.activePortfolioId">Loading your portfolio…</LoadingState>
 
     <div v-if="showNewPortfolioForm" class="card form-stack" style="margin-bottom: 20px; flex-direction: row; align-items: center; max-width: none">
       <input v-model="newPortfolioName" class="input" placeholder="Portfolio name" style="max-width: 260px" />
       <button class="btn" @click="handleCreatePortfolio">Create</button>
     </div>
 
-    <div v-if="showAddForm" class="card form-stack" style="margin-bottom: 20px">
-      <h3>Add a transaction</h3>
+    <Card v-if="showAddForm" title="Add a transaction" class="form-stack" style="margin-bottom: 20px">
       <div class="type-toggle">
         <button class="btn-secondary btn" :class="{ active: txType === 'buy' }" @click="txType = 'buy'">Buy</button>
         <button class="btn-secondary btn" :class="{ active: txType === 'sell' }" @click="txType = 'sell'">Sell</button>
@@ -267,7 +257,7 @@ onMounted(async () => {
       <input v-model="txNotes" class="input" placeholder="Notes (optional)" />
       <p v-if="txError" class="error-text">{{ txError }}</p>
       <button class="btn" :disabled="submitting" @click="handleAddTransaction">{{ submitting ? 'Saving…' : 'Save' }}</button>
-    </div>
+    </Card>
 
     <template v-if="store.detail">
       <div class="grid grid-cards">
@@ -291,27 +281,26 @@ onMounted(async () => {
         />
       </div>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>Holdings</h3>
+      <Card title="Holdings" style="margin-top: 16px">
         <table v-align-numbers class="table" v-if="store.detail.holdings.length">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-              <th class="sortable" @click="toggleSort('quantity')">Qty {{ sortIndicator('quantity') }}</th>
-              <th class="sortable" @click="toggleSort('avg_cost')">Avg Cost {{ sortIndicator('avg_cost') }}</th>
-              <th class="sortable" @click="toggleSort('invested')">Invested {{ sortIndicator('invested') }}</th>
-              <th class="sortable" @click="toggleSort('current_price')">Current Price {{ sortIndicator('current_price') }}</th>
-              <th class="sortable" @click="toggleSort('current_value')">Current Value {{ sortIndicator('current_value') }}</th>
-              <th class="sortable" @click="toggleSort('unrealized_pnl')">Unrealized P&L {{ sortIndicator('unrealized_pnl') }}</th>
-              <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+              <SortableTh :table="holdingsTable" column="symbol">Symbol</SortableTh>
+              <SortableTh :table="holdingsTable" column="quantity">Qty</SortableTh>
+              <SortableTh :table="holdingsTable" column="avg_cost">Avg Cost</SortableTh>
+              <SortableTh :table="holdingsTable" column="invested">Invested</SortableTh>
+              <SortableTh :table="holdingsTable" column="current_price">Current Price</SortableTh>
+              <SortableTh :table="holdingsTable" column="current_value">Current Value</SortableTh>
+              <SortableTh :table="holdingsTable" column="unrealized_pnl">Unrealized P&L</SortableTh>
+              <SortableTh :table="holdingsTable" column="signal">Signal</SortableTh>
               <th>Stop-Loss / Target</th>
-              <th class="sortable" @click="toggleSort('position_status')">Status {{ sortIndicator('position_status') }}</th>
+              <SortableTh :table="holdingsTable" column="position_status">Status</SortableTh>
               <th></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="h in sortedHoldings" :key="h.stock_id">
-              <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: h.symbol } }">{{ h.symbol }}</RouterLink></td>
+              <td><StockLink :symbol="h.symbol" /></td>
               <td>
                 {{ h.quantity }}
                 <span v-if="h.bonus_shares_received > 0" class="muted small" :title="`Includes ${h.bonus_shares_received} bonus share(s) credited over time`">
@@ -329,7 +318,7 @@ onMounted(async () => {
                 <span v-else>—</span>
               </td>
               <td>
-                <span v-if="h.latest_signal" class="badge" :class="h.latest_signal.signal">{{ formatSignal(h.latest_signal.signal) }}</span>
+                <SignalBadge v-if="h.latest_signal" :signal="h.latest_signal.signal" />
                 <span v-else class="muted">No data</span>
               </td>
               <td>
@@ -361,11 +350,10 @@ onMounted(async () => {
             </tr>
           </tbody>
         </table>
-        <p v-else class="muted">No open holdings — add a buy transaction to get started.</p>
-      </div>
+        <EmptyState v-else>No open holdings — add a buy transaction to get started.</EmptyState>
+      </Card>
 
-      <div v-if="editingTargetFor" class="card form-stack" style="margin-top: 16px">
-        <h3>Stop-Loss / Target — {{ editingTargetFor.symbol }}</h3>
+      <Card v-if="editingTargetFor" :title="`Stop-Loss / Target — ${editingTargetFor.symbol}`" class="form-stack" style="margin-top: 16px">
         <p class="muted">
           Current price Rs. {{ formatPrice(editingTargetFor.current_price) }}, avg cost Rs. {{ formatPrice(editingTargetFor.avg_cost) }}.
           Set the levels where you'd exit this position — the Holdings table will flag it the moment price crosses either one.
@@ -383,11 +371,10 @@ onMounted(async () => {
           <button class="btn-secondary btn" :disabled="targetSaving" @click="clearTarget">Clear Levels</button>
           <button class="btn-secondary btn" :disabled="targetSaving" @click="closeTargetEditor">Cancel</button>
         </div>
-      </div>
+      </Card>
     </template>
 
-    <div class="card" style="margin-top: 16px">
-      <h3>Transaction History</h3>
+    <Card title="Transaction History" style="margin-top: 16px">
       <p v-if="deleteError" class="error-text">{{ deleteError }}</p>
       <table v-align-numbers class="table" v-if="store.transactions.length">
         <thead>
@@ -397,7 +384,7 @@ onMounted(async () => {
           <tr v-for="tx in store.transactions" :key="tx.id">
             <td>{{ tx.transaction_date }}</td>
             <td>
-              <RouterLink v-if="tx.stock" :to="{ name: 'stock-detail', params: { symbol: tx.stock.symbol } }">{{ tx.stock.symbol }}</RouterLink>
+              <StockLink v-if="tx.stock" :symbol="tx.stock.symbol" />
             </td>
             <td><span class="badge" :class="tx.type">{{ tx.type }}</span></td>
             <td>{{ tx.quantity }}</td>
@@ -413,8 +400,8 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">No transactions yet.</p>
-    </div>
+      <EmptyState v-else>No transactions yet.</EmptyState>
+    </Card>
   </div>
 </template>
 

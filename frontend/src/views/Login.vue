@@ -2,8 +2,8 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import AuthLayout from '../components/AuthLayout.vue'
-import NavIcon from '../components/NavIcon.vue'
+import AuthLayout from '../components/layout/AuthLayout.vue'
+import NavIcon from '../components/layout/NavIcon.vue'
 
 const auth = useAuthStore()
 const router = useRouter()

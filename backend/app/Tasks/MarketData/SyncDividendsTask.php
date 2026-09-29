@@ -15,7 +15,7 @@ use Throwable;
  * stock can genuinely have never declared a dividend, which is a
  * successful fetch, not a pending one. To refresh a stock that already
  * succeeded (e.g. a newly-declared dividend), use its "Refresh
- * Dividend/Bonus Data" button (StockController::fetchCorporateActions).
+ * Dividend/Bonus Data" button (the refreshCorporateActions mutation).
  */
 class SyncDividendsTask extends PerStockTask
 {

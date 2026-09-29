@@ -13,7 +13,7 @@ use App\Services\Reports\TechnicalAnalysisReportService;
 /**
  * Generates a buy/sell/hold opinion via the bound AiOpinionProvider, fed the
  * same technical/dividend/signal/ML context the Analyst Report page already
- * assembles (see ReportController::analyst()) — a 4th independent "lens"
+ * assembles (see ReportResolver::analyst()) — a 4th independent "lens"
  * alongside the technical read, rule-based signal, and ML predictor, not a
  * replacement for any of them.
  *

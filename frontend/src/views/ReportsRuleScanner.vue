@@ -1,8 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
-import { formatPrice } from '../utils/format'
+import * as reportsApi from '../api/reports'
+import { changeTone, formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const allRules = ref([])
@@ -34,19 +33,14 @@ function clearSelection() {
   selected.value = []
 }
 
-function changeTone(pct) {
-  if (pct === null || pct === undefined) return ''
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
-}
-
-const { sorted: sortedResults, toggleSort, sortIndicator } = useSortableTable(
+const resultsTable = useSortableTable(
   computed(() => results.value?.stocks ?? [])
 )
+const { sorted: sortedResults } = resultsTable
 
 async function loadRules() {
   loadingRules.value = true
-  const { data } = await client.get('/reports/rules')
-  allRules.value = data
+  allRules.value = await reportsApi.signalRules()
   loadingRules.value = false
 }
 
@@ -57,10 +51,7 @@ async function scan() {
   error.value = ''
   hasScanned.value = true
   try {
-    const { data } = await client.get('/reports/rule-scan', {
-      params: { rules: selected.value, mode: mode.value },
-    })
-    results.value = data
+    results.value = await reportsApi.ruleScan(selected.value, mode.value)
   } catch (e) {
     error.value = e.response?.data?.message || 'Scan failed.'
     results.value = null
@@ -74,16 +65,15 @@ onMounted(loadRules)
 
 <template>
   <div>
-    <h1>Rule Scanner</h1>
-    <p class="muted">
+    <PageHeader title="Rule Scanner">
       Pick any combination of the buy/sell conditions the signal engine checks daily, and find every stock whose
       latest signal fired them. This reads today's already-computed signals — not financial advice.
-    </p>
+    </PageHeader>
 
-    <p v-if="loadingRules" class="muted">Loading rules…</p>
+    <LoadingState v-if="loadingRules">Loading rules…</LoadingState>
 
     <template v-else>
-      <div class="card">
+      <Card>
         <div class="rules-grid">
           <div>
             <div class="group-head">
@@ -122,33 +112,32 @@ onMounted(loadRules)
             {{ scanning ? 'Scanning…' : `Scan (${selected.length} rule${selected.length === 1 ? '' : 's'})` }}
           </button>
         </div>
-      </div>
+      </Card>
 
       <p v-if="error" class="muted" style="margin-top: 16px">{{ error }}</p>
 
-      <div v-else-if="results" class="card" style="margin-top: 16px">
-        <h3>{{ results.matched_count }} stock{{ results.matched_count === 1 ? '' : 's' }} matched</h3>
+      <Card v-else-if="results" :title="`${results.matched_count} stock${results.matched_count === 1 ? '' : 's'} matched`" style="margin-top: 16px">
         <table v-align-numbers class="table">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-              <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
-              <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
-              <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
-              <th class="sortable" @click="toggleSort('change_pct')">Change {{ sortIndicator('change_pct') }}</th>
-              <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+              <SortableTh :table="resultsTable" column="symbol">Symbol</SortableTh>
+              <SortableTh :table="resultsTable" column="company_name">Company</SortableTh>
+              <SortableTh :table="resultsTable" column="sector">Sector</SortableTh>
+              <SortableTh :table="resultsTable" column="close">Price</SortableTh>
+              <SortableTh :table="resultsTable" column="change_pct">Change</SortableTh>
+              <SortableTh :table="resultsTable" column="signal">Signal</SortableTh>
               <th>Matched Rules</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="s in sortedResults" :key="s.stock_id">
-              <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+              <td><StockLink :symbol="s.symbol" /></td>
               <td class="muted">{{ s.company_name }}</td>
               <td>{{ s.sector || 'Other' }}</td>
               <td>{{ s.close !== null ? `Rs. ${formatPrice(s.close)}` : '—' }}</td>
               <td :class="changeTone(s.change_pct)">{{ s.change_pct !== null ? `${s.change_pct > 0 ? '+' : ''}${s.change_pct}%` : '—' }}</td>
               <td>
-                <span v-if="s.signal" class="badge" :class="s.signal">{{ s.signal.replace('_', ' ') }}</span>
+                <SignalBadge v-if="s.signal" :signal="s.signal" />
                 <span v-else class="muted">No data</span>
               </td>
               <td>
@@ -162,7 +151,7 @@ onMounted(loadRules)
             </tr>
           </tbody>
         </table>
-      </div>
+      </Card>
 
       <p v-else-if="hasScanned === false" class="muted" style="margin-top: 16px">
         Select one or more rules above, then click Scan.

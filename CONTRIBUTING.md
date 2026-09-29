@@ -24,7 +24,8 @@ Keep each pull request to one change. Small pull requests get reviewed faster.
 
 The backend's structure and rules are written up in [`backend/ARCHITECTURE.md`](backend/ARCHITECTURE.md) — read the "Where to add new code" table before adding something new. The short version:
 
-- **Controllers only call things.** Validate with a FormRequest, call a service/task/event, return the response. No queries or business logic in a controller.
+- **The SPA's API is GraphQL** (`backend/graphql/*.graphql`, resolvers in `app/GraphQL/Resolvers/`). Only file uploads/downloads and the `/cron/*` URLs are plain HTTP routes.
+- **Resolvers and controllers only call things.** Validate with a FormRequest, call a service/task/event, return the result. No queries or business logic in a resolver or controller.
 - **Business logic lives in `app/Services/<Domain>/`.** Background work lives in `app/Tasks/<Domain>/`.
 - **Anything that talks to nepalstock.com goes through `NepalStockClient`** — never build the auth headers yourself.
 - **React to things with events.** Fire an event (e.g. `StockPricesUpdated`) and add a listener in `AppServiceProvider::LISTENERS`, instead of calling the follow-up directly.
@@ -32,7 +33,10 @@ The backend's structure and rules are written up in [`backend/ARCHITECTURE.md`](
 - **New columns on a table that's already in production need a new migration.** Editing an old migration only affects fresh installs.
 - **A change to indicator or signal logic must be backtested** — re-run `/cron/reports/backtest-signals` and say in the pull request how the accuracy changed.
 
-**Frontend:** add `v-align-numbers` to any new `<table>` so its number columns right-align.
+**Frontend:**
+- Pages get their data from the functions in `src/api/<area>.js`, never by calling `gql()` or axios directly.
+- Build pages from the shared components in `src/components/ui/` (`PageHeader`, `Card`, `SortableTh`, `SignalBadge`, `StockLink`, …) and the helpers in `src/utils/format.js`. Don't copy their markup.
+- Add `v-align-numbers` to any new `<table>` so its number columns right-align.
 
 ## Tests and style
 

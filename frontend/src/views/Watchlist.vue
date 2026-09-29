@@ -1,11 +1,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as watchlistsApi from '../api/watchlists'
 import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
-import SearchableSelect from '../components/SearchableSelect.vue'
-import WatchlistTable from '../components/WatchlistTable.vue'
+import SearchableSelect from '../components/ui/SearchableSelect.vue'
+import WatchlistTable from '../components/stock/WatchlistTable.vue'
 
 const stocksStore = useStocksStore()
 const watchlists = ref([])
@@ -20,8 +19,8 @@ const ALERT_DIRECTION_OPTIONS = [
 ]
 
 async function load() {
-  const [wlRes] = await Promise.all([client.get('/watchlists'), stocksStore.stocks.length ? Promise.resolve() : stocksStore.fetchStocks()])
-  watchlists.value = wlRes.data
+  const [wlData] = await Promise.all([watchlistsApi.list(), stocksStore.stocks.length ? Promise.resolve() : stocksStore.fetchStocks()])
+  watchlists.value = wlData
   if (watchlists.value.length && !selectedWatchlistId.value) {
     selectedWatchlistId.value = watchlists.value[0].id
   }
@@ -29,13 +28,13 @@ async function load() {
 
 async function addToWatchlist() {
   if (!selectedStockId.value || !selectedWatchlistId.value) return
-  await client.post(`/watchlists/${selectedWatchlistId.value}/items`, { stock_id: selectedStockId.value })
+  await watchlistsApi.addStock(selectedWatchlistId.value, selectedStockId.value)
   selectedStockId.value = ''
   await load()
 }
 
 async function removeFromWatchlist(watchlistId, stockId) {
-  await client.delete(`/watchlists/${watchlistId}/items/${stockId}`)
+  await watchlistsApi.removeStock(watchlistId, stockId)
   await load()
 }
 
@@ -59,7 +58,7 @@ async function saveAlert() {
   alertSaving.value = true
   try {
     const { watchlistId, stock } = editingAlertFor.value
-    await client.put(`/watchlists/${watchlistId}/items/${stock.id}/alert`, {
+    await watchlistsApi.setAlert(watchlistId, stock.id, {
       alert_price: alertPrice.value || null,
       alert_direction: alertPrice.value ? alertDirection.value : null,
     })
@@ -80,30 +79,27 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Watchlist</h1>
+    <PageHeader title="Watchlist" />
 
-    <div class="card" style="margin-bottom: 20px">
-      <h3>Add a stock</h3>
+    <Card title="Add a stock" style="margin-bottom: 20px">
       <div class="add-row">
         <SearchableSelect v-model="selectedWatchlistId" :options="watchlistOptions" />
         <SearchableSelect v-model="selectedStockId" :options="stockOptions" placeholder="Select a stock…" />
         <button class="btn" @click="addToWatchlist">Add</button>
       </div>
-    </div>
+    </Card>
 
-    <div v-for="wl in watchlists" :key="wl.id" class="card" style="margin-bottom: 16px">
-      <h3>{{ wl.name }}</h3>
+    <Card v-for="wl in watchlists" :key="wl.id" :title="wl.name" style="margin-bottom: 16px">
       <WatchlistTable
         v-if="wl.stocks.length"
         :stocks="wl.stocks"
         @set-alert="(stock) => openAlertEditor(wl.id, stock)"
         @remove="(stockId) => removeFromWatchlist(wl.id, stockId)"
       />
-      <p v-else class="muted">No stocks yet.</p>
-    </div>
+      <EmptyState v-else>No stocks yet.</EmptyState>
+    </Card>
 
-    <div v-if="editingAlertFor" class="card form-stack" style="margin-top: 16px">
-      <h3>Price Alert — {{ editingAlertFor.stock.symbol }}</h3>
+    <Card v-if="editingAlertFor" :title="`Price Alert — ${editingAlertFor.stock.symbol}`" class="form-stack" style="margin-top: 16px">
       <p class="muted">Current price Rs. {{ formatPrice(editingAlertFor.stock.latest_price?.close_price) }}.</p>
       <div class="picker-row">
         <SearchableSelect v-model="alertDirection" :options="ALERT_DIRECTION_OPTIONS" style="max-width: 160px" />
@@ -114,7 +110,7 @@ onMounted(load)
         <button class="btn-secondary btn" :disabled="alertSaving" @click="clearAlert">Clear Alert</button>
         <button class="btn-secondary btn" :disabled="alertSaving" @click="closeAlertEditor">Cancel</button>
       </div>
-    </div>
+    </Card>
   </div>
 </template>
 

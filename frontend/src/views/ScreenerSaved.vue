@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as watchlistsApi from '../api/watchlists'
 
 const screens = ref([])
 const loading = ref(true)
@@ -9,8 +9,7 @@ const deletingId = ref(null)
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/saved-screens')
-  screens.value = data
+  screens.value = await watchlistsApi.savedScreens()
   loading.value = false
 }
 
@@ -18,7 +17,7 @@ async function remove(id) {
   if (!window.confirm('Delete this saved screen?')) return
   deletingId.value = id
   try {
-    await client.delete(`/saved-screens/${id}`)
+    await watchlistsApi.deleteSavedScreen(id)
     screens.value = screens.value.filter((s) => s.id !== id)
   } finally {
     deletingId.value = null
@@ -41,15 +40,14 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Saved Screens</h1>
-    <p class="muted">
+    <PageHeader title="Saved Screens">
       Your saved filter combinations from the Custom Screener. Save a new one from
       <RouterLink :to="{ name: 'screener' }">Custom Screener</RouterLink>.
-    </p>
+    </PageHeader>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
 
-    <div v-else class="card">
+    <Card v-else>
       <table v-align-numbers class="table" v-if="screens.length">
         <thead><tr><th>Name</th><th>Filters</th><th>Saved</th><th></th></tr></thead>
         <tbody>
@@ -66,7 +64,7 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">No saved screens yet.</p>
-    </div>
+      <EmptyState v-else>No saved screens yet.</EmptyState>
+    </Card>
   </div>
 </template>

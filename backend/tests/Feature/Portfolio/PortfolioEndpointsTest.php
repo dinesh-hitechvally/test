@@ -14,6 +14,16 @@ class PortfolioEndpointsTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const ADD_TRANSACTION = 'mutation ($p: Int!, $stock_id: Int, $type: String, $quantity: Float, $price: Float, $transaction_date: String) {
+        addTransaction(portfolio_id: $p, stock_id: $stock_id, type: $type, quantity: $quantity, price: $price, transaction_date: $transaction_date) {
+            fees stock { symbol }
+        }
+    }';
+
+    private const SET_TARGET = 'mutation ($p: Int!, $s: Int!, $stop: Float, $target: Float) {
+        setPositionTarget(portfolio_id: $p, stock_id: $s, stop_loss: $stop, target_price: $target) { stop_loss }
+    }';
+
     private User $user;
 
     private Portfolio $portfolio;
@@ -27,61 +37,90 @@ class PortfolioEndpointsTest extends TestCase
         Sanctum::actingAs($this->user);
     }
 
-    public function test_store_portfolio_validates_through_its_form_request(): void
+    public function test_create_portfolio_validates_through_its_form_request(): void
     {
-        $this->postJson('/api/portfolios', [])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors('name');
+        $response = $this->graphQL('mutation { createPortfolio { id } }');
+        $this->assertSame(422, $this->graphQLStatus($response));
+        $this->assertArrayHasKey('name', $response->json('errors.0.extensions.validation'));
 
-        $this->postJson('/api/portfolios', ['name' => 'Second'])
-            ->assertCreated()
-            ->assertJsonPath('name', 'Second');
+        $this->graphQL('mutation { createPortfolio(name: "Second") { name } }')->assertJsonPath('data.createPortfolio.name', 'Second');
     }
 
-    public function test_store_transaction_rejects_an_invalid_payload(): void
+    public function test_add_transaction_rejects_an_invalid_payload(): void
     {
-        $this->postJson("/api/portfolios/{$this->portfolio->id}/transactions", ['type' => 'hold'])
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['stock_id', 'type', 'quantity', 'price', 'transaction_date']);
+        $response = $this->graphQL(self::ADD_TRANSACTION, ['p' => $this->portfolio->id, 'type' => 'hold']);
+
+        $this->assertSame(422, $this->graphQLStatus($response));
+        $this->assertEqualsCanonicalizing(
+            ['stock_id', 'type', 'quantity', 'price', 'transaction_date'],
+            array_keys($response->json('errors.0.extensions.validation')),
+        );
+    }
+
+    public function test_a_fractional_quantity_gets_the_validation_message(): void
+    {
+        $stock = Stock::create(['symbol' => 'TEST', 'company_name' => 'Test Co', 'is_active' => true]);
+
+        $response = $this->graphQL(self::ADD_TRANSACTION, [
+            'p' => $this->portfolio->id, 'stock_id' => $stock->id, 'type' => 'buy', 'quantity' => 1.5, 'price' => 100, 'transaction_date' => '2024-01-02',
+        ]);
+
+        $this->assertSame(422, $this->graphQLStatus($response));
+        $this->assertSame(['quantity'], array_keys($response->json('errors.0.extensions.validation')));
     }
 
     public function test_buying_then_overselling_is_rejected_with_the_rule_message(): void
     {
         $stock = Stock::create(['symbol' => 'TEST', 'company_name' => 'Test Co', 'is_active' => true]);
-        $url = "/api/portfolios/{$this->portfolio->id}/transactions";
-        $trade = ['stock_id' => $stock->id, 'price' => 100, 'transaction_date' => '2024-01-02'];
+        $trade = ['p' => $this->portfolio->id, 'stock_id' => $stock->id, 'price' => 100, 'transaction_date' => '2024-01-02'];
 
-        $this->postJson($url, [...$trade, 'type' => 'buy', 'quantity' => 10])
-            ->assertCreated()
-            ->assertJsonPath('stock.symbol', 'TEST')
-            ->assertJsonPath('fees', fn ($v) => (float) $v === 0.0);
+        $this->graphQL(self::ADD_TRANSACTION, [...$trade, 'type' => 'buy', 'quantity' => 10])
+            ->assertJsonPath('data.addTransaction.stock.symbol', 'TEST')
+            ->assertJsonPath('data.addTransaction.fees', fn ($v) => (float) $v === 0.0);
 
-        $response = $this->postJson($url, [...$trade, 'type' => 'sell', 'quantity' => 50])->assertUnprocessable();
-        $this->assertNotEmpty($response->json('message'));
-        $this->assertArrayNotHasKey('errors', $response->json()); // a rule message, not a field-validation error
+        $response = $this->graphQL(self::ADD_TRANSACTION, [...$trade, 'type' => 'sell', 'quantity' => 50]);
+        $this->assertSame(422, $this->graphQLStatus($response));
+        $this->assertNotEmpty($response->json('errors.0.message'));
+        $this->assertNull($response->json('errors.0.extensions.validation')); // a rule message, not a field-validation error
     }
 
     public function test_set_target_upserts_the_levels(): void
     {
         $stock = Stock::create(['symbol' => 'TEST', 'company_name' => 'Test Co', 'is_active' => true]);
-        $url = "/api/portfolios/{$this->portfolio->id}/positions/{$stock->id}/target";
+        $vars = ['p' => $this->portfolio->id, 's' => $stock->id];
 
-        $this->putJson($url, ['stop_loss' => 90, 'target_price' => 150])->assertOk()->assertJsonPath('stop_loss', fn ($v) => (float) $v === 90.0);
-        $this->putJson($url, ['stop_loss' => 95, 'target_price' => null])->assertOk()->assertJsonPath('stop_loss', fn ($v) => (float) $v === 95.0);
+        $this->graphQL(self::SET_TARGET, [...$vars, 'stop' => 90, 'target' => 150])
+            ->assertJsonPath('data.setPositionTarget.stop_loss', fn ($v) => (float) $v === 90.0);
+        $this->graphQL(self::SET_TARGET, [...$vars, 'stop' => 95, 'target' => null])
+            ->assertJsonPath('data.setPositionTarget.stop_loss', fn ($v) => (float) $v === 95.0);
 
         $this->assertSame(1, PositionTarget::count());
     }
 
-    public function test_transactions_are_listed_newest_first(): void
+    public function test_transactions_are_listed_newest_first_and_can_be_deleted(): void
     {
         $stock = Stock::create(['symbol' => 'TEST', 'company_name' => 'Test Co', 'is_active' => true]);
         $this->transaction($stock, '2024-01-01', 10);
         $this->transaction($stock, '2024-03-01', 5);
+        $list = 'query ($p: Int!) { portfolioTransactions(portfolio_id: $p) { id quantity stock { symbol } } }';
 
-        $this->getJson("/api/portfolios/{$this->portfolio->id}/transactions")
-            ->assertOk()
-            ->assertJsonPath('0.quantity', 5)
-            ->assertJsonPath('0.stock.symbol', 'TEST');
+        $response = $this->graphQL($list, ['p' => $this->portfolio->id])
+            ->assertJsonPath('data.portfolioTransactions.0.quantity', 5)
+            ->assertJsonPath('data.portfolioTransactions.0.stock.symbol', 'TEST');
+
+        $this->graphQL('mutation ($p: Int!, $t: Int!) { deleteTransaction(portfolio_id: $p, transaction_id: $t) }',
+            ['p' => $this->portfolio->id, 't' => $response->json('data.portfolioTransactions.0.id')])->assertJsonMissingPath('errors');
+        $this->graphQL($list, ['p' => $this->portfolio->id])->assertJsonCount(1, 'data.portfolioTransactions');
+    }
+
+    public function test_another_users_portfolio_is_404(): void
+    {
+        $theirs = User::create(['name' => 'Other', 'email' => 'other@example.com', 'password' => 'password'])
+            ->portfolios()->create(['name' => 'Theirs']);
+
+        $response = $this->graphQL('query ($id: Int!) { portfolio(id: $id) { summary { total_invested } } }', ['id' => $theirs->id]);
+
+        $this->assertSame(404, $this->graphQLStatus($response));
     }
 
     public function test_csv_export_contains_both_sections(): void

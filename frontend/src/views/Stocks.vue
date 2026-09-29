@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useStocksStore } from '../stores/stocks'
-import MarketTable from '../components/MarketTable.vue'
+import MarketTable from '../components/stock/MarketTable.vue'
 
 const store = useStocksStore()
 
@@ -70,24 +70,22 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="showAddForm" class="card form-stack" style="margin-bottom: 20px">
-      <h3>Add a new stock</h3>
+    <Card v-if="showAddForm" title="Add a new stock" class="form-stack" style="margin-bottom: 20px">
       <input v-model="newSymbol" class="input" placeholder="Symbol (e.g. NABIL)" required />
       <input v-model="newCompanyName" class="input" placeholder="Company name (optional)" />
       <input v-model="newSector" class="input" placeholder="Sector (optional)" />
       <p v-if="addError" class="error-text">{{ addError }}</p>
       <button class="btn" @click="handleAddStock">Save</button>
-    </div>
+    </Card>
 
-    <div v-if="showImportForm" class="card form-stack" style="margin-bottom: 20px">
-      <h3>Import historical prices from CSV</h3>
+    <Card v-if="showImportForm" title="Import historical prices from CSV" class="form-stack" style="margin-bottom: 20px">
       <p class="muted">Columns: Date, Open, High, Low, Close, Volume. A Symbol column is used per-row if present, otherwise provide one below.</p>
       <input type="file" accept=".csv,text/csv" @change="handleFileChange" />
       <input v-model="importSymbol" class="input" placeholder="Symbol (only if CSV has no Symbol column)" />
       <p v-if="importError" class="error-text">{{ importError }}</p>
       <p v-if="importResult" class="muted">{{ importResult }}</p>
       <button class="btn" :disabled="importing" @click="handleImport">{{ importing ? 'Importing…' : 'Import' }}</button>
-    </div>
+    </Card>
 
     <MarketTable :stocks="store.stocks" :show-turnover-volume="true" :show-ai-opinion="true" />
   </div>

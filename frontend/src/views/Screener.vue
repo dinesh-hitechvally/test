@@ -1,10 +1,11 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import client from '../api/client'
-import { formatPrice } from '../utils/format'
-import SearchableSelect from '../components/SearchableSelect.vue'
-import Pagination from '../components/Pagination.vue'
+import * as marketApi from '../api/market'
+import * as watchlistsApi from '../api/watchlists'
+import { changeTone, formatPrice } from '../utils/format'
+import SearchableSelect from '../components/ui/SearchableSelect.vue'
+import Pagination from '../components/ui/Pagination.vue'
 
 const route = useRoute()
 
@@ -43,8 +44,7 @@ const pageSize = 50
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/market/screener')
-  stocks.value = data
+  stocks.value = await marketApi.screener()
   loading.value = false
 }
 
@@ -121,10 +121,9 @@ function sortIndicator(key) {
   return sortDir.value === 'asc' ? '▲' : '▼'
 }
 
-function changeTone(pct) {
-  if (pct === null || pct === undefined) return ''
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
-}
+// This page sorts by hand (so a re-sort can reset the page), so give
+// <SortableTh> the same toggleSort/sortIndicator pair useSortableTable returns.
+const screenerTable = { toggleSort, sortIndicator }
 
 const pageCount = computed(() => Math.max(1, Math.ceil(sorted.value.length / pageSize)))
 
@@ -176,7 +175,7 @@ async function saveScreen() {
   if (!savingName.value.trim()) return
   saveError.value = ''
   try {
-    await client.post('/saved-screens', { name: savingName.value.trim(), filters: currentFilters() })
+    await watchlistsApi.createSavedScreen({ name: savingName.value.trim(), filters: currentFilters() })
     savingName.value = ''
     showSaveForm.value = false
   } catch (e) {
@@ -185,7 +184,7 @@ async function saveScreen() {
 }
 
 async function loadSavedScreen(id) {
-  const { data } = await client.get('/saved-screens')
+  const data = await watchlistsApi.savedScreens()
   const found = data.find((s) => s.id === Number(id))
   if (found) applyFilters(found.filters)
 }
@@ -198,10 +197,9 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Market Screener</h1>
+    <PageHeader title="Market Screener" />
 
-    <div class="card" style="margin-bottom: 20px">
-      <h3>Filters</h3>
+    <Card title="Filters" style="margin-bottom: 20px">
       <div class="filter-grid">
         <label>
           Signal
@@ -250,26 +248,26 @@ onMounted(async () => {
         <button class="btn" @click="saveScreen">Save</button>
       </div>
       <p v-if="saveError" class="error-text">{{ saveError }}</p>
-    </div>
+    </Card>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
     <template v-else>
       <p class="muted">{{ sorted.length }} of {{ stocks.length }} stocks match.</p>
       <table v-align-numbers class="table">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
-            <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
-            <th class="sortable" @click="toggleSort('last_close')">Price {{ sortIndicator('last_close') }}</th>
-            <th class="sortable" @click="toggleSort('change_pct')">% Change {{ sortIndicator('change_pct') }}</th>
-            <th class="sortable" @click="toggleSort('rsi')">RSI (14) {{ sortIndicator('rsi') }}</th>
-            <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+            <SortableTh :table="screenerTable" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="screenerTable" column="company_name">Company</SortableTh>
+            <SortableTh :table="screenerTable" column="sector">Sector</SortableTh>
+            <SortableTh :table="screenerTable" column="last_close">Price</SortableTh>
+            <SortableTh :table="screenerTable" column="change_pct">% Change</SortableTh>
+            <SortableTh :table="screenerTable" column="rsi">RSI (14)</SortableTh>
+            <SortableTh :table="screenerTable" column="signal">Signal</SortableTh>
           </tr>
         </thead>
         <tbody>
           <tr v-for="s in paged" :key="s.id">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+            <td><StockLink :symbol="s.symbol" /></td>
             <td>{{ s.company_name || '—' }}</td>
             <td>{{ sectorOf(s) }}</td>
             <td>{{ formatPrice(s.latest_price?.close_price) }}</td>
@@ -278,7 +276,7 @@ onMounted(async () => {
             </td>
             <td>{{ s.latest_indicator?.rsi_14 !== undefined && s.latest_indicator?.rsi_14 !== null ? Number(s.latest_indicator.rsi_14).toFixed(1) : '—' }}</td>
             <td>
-              <span v-if="s.latest_signal" class="badge" :class="s.latest_signal.signal">{{ s.latest_signal.signal.replace('_', ' ') }}</span>
+              <SignalBadge v-if="s.latest_signal" :signal="s.latest_signal.signal" />
               <span v-else class="muted">No data</span>
             </td>
           </tr>

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import client from '../api/client'
+import * as marketApi from '../api/market'
 
 const data = ref(null)
 const loading = ref(true)
@@ -21,8 +21,7 @@ const rows = computed(() => {
 
 async function load() {
   loading.value = true
-  const { data: res } = await client.get('/signals/accuracy')
-  data.value = res
+  data.value = await marketApi.signalAccuracy()
   loading.value = false
 }
 
@@ -31,20 +30,19 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Signal History / Accuracy</h1>
-    <p class="muted">
+    <PageHeader title="Signal History / Accuracy">
       A walk-forward backtest of every historical signal this app has generated — for each one, did price actually
       move the direction the signal implied over the next {{ data?.horizon_days || 30 }} trading days?
-    </p>
+    </PageHeader>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
 
     <template v-else-if="data?.available">
       <p class="muted small">
         Computed {{ new Date(data.computed_at).toLocaleString() }}. {{ data.disclaimer }}
       </p>
 
-      <div class="card" style="margin-top: 12px">
+      <Card style="margin-top: 12px">
         <table v-align-numbers class="table">
           <thead>
             <tr><th>Signal</th><th>Sample Size</th><th>Win Rate</th><th>Baseline Win Rate</th><th>Avg Forward Return</th><th>Beats Baseline?</th></tr>
@@ -69,7 +67,7 @@ onMounted(load)
             </tr>
           </tbody>
         </table>
-      </div>
+      </Card>
 
       <p class="muted small" style="margin-top: 10px">
         "Baseline" is what the same stat looks like on an average, unfiltered trading day — a signal only adds real
@@ -77,7 +75,7 @@ onMounted(load)
       </p>
     </template>
 
-    <p v-else class="muted">No backtest has run yet.</p>
+    <EmptyState v-else>No backtest has run yet.</EmptyState>
   </div>
 </template>
 

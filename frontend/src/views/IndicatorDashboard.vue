@@ -1,9 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as marketApi from '../api/market'
 import { formatPrice } from '../utils/format'
-import Pagination from '../components/Pagination.vue'
 
 const stocks = ref([])
 const loading = ref(true)
@@ -48,6 +46,9 @@ function sortIndicator(key) {
   return sortDir.value === 'asc' ? '▲' : '▼'
 }
 
+// What <SortableTh> needs — this page sorts by hand (it also resets the page).
+const table = { toggleSort, sortIndicator }
+
 function rsiTone(rsi) {
   if (rsi === null) return ''
   return rsi >= 70 ? 'negative' : rsi <= 30 ? 'positive' : ''
@@ -58,8 +59,7 @@ const paged = computed(() => sorted.value.slice((page.value - 1) * pageSize, pag
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/market/screener')
-  stocks.value = data
+  stocks.value = await marketApi.screener()
   loading.value = false
 }
 
@@ -68,34 +68,33 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Indicator Dashboard</h1>
-    <p class="muted">RSI, MACD, and volume for every tracked stock in one sortable table — click a column to sort.</p>
+    <PageHeader title="Indicator Dashboard">RSI, MACD, and volume for every tracked stock in one sortable table — click a column to sort.</PageHeader>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
 
     <template v-else>
       <table v-align-numbers class="table">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('rsi_14')">RSI (14) {{ sortIndicator('rsi_14') }}</th>
-            <th class="sortable" @click="toggleSort('macd')">MACD {{ sortIndicator('macd') }}</th>
-            <th class="sortable" @click="toggleSort('macd_signal')">Signal Line {{ sortIndicator('macd_signal') }}</th>
-            <th class="sortable" @click="toggleSort('macd_histogram')">Histogram {{ sortIndicator('macd_histogram') }}</th>
-            <th class="sortable" @click="toggleSort('volume')">Volume {{ sortIndicator('volume') }}</th>
+            <SortableTh :table="table" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="table" column="rsi_14">RSI (14)</SortableTh>
+            <SortableTh :table="table" column="macd">MACD</SortableTh>
+            <SortableTh :table="table" column="macd_signal">Signal Line</SortableTh>
+            <SortableTh :table="table" column="macd_histogram">Histogram</SortableTh>
+            <SortableTh :table="table" column="volume">Volume</SortableTh>
             <th>Signal</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="s in paged" :key="s.id">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+            <td><StockLink :symbol="s.symbol" /></td>
             <td :class="rsiTone(ind(s, 'rsi_14'))">{{ ind(s, 'rsi_14') !== null ? ind(s, 'rsi_14').toFixed(1) : '—' }}</td>
             <td>{{ ind(s, 'macd') !== null ? ind(s, 'macd').toFixed(3) : '—' }}</td>
             <td>{{ ind(s, 'macd_signal') !== null ? ind(s, 'macd_signal').toFixed(3) : '—' }}</td>
             <td>{{ ind(s, 'macd_histogram') !== null ? ind(s, 'macd_histogram').toFixed(3) : '—' }}</td>
             <td>{{ s.latest_price?.volume?.toLocaleString() ?? '—' }}</td>
             <td>
-              <span v-if="s.latest_signal" class="badge" :class="s.latest_signal.signal">{{ s.latest_signal.signal.replace('_', ' ') }}</span>
+              <SignalBadge v-if="s.latest_signal" :signal="s.latest_signal.signal" />
               <span v-else class="muted">No data</span>
             </td>
           </tr>

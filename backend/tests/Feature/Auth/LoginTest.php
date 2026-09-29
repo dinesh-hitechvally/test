@@ -13,6 +13,8 @@ class LoginTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const LOGIN = 'mutation ($email: String, $password: String) { login(email: $email, password: $password) { email } }';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -27,24 +29,39 @@ class LoginTest extends TestCase
 
     public function test_login_is_recorded_through_the_event(): void
     {
-        $this->postJson('/api/login', ['email' => 'test@example.com', 'password' => 'secret-pass'])
-            ->assertOk()
-            ->assertJsonPath('user.email', 'test@example.com');
+        $this->graphQL(self::LOGIN, ['email' => 'test@example.com', 'password' => 'secret-pass'])
+            ->assertJsonPath('data.login.email', 'test@example.com');
 
-        $this->getJson('/api/user/login-history')
-            ->assertOk()
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.city', 'Kathmandu');
+        $this->graphQL('{ me { email } loginHistory { city } }')
+            ->assertJsonPath('data.me.email', 'test@example.com')
+            ->assertJsonCount(1, 'data.loginHistory')
+            ->assertJsonPath('data.loginHistory.0.city', 'Kathmandu');
     }
 
     public function test_wrong_password_is_rejected_and_not_recorded(): void
     {
         Event::fake([UserLoggedIn::class]);
 
-        $this->postJson('/api/login', ['email' => 'test@example.com', 'password' => 'wrong'])
-            ->assertUnprocessable()
-            ->assertJsonPath('message', 'Invalid credentials.');
+        $response = $this->graphQL(self::LOGIN, ['email' => 'test@example.com', 'password' => 'wrong'])
+            ->assertGraphQLErrorMessage('Invalid credentials.');
 
+        $this->assertSame(422, $this->graphQLStatus($response));
         Event::assertNotDispatched(UserLoggedIn::class);
+    }
+
+    public function test_missing_fields_come_back_as_validation_errors(): void
+    {
+        $response = $this->graphQL(self::LOGIN, ['email' => '', 'password' => null]);
+
+        $this->assertSame(422, $this->graphQLStatus($response));
+        $this->assertArrayHasKey('email', $response->json('errors.0.extensions.validation'));
+        $this->assertArrayHasKey('password', $response->json('errors.0.extensions.validation'));
+    }
+
+    public function test_guarded_fields_need_a_login(): void
+    {
+        $this->graphQL('{ me { email } }')->assertJsonPath('data.me', null);
+
+        $this->assertSame(401, $this->graphQLStatus($this->graphQL('{ loginHistory { city } }')));
     }
 }

@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import client from '../api/client'
+import * as marketApi from '../api/market'
+import * as stocksApi from '../api/stocks'
 
 export const useStocksStore = defineStore('stocks', {
   state: () => ({
@@ -15,25 +17,23 @@ export const useStocksStore = defineStore('stocks', {
     async fetchStocks() {
       this.loading = true
       try {
-        const { data } = await client.get('/stocks')
-        this.stocks = data
+        this.stocks = await stocksApi.list()
       } finally {
         this.loading = false
       }
     },
     async fetchTodaySignals(signal = null) {
-      const { data } = await client.get('/signals/today', { params: signal ? { signal } : {} })
-      this.todaySignals = data
+      this.todaySignals = await marketApi.todaySignals(signal)
     },
     async fetchScrapeLogs() {
-      const { data } = await client.get('/scrape/logs')
-      this.scrapeLogs = data
+      this.scrapeLogs = await marketApi.scrapeLogs()
     },
     async addStock(payload) {
-      const { data } = await client.post('/stocks', payload)
+      const data = await stocksApi.create(payload)
       this.stocks.push(data)
       return data
     },
+    // A file upload, so this one stays a REST call.
     async importCsv(file, symbol) {
       const form = new FormData()
       form.append('file', file)

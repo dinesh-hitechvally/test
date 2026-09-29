@@ -1,11 +1,10 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import client from '../api/client'
+import * as reportsApi from '../api/reports'
+import * as stocksApi from '../api/stocks'
 import { useStocksStore } from '../stores/stocks'
-import { formatPrice } from '../utils/format'
-import StatCard from '../components/StatCard.vue'
-import SearchableSelect from '../components/SearchableSelect.vue'
+import { changeTone, formatPrice, formatSignal } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,10 +18,6 @@ const loading = ref(false)
 const error = ref('')
 const aiOpinion = ref(null)
 const aiOpinionMessage = ref('')
-
-function fmt(v) {
-  return v === null || v === undefined ? '—' : formatPrice(v)
-}
 
 function toneOf(word) {
   if (['bullish', 'buy', 'strong_buy', 'up'].includes(word)) return 'positive'
@@ -42,12 +37,12 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [{ data: res }, { data: aiRes }] = await Promise.all([
-      client.get(`/reports/analyst/${selected.value}`),
+    const [res, aiRes] = await Promise.all([
+      reportsApi.analyst(selected.value),
       // A plain DB read (the cron pipeline is the only thing that ever
       // calls the AI itself) — safe to fetch on every load, no
       // button/latency/quota concern.
-      client.get(`/stocks/${selected.value}/ai-opinion`),
+      stocksApi.aiOpinion(selected.value),
     ])
     data.value = res
     if (aiRes.available) {
@@ -124,7 +119,7 @@ const summary = computed(() => {
   const lines = []
 
   lines.push(
-    `${d.stock.symbol} (${d.stock.company_name}) trades at Rs. ${fmt(d.latest_price?.close_price)}` +
+    `${d.stock.symbol} (${d.stock.company_name}) trades at Rs. ${formatPrice(d.latest_price?.close_price)}` +
       (d.change_pct !== null ? `, ${d.change_pct > 0 ? 'up' : 'down'} ${Math.abs(d.change_pct)}% today` : '') +
       (d.returns?.['1m'] !== null && d.returns?.['1m'] !== undefined ? `, and ${d.returns['1m'] > 0 ? '+' : ''}${d.returns['1m']}% over the past month.` : '.')
   )
@@ -156,7 +151,7 @@ const summary = computed(() => {
   }
 
   if (d.signal) {
-    let line = `The rule-based signal engine currently flags ${d.stock.symbol} as ${d.signal.signal.replace('_', ' ')}`
+    let line = `The rule-based signal engine currently flags ${d.stock.symbol} as ${formatSignal(d.signal.signal)}`
     if (d.signal.accuracy) {
       const a = d.signal.accuracy
       const beats = a.win_rate > a.baseline_win_rate
@@ -180,46 +175,43 @@ const summary = computed(() => {
 
 <template>
   <div>
-    <h1>Analyst Report</h1>
-    <p class="muted">
+    <PageHeader title="Analyst Report">
       Every lens this app has on one stock, synthesized in one place — price performance, technical read, dividend
       history, rule-based signal (with its own honest track record), and ML direction call. Not financial advice —
       a merge of already-computed data, not a new prediction of its own.
-    </p>
+    </PageHeader>
 
-    <div class="card">
+    <Card>
       <SearchableSelect v-model="selected" :options="stockOptions" style="max-width: 340px" placeholder="Select a stock…" @change="onSelect" />
-    </div>
+    </Card>
 
-    <p v-if="loading" class="muted" style="margin-top: 16px">Loading…</p>
+    <LoadingState v-if="loading" style="margin-top: 16px" />
     <p v-else-if="error" class="muted" style="margin-top: 16px">{{ error }}</p>
 
     <template v-else-if="data">
       <div class="page-header" style="margin-top: 16px">
         <div>
           <h2 style="margin: 0">{{ data.stock.symbol }} <span class="muted" style="font-weight: 400">{{ data.stock.company_name }}</span></h2>
-          <span v-if="data.signal" class="badge" :class="data.signal.signal">{{ data.signal.signal.replace('_', ' ') }}</span>
+          <SignalBadge v-if="data.signal" :signal="data.signal.signal" />
         </div>
         <div class="header-right">
-          <div class="price">Rs. {{ fmt(data.latest_price?.close_price) }}</div>
-          <RouterLink :to="{ name: 'stock-detail', params: { symbol: data.stock.symbol } }" class="btn-secondary btn">Full Stock Detail</RouterLink>
+          <div class="price">Rs. {{ formatPrice(data.latest_price?.close_price) }}</div>
+          <StockLink :symbol="data.stock.symbol" class="btn-secondary btn">Full Stock Detail</StockLink>
         </div>
       </div>
 
-      <div class="card summary-card">
-        <h3>Analyst Summary</h3>
+      <Card title="Analyst Summary" class="summary-card">
         <p v-for="(line, i) in summary" :key="i">{{ line }}</p>
-      </div>
+      </Card>
 
       <div class="grid grid-cards" style="margin-top: 16px">
-        <StatCard label="Change Today" :value="data.change_pct !== null ? `${data.change_pct > 0 ? '+' : ''}${data.change_pct}%` : '—'" :tone="data.change_pct > 0 ? 'positive' : data.change_pct < 0 ? 'negative' : 'neutral'" />
+        <StatCard label="Change Today" :value="data.change_pct !== null ? `${data.change_pct > 0 ? '+' : ''}${data.change_pct}%` : '—'" :tone="changeTone(data.change_pct, 'neutral')" />
         <StatCard label="1M Return" :value="data.returns?.['1m'] !== null ? `${data.returns['1m'] > 0 ? '+' : ''}${data.returns['1m']}%` : '—'" :tone="data.returns?.['1m'] > 0 ? 'positive' : 'negative'" />
         <StatCard label="Dividend Yield" :value="data.dividend?.dividend_yield_pct !== null && data.dividend?.dividend_yield_pct !== undefined ? `${data.dividend.dividend_yield_pct}%` : '—'" />
         <StatCard label="ML Direction" :value="data.ml_prediction ? data.ml_prediction.direction : '—'" :tone="data.ml_prediction ? toneOf(data.ml_prediction.direction) : 'neutral'" />
       </div>
 
-      <div v-if="consensus && consensus.total > 0" class="card" style="margin-top: 16px">
-        <h3>Consensus Across Lenses</h3>
+      <Card v-if="consensus && consensus.total > 0" title="Consensus Across Lenses" style="margin-top: 16px">
         <table v-align-numbers class="table">
           <thead><tr><th>Lens</th><th>Lean</th></tr></thead>
           <tbody>
@@ -233,10 +225,9 @@ const summary = computed(() => {
           Overall: <strong>{{ consensus.verdict }}</strong> ({{ consensus.up }} bullish / {{ consensus.down }} bearish
           out of {{ consensus.total }}).
         </p>
-      </div>
+      </Card>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>AI Opinion</h3>
+      <Card title="AI Opinion" style="margin-top: 16px">
         <p class="muted">
           A 4th independent lens, refreshed periodically by a scheduled job — fed the same technical/dividend/
           signal/ML data above, not new information. Not financial advice.
@@ -250,11 +241,10 @@ const summary = computed(() => {
           <p style="margin-top: 8px">{{ aiOpinion.reasoning }}</p>
         </div>
         <p v-else class="muted" style="margin-top: 8px">{{ aiOpinionMessage }}</p>
-      </div>
+      </Card>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
-        <div class="card">
-          <h3>Technical Snapshot</h3>
+        <Card title="Technical Snapshot">
           <template v-if="data.technical.available !== false">
             <p><strong>Trend:</strong> {{ data.technical.trend.direction }} (price {{ data.technical.trend.price_vs_sma50 }} SMA50, which is {{ data.technical.trend.sma50_vs_sma200 }} SMA200)</p>
             <p v-if="data.technical.rsi.value !== null"><strong>RSI:</strong> {{ data.technical.rsi.value }} ({{ data.technical.rsi.state }})</p>
@@ -262,10 +252,9 @@ const summary = computed(() => {
             <RouterLink :to="{ name: 'reports-technical', params: { symbol: data.stock.symbol } }">Full Technical Analysis →</RouterLink>
           </template>
           <p v-else class="muted">Not enough price history yet for a technical read.</p>
-        </div>
+        </Card>
 
-        <div class="card">
-          <h3>Dividend History</h3>
+        <Card title="Dividend History">
           <template v-if="data.dividend">
             <table v-align-numbers class="table">
               <thead><tr><th>FY</th><th>Cash</th><th>Bonus</th><th>Total</th></tr></thead>
@@ -285,15 +274,14 @@ const summary = computed(() => {
             </p>
             <RouterLink :to="{ name: 'reports-dividends' }">Full Dividend Report →</RouterLink>
           </template>
-          <p v-else class="muted">No dividend history recorded yet — visit the stock's detail page to fetch it.</p>
-        </div>
+          <EmptyState v-else>No dividend history recorded yet — visit the stock's detail page to fetch it.</EmptyState>
+        </Card>
       </div>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
-        <div class="card">
-          <h3>Signal & Track Record</h3>
+        <Card title="Signal & Track Record">
           <template v-if="data.signal">
-            <p><span class="badge" :class="data.signal.signal">{{ data.signal.signal.replace('_', ' ') }}</span> as of {{ data.signal.trade_date?.slice(0, 10) }}</p>
+            <p><SignalBadge :signal="data.signal.signal" /> as of {{ data.signal.trade_date?.slice(0, 10) }}</p>
             <ul>
               <li v-for="(r, i) in data.signal.reasons" :key="i" class="muted">{{ r }}</li>
             </ul>
@@ -302,11 +290,10 @@ const summary = computed(() => {
               (baseline {{ data.signal.accuracy.baseline_win_rate }}%, n={{ data.signal.accuracy.sample_size.toLocaleString() }}).
             </p>
           </template>
-          <p v-else class="muted">No signal computed yet.</p>
-        </div>
+          <EmptyState v-else>No signal computed yet.</EmptyState>
+        </Card>
 
-        <div class="card">
-          <h3>ML Direction Prediction</h3>
+        <Card title="ML Direction Prediction">
           <template v-if="data.ml_prediction">
             <p>
               <span class="badge" :class="toneOf(data.ml_prediction.direction)">{{ data.ml_prediction.direction }}</span>
@@ -319,11 +306,10 @@ const summary = computed(() => {
             </p>
           </template>
           <p v-else class="muted">Not enough price history for this stock yet, or the model hasn't been trained.</p>
-        </div>
+        </Card>
       </div>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>Returns</h3>
+      <Card title="Returns" style="margin-top: 16px">
         <table v-align-numbers class="table">
           <tbody>
             <tr>
@@ -336,7 +322,7 @@ const summary = computed(() => {
             </tr>
           </tbody>
         </table>
-      </div>
+      </Card>
     </template>
 
     <p v-else class="muted" style="margin-top: 16px">Select a stock above to see its analyst report.</p>

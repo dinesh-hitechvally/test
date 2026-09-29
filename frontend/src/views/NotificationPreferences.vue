@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { getNotificationPrefs, setNotificationPrefs } from '../utils/notificationPrefs'
-import SearchableSelect from '../components/SearchableSelect.vue'
+import SearchableSelect from '../components/ui/SearchableSelect.vue'
 
 const prefs = ref(getNotificationPrefs())
 const saved = ref(false)
@@ -22,13 +22,12 @@ function save() {
 
 <template>
   <div>
-    <h1>Notification Preferences</h1>
-    <p class="muted">
+    <PageHeader title="Notification Preferences">
       The only notifications in this app today are the in-app topbar bell (stop-loss/target hits on your portfolio
       holdings) — there's no email or push yet. These preferences are saved on this browser only.
-    </p>
+    </PageHeader>
 
-    <div class="card form-stack" style="margin-top: 16px; max-width: 420px">
+    <Card class="form-stack" style="margin-top: 16px; max-width: 420px">
       <label class="toggle-row">
         <input type="checkbox" v-model="prefs.showStopLossAlerts" />
         Show stop-loss-hit alerts
@@ -43,7 +42,7 @@ function save() {
       </label>
       <button class="btn" @click="save" style="align-self: flex-start">Save</button>
       <p v-if="saved" class="muted">Saved — takes effect next page load.</p>
-    </div>
+    </Card>
   </div>
 </template>
 

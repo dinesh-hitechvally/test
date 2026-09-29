@@ -1,0 +1,146 @@
+type Portfolio {
+    id: Int!
+    user_id: Int
+    name: String!
+    created_at: String
+    updated_at: String
+    "On the portfolio list."
+    summary: PortfolioSummary
+}
+
+type PortfolioSummary {
+    total_invested: Float
+    current_value: Float
+    unrealized_pnl: Float
+    unrealized_pnl_pct: Float
+    realized_pnl: Float
+    total_pnl: Float
+    holdings_count: Int
+}
+
+type Holding {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    quantity: Int!
+    avg_cost: Float
+    invested: Float
+    current_price: Float
+    current_value: Float
+    unrealized_pnl: Float
+    unrealized_pnl_pct: Float
+    latest_signal: Signal
+    stop_loss: Float
+    target_price: Float
+    target_notes: String
+    "ok | stop_breached | target_reached | null"
+    position_status: String
+    pct_to_stop: Float
+    pct_to_target: Float
+    bonus_shares_received: Int
+}
+
+type RealizedTrade {
+    stock_id: Int!
+    symbol: String!
+    transaction_id: Int
+    transaction_date: String
+    quantity: Int
+    sell_price: Float
+    avg_cost_at_time: Float
+    realized_pnl: Float
+}
+
+type PortfolioDetails {
+    portfolio: Portfolio!
+    summary: PortfolioSummary!
+    holdings: [Holding!]!
+    realized: [RealizedTrade!]!
+}
+
+type PortfolioTransaction {
+    id: Int!
+    portfolio_id: Int
+    stock_id: Int
+    type: String!
+    quantity: Int!
+    price: String
+    fees: String
+    transaction_date: String
+    notes: String
+    created_at: String
+    updated_at: String
+    stock: StockRef
+}
+
+type PositionTarget {
+    id: Int!
+    portfolio_id: Int
+    stock_id: Int
+    stop_loss: String
+    target_price: String
+    notes: String
+    created_at: String
+    updated_at: String
+}
+
+type ValuePoint {
+    date: String!
+    value: Float
+    invested: Float
+}
+
+type DayChange {
+    date: String
+    change: Float
+}
+
+type DayValue {
+    date: String
+    value: Float
+}
+
+type PerformanceMetrics {
+    total_invested: Float
+    current_value: Float
+    total_pnl: Float
+    total_pnl_pct: Float
+    best_day: DayChange
+    worst_day: DayChange
+    all_time_high: DayValue
+    xirr_pct: Float
+}
+
+type PortfolioPerformance {
+    history: [ValuePoint!]!
+    metrics: PerformanceMetrics
+}
+
+extend type Query @guard {
+    "The user's portfolios, each with its summary."
+    portfolios: [Portfolio!]! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@portfolios")
+    portfolio(id: Int!): PortfolioDetails! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@portfolio")
+    "Newest first."
+    portfolioTransactions(portfolio_id: Int!): [PortfolioTransaction!]! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@transactions")
+    portfolioPerformance(portfolio_id: Int!): PortfolioPerformance! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@performance")
+}
+
+extend type Mutation @guard {
+    createPortfolio(name: String): Portfolio! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@createPortfolio")
+    addTransaction(
+        portfolio_id: Int!
+        stock_id: Int
+        type: String
+        "A whole number — validated by StoreTransactionRequest, so a decimal gets a field message rather than a type error."
+        quantity: Float
+        price: Float
+        fees: Float
+        transaction_date: String
+        notes: String
+    ): PortfolioTransaction! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@addTransaction")
+    deleteTransaction(portfolio_id: Int!, transaction_id: Int!): String! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@deleteTransaction")
+    "Set or clear (nulls) the stop-loss / target watched for one holding."
+    setPositionTarget(portfolio_id: Int!, stock_id: Int!, stop_loss: Float, target_price: Float, notes: String): PositionTarget!
+        @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@setPositionTarget")
+}

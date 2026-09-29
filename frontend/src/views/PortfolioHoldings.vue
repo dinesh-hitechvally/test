@@ -2,12 +2,12 @@
 import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { usePortfolioStore } from '../stores/portfolio'
-import { formatPrice } from '../utils/format'
+import { changeTone, formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
 
-const { sorted, toggleSort, sortIndicator } = useSortableTable(
+const holdingsTable = useSortableTable(
   computed(() => store.detail?.holdings ?? []),
   {
     valueGetters: {
@@ -15,15 +15,7 @@ const { sorted, toggleSort, sortIndicator } = useSortableTable(
     },
   }
 )
-
-function changeTone(value) {
-  if (value === null || value === undefined) return ''
-  return value > 0 ? 'positive' : value < 0 ? 'negative' : ''
-}
-
-function formatSignal(label) {
-  return label.replace('_', ' ')
-}
+const { sorted } = holdingsTable
 
 onMounted(async () => {
   await store.fetchPortfolios()
@@ -33,32 +25,31 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Holdings</h1>
-    <p class="muted">
+    <PageHeader title="Holdings">
       Everything you currently hold, at a glance. To buy, sell, or set stop-loss/target levels, use
       <RouterLink :to="{ name: 'portfolio' }">Portfolio Overview</RouterLink>.
-    </p>
+    </PageHeader>
 
-    <p v-if="!store.detail" class="muted">Loading…</p>
+    <LoadingState v-if="!store.detail" />
 
-    <div v-else class="card">
+    <Card v-else>
       <table v-align-numbers class="table" v-if="store.detail.holdings.length">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
-            <th class="sortable" @click="toggleSort('quantity')">Qty {{ sortIndicator('quantity') }}</th>
-            <th class="sortable" @click="toggleSort('avg_cost')">Avg Cost {{ sortIndicator('avg_cost') }}</th>
-            <th class="sortable" @click="toggleSort('invested')">Invested {{ sortIndicator('invested') }}</th>
-            <th class="sortable" @click="toggleSort('current_price')">Current Price {{ sortIndicator('current_price') }}</th>
-            <th class="sortable" @click="toggleSort('current_value')">Current Value {{ sortIndicator('current_value') }}</th>
-            <th class="sortable" @click="toggleSort('unrealized_pnl')">Unrealized P&L {{ sortIndicator('unrealized_pnl') }}</th>
-            <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+            <SortableTh :table="holdingsTable" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="holdingsTable" column="sector">Sector</SortableTh>
+            <SortableTh :table="holdingsTable" column="quantity">Qty</SortableTh>
+            <SortableTh :table="holdingsTable" column="avg_cost">Avg Cost</SortableTh>
+            <SortableTh :table="holdingsTable" column="invested">Invested</SortableTh>
+            <SortableTh :table="holdingsTable" column="current_price">Current Price</SortableTh>
+            <SortableTh :table="holdingsTable" column="current_value">Current Value</SortableTh>
+            <SortableTh :table="holdingsTable" column="unrealized_pnl">Unrealized P&L</SortableTh>
+            <SortableTh :table="holdingsTable" column="signal">Signal</SortableTh>
           </tr>
         </thead>
         <tbody>
           <tr v-for="h in sorted" :key="h.stock_id">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: h.symbol } }">{{ h.symbol }}</RouterLink></td>
+            <td><StockLink :symbol="h.symbol" /></td>
             <td class="muted">{{ h.sector || 'Other' }}</td>
             <td>
               {{ h.quantity }}
@@ -75,14 +66,14 @@ onMounted(async () => {
               <span v-else>—</span>
             </td>
             <td>
-              <span v-if="h.latest_signal" class="badge" :class="h.latest_signal.signal">{{ formatSignal(h.latest_signal.signal) }}</span>
+              <SignalBadge v-if="h.latest_signal" :signal="h.latest_signal.signal" />
               <span v-else class="muted">No data</span>
             </td>
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">No open holdings — add a buy transaction from Portfolio Overview to get started.</p>
-    </div>
+      <EmptyState v-else>No open holdings — add a buy transaction from Portfolio Overview to get started.</EmptyState>
+    </Card>
   </div>
 </template>
 

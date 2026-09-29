@@ -1,0 +1,31 @@
+"""
+Share Market Signals API.
+
+Every field needs a logged-in session (Sanctum cookie auth, same as the SPA
+used for REST) except login and the password-reset mutations. Errors carry
+extensions.status (401/404/422/502…) and, for invalid input,
+extensions.validation — the same meaning the REST status codes had.
+
+Decimal database columns (prices, percentages from the DB) come back as
+strings exactly as stored, e.g. "567.0000"; computed numbers are Float.
+"""
+scalar JSON @scalar(class: "MLL\\GraphQLScalars\\MixedScalar")
+
+#import account.graphql
+#import stocks.graphql
+#import market.graphql
+#import reports.graphql
+#import portfolio.graphql
+#import watchlists.graphql
+
+type Query {
+    "The logged-in user, or null when nobody is logged in."
+    me: User @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@me")
+}
+
+type Mutation {
+    login(email: String, password: String): User! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@login")
+    forgotPassword(email: String): String! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@forgotPassword")
+    resetPassword(token: String, email: String, password: String, password_confirmation: String): String!
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@resetPassword")
+}

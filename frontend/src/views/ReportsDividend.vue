@@ -1,10 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as reportsApi from '../api/reports'
 import { formatPrice } from '../utils/format'
-import StatCard from '../components/StatCard.vue'
-import SearchableSelect from '../components/SearchableSelect.vue'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const sectors = ref([])
@@ -29,18 +26,14 @@ const sortOptions = [
 ]
 
 async function loadSectors() {
-  const { data } = await client.get('/reports/sectors')
-  sectors.value = data
+  sectors.value = await reportsApi.sectors()
 }
 
 async function loadReport() {
   loading.value = true
   error.value = ''
   try {
-    const { data } = await client.get('/reports/dividends', {
-      params: selectedSector.value ? { sector: selectedSector.value } : {},
-    })
-    report.value = data
+    report.value = await reportsApi.dividends(selectedSector.value || null)
   } catch (e) {
     error.value = e.response?.data?.message || 'Failed to load dividend report.'
     report.value = null
@@ -49,16 +42,11 @@ async function loadReport() {
   }
 }
 
-const {
-  sorted: sortedStocks,
-  sortKey,
-  sortDir,
-  toggleSort,
-  sortIndicator,
-} = useSortableTable(
+const stocks = useSortableTable(
   computed(() => report.value?.stocks ?? []),
   { defaultKey: 'dividend_yield_pct', defaultDir: 'desc' }
 )
+const { sorted: sortedStocks, sortKey, sortDir, toggleSort, sortIndicator } = stocks
 
 // The "Sort by ..." dropdown is a shortcut into the same sort state that
 // clicking a column header drives — picking an option here always sorts
@@ -77,22 +65,21 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Dividend Report</h1>
-    <p class="muted">
+    <PageHeader title="Dividend Report">
       Every stock with recorded dividend/bonus history, ranked by trailing dividend yield (cash dividend as a % of
       market price — bonus shares aren't included since they're not a cash return). Also shows each company's right
       share history — extra shares existing holders were offered to buy (at a set issue price), separate from a
       bonus/dividend.
-    </p>
+    </PageHeader>
 
-    <div class="card">
+    <Card>
       <div style="display: flex; gap: 16px; flex-wrap: wrap">
         <SearchableSelect v-model="selectedSector" :options="sectorOptions" style="max-width: 280px" />
         <SearchableSelect v-model="sortKey" :options="sortOptions" style="max-width: 240px" @change="onSortOptionChange" />
       </div>
-    </div>
+    </Card>
 
-    <p v-if="loading" class="muted" style="margin-top: 16px">Loading…</p>
+    <LoadingState v-if="loading" style="margin-top: 16px" />
     <p v-else-if="error" class="muted" style="margin-top: 16px">{{ error }}</p>
 
     <template v-else-if="report">
@@ -110,8 +97,7 @@ onMounted(async () => {
         <StatCard label="Stocks with Right Share History" :value="report.totals.stocks_with_right_shares" />
       </div>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>Top Dividend Picks</h3>
+      <Card title="Top Dividend Picks" style="margin-top: 16px">
         <p class="muted" style="margin-top: -6px">
           Not financial advice — a transparent, rule-based ranking: 50% trailing yield, 30% payout consistency
           (years recorded), 20% historical average total payout. Requires an actual cash yield (bonus-only years
@@ -124,38 +110,37 @@ onMounted(async () => {
           <tbody>
             <tr v-for="(p, i) in report.top_picks" :key="p.stock_id">
               <td class="muted">{{ i + 1 }}</td>
-              <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: p.symbol } }">{{ p.symbol }}</RouterLink></td>
+              <td><StockLink :symbol="p.symbol" /></td>
               <td><strong>{{ p.pick_score }}</strong></td>
               <td>
-                <span v-if="p.latest_signal" class="badge" :class="p.latest_signal">{{ p.latest_signal.replace('_', ' ') }}</span>
+                <SignalBadge v-if="p.latest_signal" :signal="p.latest_signal" />
                 <span v-else class="muted">—</span>
               </td>
               <td class="muted">{{ p.reasons.join(' · ') }}</td>
             </tr>
           </tbody>
         </table>
-        <p v-else class="muted">
+        <EmptyState v-else>
           No stocks currently qualify (need a real cash yield and a non-bearish signal) — check back as more
           dividend history gets pulled in.
-        </p>
-      </div>
+        </EmptyState>
+      </Card>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>Ranked by {{ sortKey.replace(/_/g, ' ') }}</h3>
+      <Card :title="`Ranked by ${sortKey.replace(/_/g, ' ')}`" style="margin-top: 16px">
         <table v-align-numbers class="table" v-if="sortedStocks.length">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-              <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
-              <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
-              <th class="sortable" @click="toggleSort('latest_fiscal_year')">Latest FY {{ sortIndicator('latest_fiscal_year') }}</th>
-              <th class="sortable" @click="toggleSort('latest_cash_pct')">Cash {{ sortIndicator('latest_cash_pct') }}</th>
-              <th class="sortable" @click="toggleSort('latest_bonus_pct')">Bonus {{ sortIndicator('latest_bonus_pct') }}</th>
-              <th class="sortable" @click="toggleSort('latest_total_pct')">Declared Total {{ sortIndicator('latest_total_pct') }}</th>
-              <th class="sortable" @click="toggleSort('dividend_yield_pct')">Cash Yield {{ sortIndicator('dividend_yield_pct') }}</th>
-              <th class="sortable" @click="toggleSort('actual_total_yield_pct')">Actual Total Yield {{ sortIndicator('actual_total_yield_pct') }}</th>
-              <th class="sortable" @click="toggleSort('years_recorded')">Years {{ sortIndicator('years_recorded') }}</th>
-              <th class="sortable" @click="toggleSort('avg_total_dividend_pct')">Avg Total (history) {{ sortIndicator('avg_total_dividend_pct') }}</th>
+              <SortableTh :table="stocks" column="symbol">Symbol</SortableTh>
+              <SortableTh :table="stocks" column="sector">Sector</SortableTh>
+              <SortableTh :table="stocks" column="close">Price</SortableTh>
+              <SortableTh :table="stocks" column="latest_fiscal_year">Latest FY</SortableTh>
+              <SortableTh :table="stocks" column="latest_cash_pct">Cash</SortableTh>
+              <SortableTh :table="stocks" column="latest_bonus_pct">Bonus</SortableTh>
+              <SortableTh :table="stocks" column="latest_total_pct">Declared Total</SortableTh>
+              <SortableTh :table="stocks" column="dividend_yield_pct">Cash Yield</SortableTh>
+              <SortableTh :table="stocks" column="actual_total_yield_pct">Actual Total Yield</SortableTh>
+              <SortableTh :table="stocks" column="years_recorded">Years</SortableTh>
+              <SortableTh :table="stocks" column="avg_total_dividend_pct">Avg Total (history)</SortableTh>
               <th
                 class="sortable"
                 title="Most recent right (rights) share offer — extra shares an existing holder could subscribe for, at a set issue price, separate from a bonus/dividend"
@@ -163,12 +148,12 @@ onMounted(async () => {
               >
                 Latest Right Share {{ sortIndicator('latest_right_share_pct') }}
               </th>
-              <th class="sortable" @click="toggleSort('right_share_count')">Right Share Issues {{ sortIndicator('right_share_count') }}</th>
+              <SortableTh :table="stocks" column="right_share_count">Right Share Issues</SortableTh>
             </tr>
           </thead>
           <tbody>
             <tr v-for="s in sortedStocks" :key="s.stock_id">
-              <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+              <td><StockLink :symbol="s.symbol" /></td>
               <td class="muted">{{ s.sector || '—' }}</td>
               <td>Rs. {{ formatPrice(s.close) }}</td>
               <td class="muted">{{ s.latest_fiscal_year }}</td>
@@ -194,10 +179,10 @@ onMounted(async () => {
             </tr>
           </tbody>
         </table>
-        <p v-else class="muted">
+        <EmptyState v-else>
           No dividend data recorded for any stock yet — visit a stock's detail page and click
           "Refresh Dividend/Bonus Data" to pull its history.
-        </p>
+        </EmptyState>
         <p class="muted small" style="margin-top: 10px">
           "Declared Total" is the raw % against face value as announced (Rs. 100 for most equities, but some
           instruments like mutual fund units use a different face value). "Actual Total Yield" converts that to what
@@ -209,7 +194,7 @@ onMounted(async () => {
           something that updates automatically — the official nepalstock.com API (this app's only data source) has
           no right-share endpoint, so nothing here gets newer once issued after this was last refreshed.
         </p>
-      </div>
+      </Card>
     </template>
   </div>
 </template>

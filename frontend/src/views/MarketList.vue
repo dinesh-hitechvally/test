@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStocksStore } from '../stores/stocks'
-import MarketTable from '../components/MarketTable.vue'
+import MarketTable from '../components/stock/MarketTable.vue'
 
 const route = useRoute()
 const store = useStocksStore()
@@ -23,7 +23,7 @@ onMounted(() => {
 
 <template>
   <div>
-    <h1>{{ preset.title }}</h1>
+    <PageHeader :title="preset.title" />
     <MarketTable
       :key="route.meta.preset"
       :stocks="store.stocks"

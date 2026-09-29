@@ -11,6 +11,8 @@
         "laravel/framework": "^13.17",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
+        "mll-lab/graphql-php-scalars": "^6.4",
+        "nuwave/lighthouse": "^6.71",
         "phpoffice/phpspreadsheet": "^5.9",
         "rubix/ml": "^2.5"
     },

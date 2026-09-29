@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as marketApi from '../api/market'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const matches = ref([])
@@ -9,7 +8,8 @@ const loading = ref(true)
 const filter = ref('')
 
 const filtered = computed(() => (filter.value ? matches.value.filter((m) => m.signal === filter.value) : matches.value))
-const { sorted, toggleSort, sortIndicator } = useSortableTable(filtered)
+const table = useSortableTable(filtered)
+const { sorted } = table
 
 function biasClass(signal) {
   return signal === 'bullish' ? 'buy' : signal === 'bearish' ? 'sell' : 'hold'
@@ -17,8 +17,7 @@ function biasClass(signal) {
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/patterns/scan')
-  matches.value = data
+  matches.value = await marketApi.candlestickPatterns()
   loading.value = false
 }
 
@@ -27,12 +26,11 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Chart Patterns</h1>
-    <p class="muted">
+    <PageHeader title="Chart Patterns">
       Every stock whose most recent candle forms a recognizable pattern (Doji, Hammer, Shooting Star, or an
       Engulfing pattern) — a lighter, faster scan than the deeper per-stock pattern detection on the
       Technical Analysis report, run across the whole market.
-    </p>
+    </PageHeader>
 
     <div class="filters">
       <button class="btn-secondary btn" :class="{ active: filter === '' }" @click="filter = ''">All</button>
@@ -41,22 +39,22 @@ onMounted(load)
       <button class="btn-secondary btn" :class="{ active: filter === 'neutral' }" @click="filter = 'neutral'">Neutral</button>
     </div>
 
-    <p v-if="loading" class="muted" style="margin-top: 12px">Loading…</p>
+    <LoadingState v-if="loading" style="margin-top: 12px" />
 
     <div v-else class="card" style="margin-top: 12px">
       <table v-align-numbers class="table">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
-            <th class="sortable" @click="toggleSort('trade_date')">Date {{ sortIndicator('trade_date') }}</th>
-            <th class="sortable" @click="toggleSort('pattern')">Pattern {{ sortIndicator('pattern') }}</th>
-            <th class="sortable" @click="toggleSort('signal')">Bias {{ sortIndicator('signal') }}</th>
+            <SortableTh :table="table" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="table" column="company_name">Company</SortableTh>
+            <SortableTh :table="table" column="trade_date">Date</SortableTh>
+            <SortableTh :table="table" column="pattern">Pattern</SortableTh>
+            <SortableTh :table="table" column="signal">Bias</SortableTh>
           </tr>
         </thead>
         <tbody>
           <tr v-for="m in sorted" :key="m.stock_id">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>
+            <td><StockLink :symbol="m.symbol" /></td>
             <td class="muted">{{ m.company_name }}</td>
             <td>{{ m.trade_date }}</td>
             <td><strong>{{ m.pattern }}</strong></td>

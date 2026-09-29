@@ -1,0 +1,60 @@
+type User {
+    id: Int!
+    name: String!
+    email: String!
+    email_verified_at: String
+    created_at: String
+    updated_at: String
+}
+
+type LoginHistory {
+    id: Int!
+    ip_address: String
+    user_agent: String
+    city: String
+    region: String
+    country: String
+    logged_in_at: String
+}
+
+type EmailLog {
+    id: Int!
+    status: String!
+    mailer: String!
+    message_id: String
+    from_address: String
+    to: [String!]!
+    cc: [String!]
+    bcc: [String!]
+    subject: String
+    source: String
+    user_id: Int
+    error: String
+    attempted_at: String
+    sent_at: String
+    failed_at: String
+    created_at: String
+    updated_at: String
+}
+
+type EmailLogPage {
+    data: [EmailLog!]!
+    current_page: Int!
+    last_page: Int!
+    per_page: Int!
+    total: Int!
+}
+
+extend type Query @guard {
+    loginHistory: [LoginHistory!]! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@loginHistory")
+    users: [User!]! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@users")
+    "Every email the app tried to send, newest first."
+    emailLogs(status: String, per_page: Int = 50): EmailLogPage! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@emailLogs")
+}
+
+extend type Mutation @guard {
+    logout: String! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@logout")
+    updateProfile(name: String, email: String): User! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@updateProfile")
+    updatePassword(current_password: String, password: String, password_confirmation: String): String!
+        @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@updatePassword")
+}

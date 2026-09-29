@@ -1,17 +1,17 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import client from '../api/client'
+import * as authApi from '../api/auth'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const users = ref([])
 const loading = ref(true)
 
-const { sorted, toggleSort, sortIndicator } = useSortableTable(users)
+const usersTable = useSortableTable(users)
+const { sorted } = usersTable
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/users')
-  users.value = data
+  users.value = await authApi.users()
   loading.value = false
 }
 
@@ -20,18 +20,17 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Users</h1>
-    <p class="muted">No role/permission system exists yet — every logged-in user has full access. This is just the registered account list, not an admin panel with permissions to manage.</p>
+    <PageHeader title="Users">No role/permission system exists yet — every logged-in user has full access. This is just the registered account list, not an admin panel with permissions to manage.</PageHeader>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
 
-    <div v-else class="card">
+    <Card v-else>
       <table v-align-numbers class="table">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('name')">Name {{ sortIndicator('name') }}</th>
-            <th class="sortable" @click="toggleSort('email')">Email {{ sortIndicator('email') }}</th>
-            <th class="sortable" @click="toggleSort('created_at')">Joined {{ sortIndicator('created_at') }}</th>
+            <SortableTh :table="usersTable" column="name">Name</SortableTh>
+            <SortableTh :table="usersTable" column="email">Email</SortableTh>
+            <SortableTh :table="usersTable" column="created_at">Joined</SortableTh>
           </tr>
         </thead>
         <tbody>
@@ -42,6 +41,6 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-    </div>
+    </Card>
   </div>
 </template>

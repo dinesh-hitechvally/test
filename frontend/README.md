@@ -21,11 +21,23 @@ Upload the contents of `dist/`.
 ## Where things are
 
 ```
-src/views/        one file per page
-src/components/   shared pieces (tables, charts, layout)
-src/stores/       Pinia stores
-src/api/client.js the axios client (session-cookie auth with the backend)
-src/directives/   v-align-numbers — right-aligns number columns in tables
+src/views/          one file per page
+src/components/ui/  building blocks every page uses: PageHeader, Card, StatCard, SortableTh,
+                    SignalBadge, StockLink, LoadingState, EmptyState, Pagination, SearchableSelect
+                    (registered globally — no import needed)
+src/components/     other shared pieces (tables, charts, layout)
+src/stores/         Pinia stores
+src/api/            the backend API, one module per area (auth, stocks, market, reports,
+                    portfolio, watchlists) — each function runs one GraphQL query/mutation
+src/api/graphql.js  gql(): POST /graphql; errors come back shaped like axios errors
+                    (err.response.status / .data.message / .data.errors)
+src/api/fields.js   the field selections the queries share
+src/api/client.js   the axios client (session-cookie auth) — also used for the CSV upload
+src/utils/format.js formatPrice, formatSignal, changeTone
+src/directives/     v-align-numbers — right-aligns number columns in tables
 ```
+
+Pages call `src/api/<area>.js`, not `gql()` directly. A page needing a new field adds it to the
+query there (and to `backend/graphql/` if the API doesn't have it yet).
 
 Put `v-align-numbers` on every new `<table>` so its price and number columns right-align.

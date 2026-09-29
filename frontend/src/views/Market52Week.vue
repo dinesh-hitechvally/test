@@ -1,9 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
-import { formatPrice } from '../utils/format'
-import Pagination from '../components/Pagination.vue'
+import * as marketApi from '../api/market'
+import { changeTone, formatPrice } from '../utils/format'
 
 const rows = ref([])
 const loading = ref(true)
@@ -14,8 +12,7 @@ const pageSize = 50
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/market/52-week')
-  rows.value = data
+  rows.value = await marketApi.fiftyTwoWeek()
   loading.value = false
 }
 
@@ -34,6 +31,9 @@ function sortIndicator(key) {
   return sortDir.value === 'asc' ? '▲' : '▼'
 }
 
+// What <SortableTh> needs — this page sorts by hand (it also resets the page).
+const table = { toggleSort, sortIndicator }
+
 const sorted = computed(() =>
   [...rows.value].sort((a, b) => {
     const av = a[sortKey.value] ?? -Infinity
@@ -43,11 +43,6 @@ const sorted = computed(() =>
     return 0
   })
 )
-
-function tone(pct) {
-  if (pct === null || pct === undefined) return ''
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
-}
 
 const pageCount = computed(() => Math.max(1, Math.ceil(sorted.value.length / pageSize)))
 
@@ -61,29 +56,28 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>52 Week High/Low</h1>
-    <p class="muted">How far each stock's current price sits from its highest and lowest close over the last 365 days.</p>
+    <PageHeader title="52 Week High/Low">How far each stock's current price sits from its highest and lowest close over the last 365 days.</PageHeader>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
     <table v-align-numbers v-else class="table">
       <thead>
         <tr>
-          <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-          <th class="sortable" @click="toggleSort('current_price')">Current Price {{ sortIndicator('current_price') }}</th>
-          <th class="sortable" @click="toggleSort('high_52w')">52W High {{ sortIndicator('high_52w') }}</th>
-          <th class="sortable" @click="toggleSort('low_52w')">52W Low {{ sortIndicator('low_52w') }}</th>
-          <th class="sortable" @click="toggleSort('pct_from_high')">% From High {{ sortIndicator('pct_from_high') }}</th>
-          <th class="sortable" @click="toggleSort('pct_from_low')">% From Low {{ sortIndicator('pct_from_low') }}</th>
+          <SortableTh :table="table" column="symbol">Symbol</SortableTh>
+          <SortableTh :table="table" column="current_price">Current Price</SortableTh>
+          <SortableTh :table="table" column="high_52w">52W High</SortableTh>
+          <SortableTh :table="table" column="low_52w">52W Low</SortableTh>
+          <SortableTh :table="table" column="pct_from_high">% From High</SortableTh>
+          <SortableTh :table="table" column="pct_from_low">% From Low</SortableTh>
         </tr>
       </thead>
       <tbody>
         <tr v-for="row in paged" :key="row.stock_id">
-          <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: row.symbol } }">{{ row.symbol }}</RouterLink></td>
+          <td><StockLink :symbol="row.symbol" /></td>
           <td>{{ formatPrice(row.current_price) }}</td>
           <td>{{ formatPrice(row.high_52w) }}</td>
           <td>{{ formatPrice(row.low_52w) }}</td>
-          <td :class="tone(row.pct_from_high)">{{ row.pct_from_high }}%</td>
-          <td :class="tone(row.pct_from_low)">{{ row.pct_from_low }}%</td>
+          <td :class="changeTone(row.pct_from_high)">{{ row.pct_from_high }}%</td>
+          <td :class="changeTone(row.pct_from_low)">{{ row.pct_from_low }}%</td>
         </tr>
         <tr v-if="sorted.length === 0">
           <td colspan="6" class="muted" style="text-align: center; padding: 24px">

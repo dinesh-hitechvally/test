@@ -1,8 +1,8 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
-import { formatPrice } from '../utils/format'
+import * as marketApi from '../api/market'
+import * as reportsApi from '../api/reports'
+import { changeTone, formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const stocks = ref([])
@@ -51,30 +51,23 @@ const results = computed(() => {
   return []
 })
 
-const { sorted, toggleSort, sortIndicator } = useSortableTable(results, {
+const resultsTable = useSortableTable(results, {
   valueGetters: {
     close: (s) => (s.latest_price?.close_price !== undefined ? Number(s.latest_price.close_price) : null),
     rsi: (s) => rsiByStock.value.get(s.id) ?? null,
     signal: (s) => s.latest_signal?.signal ?? null,
   },
 })
+const { sorted } = resultsTable
 
-const {
-  sorted: sortedLongTerm,
-  toggleSort: toggleLongTermSort,
-  sortIndicator: longTermSortIndicator,
-} = useSortableTable(longTerm, { defaultKey: 'long_term_score', defaultDir: 'desc' })
-
-function changeTone(pct) {
-  if (pct === null || pct === undefined) return ''
-  return pct > 0 ? 'positive' : pct < 0 ? 'negative' : ''
-}
+const longTermTable = useSortableTable(longTerm, { defaultKey: 'long_term_score', defaultDir: 'desc' })
+const { sorted: sortedLongTerm } = longTermTable
 
 async function load() {
   loading.value = true
-  const [screenerRes, weekRes] = await Promise.all([client.get('/market/screener'), client.get('/market/52-week')])
-  stocks.value = screenerRes.data
-  fiftyTwoWeek.value = weekRes.data
+  const [screenerData, weekData] = await Promise.all([marketApi.screener(), marketApi.fiftyTwoWeek()])
+  stocks.value = screenerData
+  fiftyTwoWeek.value = weekData
   loading.value = false
 }
 
@@ -86,8 +79,7 @@ async function loadLongTerm() {
   if (longTerm.value.length || loadingLongTerm.value) return
   loadingLongTerm.value = true
   try {
-    const { data } = await client.get('/reports/long-term')
-    longTerm.value = data.candidates
+    longTerm.value = await reportsApi.horizons.long()
   } finally {
     loadingLongTerm.value = false
   }
@@ -102,8 +94,7 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Preset Screens</h1>
-    <p class="muted">One-click screens built from real, already-tracked data (RSI, signals, 52-week range) — not fitted or backtested, just common-sense filters.</p>
+    <PageHeader title="Preset Screens">One-click screens built from real, already-tracked data (RSI, signals, 52-week range) — not fitted or backtested, just common-sense filters.</PageHeader>
 
     <div class="filters">
       <button v-for="p in PRESETS" :key="p.key" class="btn-secondary btn" :class="{ active: activePreset === p.key }" @click="activePreset = p.key">
@@ -113,30 +104,30 @@ onMounted(load)
 
     <p class="muted" style="margin-top: 8px">{{ PRESETS.find((p) => p.key === activePreset)?.description }}</p>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <LoadingState v-if="loading" />
 
-    <div v-else-if="activePreset === 'long-term'" class="card" style="margin-top: 12px">
-      <p v-if="loadingLongTerm" class="muted">Scoring every stock (dividends, dilution, price history) — this one takes a bit longer…</p>
+    <Card v-else-if="activePreset === 'long-term'" style="margin-top: 12px">
+      <LoadingState v-if="loadingLongTerm">Scoring every stock (dividends, dilution, price history) — this one takes a bit longer…</LoadingState>
       <template v-else>
         <p class="muted">{{ sortedLongTerm.length }} candidate{{ sortedLongTerm.length === 1 ? '' : 's' }} (excludes anything currently Sell/Strong Sell or too illiquid to rank).</p>
         <table v-align-numbers class="table">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleLongTermSort('symbol')">Symbol {{ longTermSortIndicator('symbol') }}</th>
-              <th class="sortable" @click="toggleLongTermSort('sector')">Sector {{ longTermSortIndicator('sector') }}</th>
-              <th class="sortable" @click="toggleLongTermSort('close')">Price {{ longTermSortIndicator('close') }}</th>
-              <th class="sortable" @click="toggleLongTermSort('long_term_score')">Score {{ longTermSortIndicator('long_term_score') }}</th>
-              <th class="sortable" @click="toggleLongTermSort('dividend_years_recorded')">Div. Years {{ longTermSortIndicator('dividend_years_recorded') }}</th>
-              <th class="sortable" @click="toggleLongTermSort('avg_total_dividend_pct')">Avg Div % {{ longTermSortIndicator('avg_total_dividend_pct') }}</th>
-              <th class="sortable" @click="toggleLongTermSort('right_share_count')">Right Shares {{ longTermSortIndicator('right_share_count') }}</th>
-              <th class="sortable" @click="toggleLongTermSort('volatility_pct')">Volatility {{ longTermSortIndicator('volatility_pct') }}</th>
-              <th class="sortable" @click="toggleLongTermSort('return_3y_pct')">3yr Return {{ longTermSortIndicator('return_3y_pct') }}</th>
-              <th class="sortable" @click="toggleLongTermSort('share_group')">NEPSE Group {{ longTermSortIndicator('share_group') }}</th>
+              <SortableTh :table="longTermTable" column="symbol">Symbol</SortableTh>
+              <SortableTh :table="longTermTable" column="sector">Sector</SortableTh>
+              <SortableTh :table="longTermTable" column="close">Price</SortableTh>
+              <SortableTh :table="longTermTable" column="long_term_score">Score</SortableTh>
+              <SortableTh :table="longTermTable" column="dividend_years_recorded">Div. Years</SortableTh>
+              <SortableTh :table="longTermTable" column="avg_total_dividend_pct">Avg Div %</SortableTh>
+              <SortableTh :table="longTermTable" column="right_share_count">Right Shares</SortableTh>
+              <SortableTh :table="longTermTable" column="volatility_pct">Volatility</SortableTh>
+              <SortableTh :table="longTermTable" column="return_3y_pct">3yr Return</SortableTh>
+              <SortableTh :table="longTermTable" column="share_group">NEPSE Group</SortableTh>
             </tr>
           </thead>
           <tbody>
             <tr v-for="s in sortedLongTerm" :key="s.stock_id" :title="s.reasons.join(' · ')">
-              <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+              <td><StockLink :symbol="s.symbol" /></td>
               <td class="muted">{{ s.sector || '—' }}</td>
               <td>{{ formatPrice(s.close) }}</td>
               <td><strong>{{ s.long_term_score }}</strong></td>
@@ -155,30 +146,30 @@ onMounted(load)
           </tbody>
         </table>
       </template>
-    </div>
+    </Card>
 
-    <div v-else class="card" style="margin-top: 12px">
+    <Card v-else style="margin-top: 12px">
       <p class="muted">{{ results.length }} stock{{ results.length === 1 ? '' : 's' }} match.</p>
       <table v-align-numbers class="table">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
-            <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
-            <th class="sortable" @click="toggleSort('change_pct')">% Change {{ sortIndicator('change_pct') }}</th>
-            <th class="sortable" @click="toggleSort('rsi')">RSI {{ sortIndicator('rsi') }}</th>
-            <th class="sortable" @click="toggleSort('signal')">Signal {{ sortIndicator('signal') }}</th>
+            <SortableTh :table="resultsTable" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="resultsTable" column="company_name">Company</SortableTh>
+            <SortableTh :table="resultsTable" column="close">Price</SortableTh>
+            <SortableTh :table="resultsTable" column="change_pct">% Change</SortableTh>
+            <SortableTh :table="resultsTable" column="rsi">RSI</SortableTh>
+            <SortableTh :table="resultsTable" column="signal">Signal</SortableTh>
           </tr>
         </thead>
         <tbody>
           <tr v-for="s in sorted" :key="s.id">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
+            <td><StockLink :symbol="s.symbol" /></td>
             <td class="muted">{{ s.company_name }}</td>
             <td>{{ formatPrice(s.latest_price?.close_price) }}</td>
             <td :class="changeTone(s.change_pct)">{{ s.change_pct !== null && s.change_pct !== undefined ? `${s.change_pct > 0 ? '+' : ''}${s.change_pct}%` : '—' }}</td>
             <td>{{ rsiByStock.get(s.id) !== null && rsiByStock.get(s.id) !== undefined ? rsiByStock.get(s.id).toFixed(1) : '—' }}</td>
             <td>
-              <span v-if="s.latest_signal" class="badge" :class="s.latest_signal.signal">{{ s.latest_signal.signal.replace('_', ' ') }}</span>
+              <SignalBadge v-if="s.latest_signal" :signal="s.latest_signal.signal" />
               <span v-else class="muted">No data</span>
             </td>
           </tr>
@@ -187,7 +178,7 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-    </div>
+    </Card>
   </div>
 </template>
 

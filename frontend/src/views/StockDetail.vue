@@ -1,11 +1,11 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import client from '../api/client'
-import PriceChart from '../components/PriceChart.vue'
-import IndicatorChart from '../components/IndicatorChart.vue'
-import Pagination from '../components/Pagination.vue'
-import { formatPrice } from '../utils/format'
+import * as reportsApi from '../api/reports'
+import * as stocksApi from '../api/stocks'
+import PriceChart from '../components/charts/PriceChart.vue'
+import IndicatorChart from '../components/charts/IndicatorChart.vue'
+import { formatPrice, formatSignal } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const route = useRoute()
@@ -34,17 +34,11 @@ const nextCloseForecastMessage = ref('')
 
 const latestPrice = computed(() => prices.value[prices.value.length - 1] || null)
 
-const {
-  sorted: sortedDividends,
-  toggleSort: toggleDividendSort,
-  sortIndicator: dividendSortIndicator,
-} = useSortableTable(dividends, { defaultKey: 'fiscal_year', defaultDir: 'desc' })
+const dividendTable = useSortableTable(dividends, { defaultKey: 'fiscal_year', defaultDir: 'desc' })
+const { sorted: sortedDividends } = dividendTable
 
-const {
-  sorted: sortedRightShares,
-  toggleSort: toggleRightShareSort,
-  sortIndicator: rightShareSortIndicator,
-} = useSortableTable(rightShares, { defaultKey: 'opening_date', defaultDir: 'desc' })
+const rightShareTable = useSortableTable(rightShares, { defaultKey: 'opening_date', defaultDir: 'desc' })
+const { sorted: sortedRightShares } = rightShareTable
 const loading = ref(true)
 const fetchingCorporateActions = ref(false)
 const corporateActionsResult = ref('')
@@ -57,44 +51,44 @@ async function loadAll(symbol) {
   aiOpinionMessage.value = ''
   nextCloseForecast.value = null
   nextCloseForecastMessage.value = ''
-  const [stockRes, pricesRes, indicatorsRes, forecastHistoryRes, mlRes, dividendsRes, rightSharesRes, aiRes, forecastRes] = await Promise.all([
-    client.get(`/stocks/${symbol}`),
+  const [stockData, pricesData, indicatorsData, forecastHistoryData, ml, dividendsData, rightSharesData, ai, forecast] = await Promise.all([
+    stocksApi.get(symbol),
     // Most recent 1000 trading days (~4 years) — the Price & Moving
     // Averages chart zooms/pans within this range. Capped rather than
     // "everything on record" so a stock with a decade of full history
     // doesn't force a multi-thousand-row fetch on every page load.
-    client.get(`/stocks/${symbol}/prices`, { params: { days: 1000 } }),
-    client.get(`/stocks/${symbol}/indicators`, { params: { days: 1000 } }),
-    client.get(`/stocks/${symbol}/forecasts`, { params: { days: 1000 } }),
-    client.get(`/stocks/${symbol}/ml-prediction`),
-    client.get(`/stocks/${symbol}/dividends`),
-    client.get(`/stocks/${symbol}/right-shares`),
+    stocksApi.prices(symbol, 1000),
+    stocksApi.indicators(symbol, 1000),
+    stocksApi.forecasts(symbol, 1000),
+    stocksApi.mlPrediction(symbol),
+    stocksApi.dividends(symbol),
+    stocksApi.rightShares(symbol),
     // A plain DB read (the cron pipeline is the only thing that ever calls
     // the AI itself) — safe to fetch on every page load like everything
     // else here, no button/latency/quota concern.
-    client.get(`/stocks/${symbol}/ai-opinion`),
+    stocksApi.aiOpinion(symbol),
     // Same story: forecasts are only ever written by the recalculation
     // pipeline's backfill, never generated on request.
-    client.get(`/stocks/${symbol}/next-close-forecast`),
+    stocksApi.nextCloseForecast(symbol),
   ])
 
-  stock.value = stockRes.data
-  prices.value = pricesRes.data
-  indicators.value = indicatorsRes.data
-  forecastHistory.value = forecastHistoryRes.data
-  mlPrediction.value = mlRes.data.prediction
-  mlModel.value = mlRes.data.model
-  dividends.value = dividendsRes.data
-  rightShares.value = rightSharesRes.data
-  if (aiRes.data.available) {
-    aiOpinion.value = aiRes.data
+  stock.value = stockData
+  prices.value = pricesData
+  indicators.value = indicatorsData
+  forecastHistory.value = forecastHistoryData
+  mlPrediction.value = ml.prediction
+  mlModel.value = ml.model
+  dividends.value = dividendsData
+  rightShares.value = rightSharesData
+  if (ai.available) {
+    aiOpinion.value = ai
   } else {
-    aiOpinionMessage.value = aiRes.data.message
+    aiOpinionMessage.value = ai.message
   }
-  if (forecastRes.data.available) {
-    nextCloseForecast.value = forecastRes.data
+  if (forecast.available) {
+    nextCloseForecast.value = forecast
   } else {
-    nextCloseForecastMessage.value = forecastRes.data.message
+    nextCloseForecastMessage.value = forecast.message
   }
   loading.value = false
 
@@ -104,14 +98,12 @@ async function loadAll(symbol) {
 async function loadSignalsPage(page) {
   signalsLoading.value = true
   try {
-    const { data } = await client.get(`/stocks/${route.params.symbol}/signals`, {
-      params: {
-        page,
-        per_page: 30,
-        from: signalsFromFilter.value || undefined,
-        to: signalsToFilter.value || undefined,
-        signal: signalsTypeFilter.value.length ? signalsTypeFilter.value : undefined,
-      },
+    const data = await stocksApi.signals(route.params.symbol, {
+      page,
+      per_page: 30,
+      from: signalsFromFilter.value || null,
+      to: signalsToFilter.value || null,
+      signal: signalsTypeFilter.value.length ? signalsTypeFilter.value : null,
     })
     signals.value = data.data.reverse()
     signalsPage.value = data.page
@@ -147,15 +139,15 @@ async function handleFetchCorporateActions() {
   corporateActionsResult.value = ''
   corporateActionsError.value = ''
   try {
-    const { data } = await client.post(`/stocks/${route.params.symbol}/fetch-corporate-actions`)
+    const data = await stocksApi.refreshCorporateActions(route.params.symbol)
     const sourceLabel = data.sources?.join(' + ') || 'source'
     corporateActionsResult.value = `${data.dividends} dividend row(s), ${data.right_shares} right-share row(s) refreshed (via ${sourceLabel}).`
-    const [dividendsRes, rightSharesRes] = await Promise.all([
-      client.get(`/stocks/${route.params.symbol}/dividends`),
-      client.get(`/stocks/${route.params.symbol}/right-shares`),
+    const [dividendsData, rightSharesData] = await Promise.all([
+      stocksApi.dividends(route.params.symbol),
+      stocksApi.rightShares(route.params.symbol),
     ])
-    dividends.value = dividendsRes.data
-    rightShares.value = rightSharesRes.data
+    dividends.value = dividendsData
+    rightShares.value = rightSharesData
   } catch (e) {
     corporateActionsError.value = e.response?.data?.message || 'Fetch failed.'
   } finally {
@@ -163,15 +155,11 @@ async function handleFetchCorporateActions() {
   }
 }
 
-function formatSignal(label) {
-  return label.replace('_', ' ')
-}
-
 onMounted(() => {
   loadAll(route.params.symbol)
   // Global (not per-stock), so fetched once here rather than in loadAll —
   // no need to re-fetch it every time the symbol changes.
-  client.get('/reports/next-close-accuracy').then(({ data }) => {
+  reportsApi.nextCloseAccuracy().then((data) => {
     if (data.available) nextCloseAccuracy.value = data
   })
 })
@@ -185,7 +173,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       <div>
         <h1>{{ stock.symbol }} <span class="muted" style="font-weight: 400">{{ stock.company_name }}</span></h1>
         <p v-if="stock.latest_signal">
-          <span class="badge" :class="stock.latest_signal.signal">{{ formatSignal(stock.latest_signal.signal) }}</span>
+          <SignalBadge :signal="stock.latest_signal.signal" />
           <span class="muted" style="margin-left: 10px">as of {{ stock.latest_signal.trade_date }}</span>
         </p>
       </div>
@@ -194,8 +182,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       </div>
     </div>
 
-    <div class="card" style="margin-top: 16px">
-      <h3>Fundamentals</h3>
+    <Card title="Fundamentals" style="margin-top: 16px">
 
       <div v-if="stock.fundamental" class="fundamentals-row">
         <div class="fundamental-item">
@@ -230,12 +217,12 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
           <span v-else class="muted">—</span>
         </div>
       </div>
-      <p v-else class="muted">No fundamental data recorded yet for {{ stock.symbol }}.</p>
+      <EmptyState v-else>No fundamental data recorded yet for {{ stock.symbol }}.</EmptyState>
 
       <p v-if="stock.fundamental?.fetched_at" class="muted small" style="margin-top: 10px">
         Last updated {{ new Date(stock.fundamental.fetched_at).toLocaleDateString() }}
       </p>
-    </div>
+    </Card>
 
     <p v-if="prices.length < 20" class="muted card">
       Not enough price history yet to compute indicators (need at least 20 trading days) — this fills in once the
@@ -243,23 +230,20 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
     </p>
 
     <template v-else>
-      <div class="card">
-        <h3>Price &amp; Moving Averages</h3>
+      <Card title="Price & Moving Averages">
         <PriceChart :prices="prices" :indicators="indicators" :forecasts="forecastHistory" />
-      </div>
+      </Card>
 
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
-        <div class="card">
-          <h3>RSI (14)</h3>
+        <Card title="RSI (14)">
           <IndicatorChart
             :indicators="indicators"
             :series="[{ field: 'rsi_14', label: 'RSI 14', color: '#2563eb' }]"
             :y-min="0"
             :y-max="100"
           />
-        </div>
-        <div class="card">
-          <h3>MACD</h3>
+        </Card>
+        <Card title="MACD">
           <IndicatorChart
             :indicators="indicators"
             :series="[
@@ -267,15 +251,14 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
               { field: 'macd_signal', label: 'Signal', color: '#dc2626' },
             ]"
           />
-        </div>
+        </Card>
       </div>
 
     </template>
 
-    <div class="card" style="margin-top: 16px">
-      <h3>ML Direction Prediction (Experimental)</h3>
+    <Card title="ML Direction Prediction (Experimental)" style="margin-top: 16px">
 
-      <p v-if="!mlModel" class="muted">No model has been trained yet.</p>
+      <EmptyState v-if="!mlModel">No model has been trained yet.</EmptyState>
 
       <template v-else>
         <div class="accuracy-box" :class="{ warn: !mlModel.beats_baseline }">
@@ -304,10 +287,9 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
           reaches it.
         </p>
       </template>
-    </div>
+    </Card>
 
-    <div class="card" style="margin-top: 16px">
-      <h3>Estimated Next Close</h3>
+    <Card title="Estimated Next Close" style="margin-top: 16px">
 
       <div v-if="nextCloseAccuracy" class="accuracy-box" :class="{ warn: !nextCloseAccuracy.beats_baseline }">
         <strong>{{ nextCloseAccuracy.beats_baseline ? 'Beats baseline' : "Doesn't beat baseline" }}:</strong>
@@ -334,10 +316,9 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         </ul>
       </template>
       <p v-else class="muted">{{ nextCloseForecastMessage || 'Not enough price history yet for this stock (needs at least a few weeks of trading).' }}</p>
-    </div>
+    </Card>
 
-    <div class="card" style="margin-top: 16px">
-      <h3>AI Opinion</h3>
+    <Card title="AI Opinion" style="margin-top: 16px">
       <p class="muted">
         A 4th independent lens, refreshed periodically by a scheduled job — fed the exact same technical/dividend/
         signal/ML data shown above, not new information. Not financial advice.
@@ -351,9 +332,9 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         <p style="margin-top: 8px">{{ aiOpinion.reasoning }}</p>
       </div>
       <p v-else class="muted">{{ aiOpinionMessage }}</p>
-    </div>
+    </Card>
 
-    <div class="card" style="margin-top: 16px">
+    <Card style="margin-top: 16px">
       <div class="card-head">
         <h3 style="margin: 0">Dividend &amp; Bonus History</h3>
         <button class="btn-secondary btn" :disabled="fetchingCorporateActions" @click="handleFetchCorporateActions">
@@ -366,12 +347,12 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       <table v-align-numbers class="table" v-if="dividends.length">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleDividendSort('fiscal_year')">Fiscal Year {{ dividendSortIndicator('fiscal_year') }}</th>
-            <th class="sortable" @click="toggleDividendSort('bonus_share_pct')">Bonus Share {{ dividendSortIndicator('bonus_share_pct') }}</th>
-            <th class="sortable" @click="toggleDividendSort('cash_dividend_pct')">Cash Dividend {{ dividendSortIndicator('cash_dividend_pct') }}</th>
-            <th class="sortable" @click="toggleDividendSort('total_dividend_pct')">Total Dividend {{ dividendSortIndicator('total_dividend_pct') }}</th>
-            <th class="sortable" @click="toggleDividendSort('book_closure_date')">Book Closure {{ dividendSortIndicator('book_closure_date') }}</th>
-            <th class="sortable" @click="toggleDividendSort('bonus_listing_date')">Bonus Listing {{ dividendSortIndicator('bonus_listing_date') }}</th>
+            <SortableTh :table="dividendTable" column="fiscal_year">Fiscal Year</SortableTh>
+            <SortableTh :table="dividendTable" column="bonus_share_pct">Bonus Share</SortableTh>
+            <SortableTh :table="dividendTable" column="cash_dividend_pct">Cash Dividend</SortableTh>
+            <SortableTh :table="dividendTable" column="total_dividend_pct">Total Dividend</SortableTh>
+            <SortableTh :table="dividendTable" column="book_closure_date">Book Closure</SortableTh>
+            <SortableTh :table="dividendTable" column="bonus_listing_date">Bonus Listing</SortableTh>
           </tr>
         </thead>
         <tbody>
@@ -385,23 +366,23 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
           </tr>
         </tbody>
       </table>
-      <p v-else class="muted">
+      <EmptyState v-else>
         No dividend/bonus history recorded yet for {{ stock.symbol }} — click "Refresh Dividend/Bonus Data" to fetch it.
         (Pulled from ShareSansar first, falling back to the official nepalstock.com feed if that comes back empty —
         cash dividend and bonus share % are covered either way; full right-share detail needs ShareSansar.)
-      </p>
+      </EmptyState>
 
       <template v-if="rightShares.length">
         <h4>Right Share History</h4>
         <table v-align-numbers class="table">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleRightShareSort('ratio')">Ratio {{ rightShareSortIndicator('ratio') }}</th>
-              <th class="sortable" @click="toggleRightShareSort('total_units')">Units {{ rightShareSortIndicator('total_units') }}</th>
-              <th class="sortable" @click="toggleRightShareSort('issue_price')">Issue Price {{ rightShareSortIndicator('issue_price') }}</th>
-              <th class="sortable" @click="toggleRightShareSort('opening_date')">Opening {{ rightShareSortIndicator('opening_date') }}</th>
-              <th class="sortable" @click="toggleRightShareSort('closing_date')">Closing {{ rightShareSortIndicator('closing_date') }}</th>
-              <th class="sortable" @click="toggleRightShareSort('status')">Status {{ rightShareSortIndicator('status') }}</th>
+              <SortableTh :table="rightShareTable" column="ratio">Ratio</SortableTh>
+              <SortableTh :table="rightShareTable" column="total_units">Units</SortableTh>
+              <SortableTh :table="rightShareTable" column="issue_price">Issue Price</SortableTh>
+              <SortableTh :table="rightShareTable" column="opening_date">Opening</SortableTh>
+              <SortableTh :table="rightShareTable" column="closing_date">Closing</SortableTh>
+              <SortableTh :table="rightShareTable" column="status">Status</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -416,10 +397,9 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
           </tbody>
         </table>
       </template>
-    </div>
+    </Card>
 
-    <div class="card" style="margin-top: 16px">
-      <h3>Signal History</h3>
+    <Card title="Signal History" style="margin-top: 16px">
 
       <div class="signal-filters">
         <label class="filter-field">
@@ -468,16 +448,16 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
               <span v-if="s.forecast_price !== null">Rs. {{ formatPrice(s.forecast_price) }}</span>
               <span v-else class="muted">—</span>
             </td>
-            <td><span class="badge" :class="s.signal">{{ formatSignal(s.signal) }}</span></td>
+            <td><SignalBadge :signal="s.signal" /></td>
             <td>{{ s.score }}</td>
             <td class="muted">{{ s.reasons.join('; ') }}</td>
           </tr>
         </tbody>
       </table>
-      <p v-if="!signalsLoading && signals.length === 0" class="muted">No signals yet.</p>
+      <EmptyState v-if="!signalsLoading && signals.length === 0">No signals yet.</EmptyState>
 
       <Pagination :model-value="signalsPage" :total-pages="signalsTotalPages" :disabled="signalsLoading" @update:model-value="loadSignalsPage" />
-    </div>
+    </Card>
   </div>
 </template>
 

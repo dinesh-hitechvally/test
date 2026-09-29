@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import client from '../api/client'
+import * as marketApi from '../api/market'
 import { formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
@@ -17,16 +16,16 @@ const filtered = computed(() =>
 
 // No default sort key — starts showing `filtered`'s own mode-based ordering
 // (closest to the level being tested first) until a column header is clicked.
-const { sorted, toggleSort, sortIndicator } = useSortableTable(filtered, {
+const table = useSortableTable(filtered, {
   valueGetters: {
     close: (r) => (r.current_price !== null ? Number(r.current_price) : null),
   },
 })
+const { sorted } = table
 
 async function load() {
   loading.value = true
-  const { data } = await client.get('/market/52-week')
-  rows.value = data
+  rows.value = await marketApi.fiftyTwoWeek()
   loading.value = false
 }
 
@@ -35,36 +34,35 @@ onMounted(load)
 
 <template>
   <div>
-    <h1>Support &amp; Resistance Finder</h1>
-    <p class="muted">
+    <PageHeader title="Support & Resistance Finder">
       A market-wide scan using each stock's 52-week high/low as a fast proxy for resistance/support — the same
       swing-level detection used on a single stock's Technical Analysis report isn't run across all {{ rows.length }}
       stocks live (too slow to do on every page load), so this uses the cheaper, already-tracked 52-week range instead.
-    </p>
+    </PageHeader>
 
     <div class="filters">
       <button class="btn-secondary btn" :class="{ active: mode === 'resistance' }" @click="mode = 'resistance'">Testing Resistance (near 52W High)</button>
       <button class="btn-secondary btn" :class="{ active: mode === 'support' }" @click="mode = 'support'">Testing Support (near 52W Low)</button>
     </div>
 
-    <p v-if="loading" class="muted" style="margin-top: 12px">Loading…</p>
+    <LoadingState v-if="loading" style="margin-top: 12px" />
 
     <div v-else class="card" style="margin-top: 12px">
       <table v-align-numbers class="table">
         <thead>
           <tr>
-            <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
-            <th class="sortable" @click="toggleSort('company_name')">Company {{ sortIndicator('company_name') }}</th>
-            <th class="sortable" @click="toggleSort('close')">Price {{ sortIndicator('close') }}</th>
-            <th class="sortable" @click="toggleSort('high_52w')">52W High {{ sortIndicator('high_52w') }}</th>
-            <th class="sortable" @click="toggleSort('low_52w')">52W Low {{ sortIndicator('low_52w') }}</th>
-            <th class="sortable" @click="toggleSort('pct_from_high')">% From High {{ sortIndicator('pct_from_high') }}</th>
-            <th class="sortable" @click="toggleSort('pct_from_low')">% From Low {{ sortIndicator('pct_from_low') }}</th>
+            <SortableTh :table="table" column="symbol">Symbol</SortableTh>
+            <SortableTh :table="table" column="company_name">Company</SortableTh>
+            <SortableTh :table="table" column="close">Price</SortableTh>
+            <SortableTh :table="table" column="high_52w">52W High</SortableTh>
+            <SortableTh :table="table" column="low_52w">52W Low</SortableTh>
+            <SortableTh :table="table" column="pct_from_high">% From High</SortableTh>
+            <SortableTh :table="table" column="pct_from_low">% From Low</SortableTh>
           </tr>
         </thead>
         <tbody>
           <tr v-for="r in sorted" :key="r.stock_id">
-            <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: r.symbol } }">{{ r.symbol }}</RouterLink></td>
+            <td><StockLink :symbol="r.symbol" /></td>
             <td class="muted">{{ r.company_name }}</td>
             <td>{{ formatPrice(r.current_price) }}</td>
             <td>{{ formatPrice(r.high_52w) }}</td>

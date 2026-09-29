@@ -1,9 +1,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import client from '../api/client'
+import * as marketApi from '../api/market'
+import * as stocksApi from '../api/stocks'
 import { useStocksStore } from '../stores/stocks'
-import ComparisonChart from '../components/ComparisonChart.vue'
-import SearchableSelect from '../components/SearchableSelect.vue'
+import ComparisonChart from '../components/charts/ComparisonChart.vue'
 
 const stocksStore = useStocksStore()
 const indices = ref([])
@@ -17,7 +17,7 @@ const chartSeries = ref([])
 const hasCompared = ref(false)
 
 async function loadIndices() {
-  const { data } = await client.get('/indices')
+  const data = await marketApi.indices()
   indices.value = data
   if (data.length) selectedIndex.value = data[0].index_name
 }
@@ -28,13 +28,12 @@ async function compare() {
   loading.value = true
   hasCompared.value = true
   try {
-    const [pricesRes, indexRes] = await Promise.all([
-      client.get(`/stocks/${selectedStock.value}/prices`, { params: { days: 180 } }),
-      client.get('/indices', { params: { days: 180 } }),
+    const [stockPrices, allIndices] = await Promise.all([
+      stocksApi.prices(selectedStock.value, 180),
+      marketApi.indices(180),
     ])
 
-    const indexData = indexRes.data.find((i) => i.index_name === selectedIndex.value)
-    const stockPrices = pricesRes.data
+    const indexData = allIndices.find((i) => i.index_name === selectedIndex.value)
 
     const dateSet = new Set()
     stockPrices.forEach((p) => dateSet.add(p.trade_date))
@@ -73,13 +72,12 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Stock vs Index</h1>
-    <p class="muted">
+    <PageHeader title="Stock vs Index">
       Compares a stock's price performance against a NEPSE index, normalized to % change from the start of the
       range. Index history only started accumulating recently — the further back you look, the shorter the index
       line will be until more days build up. Sector-vs-index isn't available yet — there's no computed sector price
       series to compare against, only individual stocks and the official indices.
-    </p>
+    </PageHeader>
 
     <div class="card">
       <div class="picker-row">
@@ -92,7 +90,7 @@ onMounted(async () => {
     <div class="card" style="margin-top: 16px" v-if="hasCompared && !loading">
       <ComparisonChart :labels="chartLabels" :series="chartSeries" />
     </div>
-    <p v-else-if="!hasCompared" class="muted" style="margin-top: 16px">Pick a stock and an index, then compare.</p>
+    <EmptyState v-else-if="!hasCompared" style="margin-top: 16px">Pick a stock and an index, then compare.</EmptyState>
   </div>
 </template>
 

@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
-import DiversificationChart from '../components/DiversificationChart.vue'
+import DiversificationChart from '../components/charts/DiversificationChart.vue'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
@@ -30,13 +30,14 @@ const sectorSlices = computed(() => (store.detail ? bySector(store.detail.holdin
 const stockSlices = computed(() => (store.detail ? byStock(store.detail.holdings) : []))
 const total = computed(() => sectorSlices.value.reduce((sum, s) => sum + s.value, 0))
 
-const { sorted: sortedSectorSlices, toggleSort, sortIndicator } = useSortableTable(sectorSlices, {
+const sectorTable = useSortableTable(sectorSlices, {
   defaultKey: 'value',
   defaultDir: 'desc',
   valueGetters: {
     pct: (s) => (total.value > 0 ? (s.value / total.value) * 100 : 0),
   },
 })
+const { sorted: sortedSectorSlices } = sectorTable
 
 onMounted(async () => {
   await store.fetchPortfolios()
@@ -46,31 +47,27 @@ onMounted(async () => {
 
 <template>
   <div>
-    <h1>Diversification</h1>
-    <p class="muted">How your current portfolio value is spread across sectors and individual stocks.</p>
+    <PageHeader title="Diversification">How your current portfolio value is spread across sectors and individual stocks.</PageHeader>
 
-    <p v-if="!store.detail" class="muted">Loading…</p>
+    <LoadingState v-if="!store.detail" />
 
     <template v-else-if="sectorSlices.length">
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
-        <div class="card">
-          <h3>By Sector</h3>
+        <Card title="By Sector">
           <DiversificationChart :slices="sectorSlices" />
-        </div>
-        <div class="card">
-          <h3>By Stock</h3>
+        </Card>
+        <Card title="By Stock">
           <DiversificationChart :slices="stockSlices" />
-        </div>
+        </Card>
       </div>
 
-      <div class="card" style="margin-top: 16px">
-        <h3>Sector Allocation</h3>
+      <Card title="Sector Allocation" style="margin-top: 16px">
         <table v-align-numbers class="table">
           <thead>
             <tr>
-              <th class="sortable" @click="toggleSort('label')">Sector {{ sortIndicator('label') }}</th>
-              <th class="sortable" @click="toggleSort('value')">Value {{ sortIndicator('value') }}</th>
-              <th class="sortable" @click="toggleSort('pct')">% of Portfolio {{ sortIndicator('pct') }}</th>
+              <SortableTh :table="sectorTable" column="label">Sector</SortableTh>
+              <SortableTh :table="sectorTable" column="value">Value</SortableTh>
+              <SortableTh :table="sectorTable" column="pct">% of Portfolio</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -81,9 +78,9 @@ onMounted(async () => {
             </tr>
           </tbody>
         </table>
-      </div>
+      </Card>
     </template>
 
-    <p v-else class="muted">No open holdings yet — add a buy transaction from Portfolio Overview to see your allocation.</p>
+    <EmptyState v-else>No open holdings yet — add a buy transaction from Portfolio Overview to see your allocation.</EmptyState>
   </div>
 </template>
