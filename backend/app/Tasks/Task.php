@@ -3,6 +3,7 @@
 namespace App\Tasks;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 /**
  * One background unit of work (sync market prices, recalculate, train the
@@ -12,7 +13,7 @@ use Illuminate\Http\Request;
  *
  * Tasks don't know how they're triggered. Run one through TaskRunner (adds
  * the log file + failure alert) from anywhere — today that's the /cron/*
- * URLs (config/cron.php), but a controller, a test or a queued job can use
+ * URLs (routes/web.php), but a controller, a test or a queued job can use
  * the same class: app(MarketSyncTask::class)->handle().
  *
  * Tasks that work through every pending stock one at a time extend
@@ -30,14 +31,21 @@ abstract class Task
         return $this;
     }
 
-    /** Short identifier shown in logs, alerts and the schedule page (e.g. "market:sync"). */
-    abstract public function name(): string;
+    /**
+     * Label shown in the run output and failure alerts, taken from the class
+     * name: MarketSyncTask → "market-sync". Override only to add detail
+     * (e.g. which stock).
+     */
+    public function name(): string
+    {
+        return Str::kebab(Str::beforeLast(class_basename($this), 'Task'));
+    }
 
-    /** One line for the schedule page's "What it does" column. */
-    abstract public function description(): string;
-
-    /** File under storage/logs/ that each run's output is appended to. */
-    abstract public function logFile(): string;
+    /** File under storage/logs/ each run is appended to: "market-sync.log", from the class name. */
+    public function logFile(): string
+    {
+        return Str::kebab(Str::beforeLast(class_basename($this), 'Task')).'.log';
+    }
 
     /** Runs the step and returns its summary. Throws on failure. */
     abstract public function handle(): string;

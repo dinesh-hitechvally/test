@@ -259,6 +259,13 @@ textarea:focus-visible {
   font-size: 0.88rem;
 }
 
+/* Number/price columns (set by v-align-numbers): right-aligned, with
+   fixed-width digits so decimals line up down the column. */
+.table th.num, .table td.num, .kv td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .table th {
   color: var(--text-muted);
   font-weight: 600;

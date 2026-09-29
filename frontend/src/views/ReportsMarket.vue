@@ -86,7 +86,7 @@ onMounted(load)
         </div>
         <div class="card">
           <h3>Sector Breakdown</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <thead>
               <tr>
                 <th class="sortable" @click="toggleSort('sector')">Sector {{ sortIndicator('sector') }}</th>
@@ -112,7 +112,7 @@ onMounted(load)
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
         <div class="card">
           <h3>Top Gainers</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <tbody>
               <tr v-for="m in report.movers.gainers" :key="m.stock_id">
                 <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>
@@ -126,7 +126,7 @@ onMounted(load)
         </div>
         <div class="card">
           <h3>Top Losers</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <tbody>
               <tr v-for="m in report.movers.losers" :key="m.stock_id">
                 <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>

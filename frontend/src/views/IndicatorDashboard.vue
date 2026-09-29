@@ -74,7 +74,7 @@ onMounted(load)
     <p v-if="loading" class="muted">Loading…</p>
 
     <template v-else>
-      <table class="table">
+      <table v-align-numbers class="table">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

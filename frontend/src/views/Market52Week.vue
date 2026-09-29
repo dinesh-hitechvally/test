@@ -65,7 +65,7 @@ onMounted(load)
     <p class="muted">How far each stock's current price sits from its highest and lowest close over the last 365 days.</p>
 
     <p v-if="loading" class="muted">Loading…</p>
-    <table v-else class="table">
+    <table v-align-numbers v-else class="table">
       <thead>
         <tr>
           <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

@@ -255,7 +255,7 @@ onMounted(async () => {
     <p v-if="loading" class="muted">Loading…</p>
     <template v-else>
       <p class="muted">{{ sorted.length }} of {{ stocks.length }} stocks match.</p>
-      <table class="table">
+      <table v-align-numbers class="table">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

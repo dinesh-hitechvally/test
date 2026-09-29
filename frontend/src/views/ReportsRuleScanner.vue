@@ -128,7 +128,7 @@ onMounted(loadRules)
 
       <div v-else-if="results" class="card" style="margin-top: 16px">
         <h3>{{ results.matched_count }} stock{{ results.matched_count === 1 ? '' : 's' }} matched</h3>
-        <table class="table">
+        <table v-align-numbers class="table">
           <thead>
             <tr>
               <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

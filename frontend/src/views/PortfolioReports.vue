@@ -73,7 +73,7 @@ onMounted(load)
 
       <div class="card" style="margin-top: 16px">
         <h3>Holdings Summary</h3>
-        <table class="table" v-if="store.detail.holdings.length">
+        <table v-align-numbers class="table" v-if="store.detail.holdings.length">
           <thead>
             <tr>
               <th class="sortable" @click="toggleHoldingsSort('symbol')">Symbol {{ holdingsSortIndicator('symbol') }}</th>
@@ -105,7 +105,7 @@ onMounted(load)
 
       <div class="card" style="margin-top: 16px">
         <h3>Realized Gains/Losses</h3>
-        <table class="table" v-if="store.detail.realized.length">
+        <table v-align-numbers class="table" v-if="store.detail.realized.length">
           <thead>
             <tr>
               <th class="sortable" @click="toggleRealizedSort('transaction_date')">Date {{ realizedSortIndicator('transaction_date') }}</th>

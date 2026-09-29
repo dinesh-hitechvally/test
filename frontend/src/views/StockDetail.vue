@@ -363,7 +363,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       <p v-if="corporateActionsResult" class="muted">{{ corporateActionsResult }}</p>
       <p v-if="corporateActionsError" class="error-text">{{ corporateActionsError }}</p>
 
-      <table class="table" v-if="dividends.length">
+      <table v-align-numbers class="table" v-if="dividends.length">
         <thead>
           <tr>
             <th class="sortable" @click="toggleDividendSort('fiscal_year')">Fiscal Year {{ dividendSortIndicator('fiscal_year') }}</th>
@@ -393,7 +393,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 
       <template v-if="rightShares.length">
         <h4>Right Share History</h4>
-        <table class="table">
+        <table v-align-numbers class="table">
           <thead>
             <tr>
               <th class="sortable" @click="toggleRightShareSort('ratio')">Ratio {{ rightShareSortIndicator('ratio') }}</th>
@@ -456,7 +456,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         </button>
       </div>
 
-      <table class="table">
+      <table v-align-numbers class="table">
         <thead>
           <tr><th>Date</th><th>Price</th><th>Forecast Next Close</th><th>Signal</th><th>Score</th><th>Reasons</th></tr>
         </thead>

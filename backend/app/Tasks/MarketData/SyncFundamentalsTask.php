@@ -16,21 +16,6 @@ class SyncFundamentalsTask extends PerStockTask
 {
     public function __construct(private readonly MeroLaganiFundamentalsService $fundamentals) {}
 
-    public function name(): string
-    {
-        return 'fundamentals';
-    }
-
-    public function description(): string
-    {
-        return 'Refresh EPS / P/E / book value from merolagani.com for stocks missing them or 7+ days stale';
-    }
-
-    public function logFile(): string
-    {
-        return 'fundamentals.log';
-    }
-
     protected function pending(): Builder
     {
         $staleBefore = now()->subDays(7);

@@ -38,21 +38,6 @@ class GenerateAiOpinionsTask extends PerStockTask
 
     public function __construct(private readonly AiStockOpinionService $ai) {}
 
-    public function name(): string
-    {
-        return 'ai-opinions';
-    }
-
-    public function description(): string
-    {
-        return 'Generate a buy/hold/sell AI opinion (Groq) for every stock whose opinion is missing or a day+ old';
-    }
-
-    public function logFile(): string
-    {
-        return 'ai-opinions.log';
-    }
-
     protected function unavailableReason(): ?string
     {
         return $this->ai->isConfigured()

@@ -21,21 +21,6 @@ class SyncDividendsTask extends PerStockTask
 {
     public function __construct(private readonly NepalStockCorporateActionsService $dividends) {}
 
-    public function name(): string
-    {
-        return 'sync-dividends';
-    }
-
-    public function description(): string
-    {
-        return 'Fetch dividend/bonus history from nepalstock.com for stocks that haven\'t had it fetched';
-    }
-
-    public function logFile(): string
-    {
-        return 'sync-dividends.log';
-    }
-
     protected function pending(): Builder
     {
         return Stock::whereDoesntHave('scrapeStatus', function ($q) {

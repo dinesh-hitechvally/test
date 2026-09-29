@@ -116,7 +116,7 @@ function selectTier(key) {
       <template v-else>
         <p class="muted">{{ sorted.length }} candidate{{ sorted.length === 1 ? '' : 's' }}.</p>
 
-        <table v-if="activeTier === 'short'" class="table">
+        <table v-align-numbers v-if="activeTier === 'short'" class="table">
           <thead>
             <tr>
               <th class="sortable" @click="toggleShort('symbol')">Symbol {{ indicatorShort('symbol') }}</th>
@@ -144,7 +144,7 @@ function selectTier(key) {
           </tbody>
         </table>
 
-        <table v-else-if="activeTier === 'mid'" class="table">
+        <table v-align-numbers v-else-if="activeTier === 'mid'" class="table">
           <thead>
             <tr>
               <th class="sortable" @click="toggleMid('symbol')">Symbol {{ indicatorMid('symbol') }}</th>
@@ -174,7 +174,7 @@ function selectTier(key) {
           </tbody>
         </table>
 
-        <table v-else class="table">
+        <table v-align-numbers v-else class="table">
           <thead>
             <tr>
               <th class="sortable" @click="toggleLong('symbol')">Symbol {{ indicatorLong('symbol') }}</th>

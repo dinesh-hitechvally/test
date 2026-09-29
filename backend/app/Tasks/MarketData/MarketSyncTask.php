@@ -2,36 +2,30 @@
 
 namespace App\Tasks\MarketData;
 
-use App\Services\DataSources\NepalStock\NepalStockScraperService;
+use App\Services\DataSources\DailyPriceSyncService;
 use App\Tasks\Task;
 
+/**
+ * Market open → NEPSE's live prices; market closed → the final prices for
+ * the latest trading date. See DailyPriceSyncService.
+ */
 class MarketSyncTask extends Task
 {
-    public function __construct(private readonly NepalStockScraperService $scraper) {}
-
-    public function name(): string
-    {
-        return 'market:sync';
-    }
-
-    public function description(): string
-    {
-        return 'Scrape today\'s prices from the official nepalstock.com API';
-    }
-
-    public function logFile(): string
-    {
-        return 'market-sync.log';
-    }
+    public function __construct(private readonly DailyPriceSyncService $prices) {}
 
     public function handle(): string
     {
-        $result = $this->scraper->scrape();
+        $r = $this->prices->sync();
+        $state = $r['market_open'] ? 'market open, live prices' : 'market closed, final prices';
 
-        if (! $result['market_open']) {
-            return 'Market is closed today — nothing synced.';
+        if ($r['fetched'] === 0) {
+            return "{$r['trade_date']} ({$state}): no prices available yet — nothing to update.";
         }
 
-        return "{$result['updated_prices']} stocks updated ({$result['created_stocks']} new). market:recalculate updates indicators/signals next.";
+        return "{$r['trade_date']} ({$state} from {$r['source']}): {$r['fetched']} fetched — "
+            ."{$r['inserted']} added, {$r['updated']} corrected, {$r['unchanged']} already up to date"
+            .($r['skipped'] ? ", {$r['skipped']} unknown symbol(s) skipped" : '')
+            .($r['created_stocks'] ? ", {$r['created_stocks']} new stock(s)" : '')
+            .'. Changed stocks recalculated.';
     }
 }

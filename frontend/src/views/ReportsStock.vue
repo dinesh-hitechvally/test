@@ -111,7 +111,7 @@ onMounted(async () => {
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
         <div class="card">
           <h3>Returns</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <thead>
               <tr><th>Period</th><th>Return</th></tr>
             </thead>
@@ -125,7 +125,7 @@ onMounted(async () => {
         </div>
         <div class="card">
           <h3>Signals — Last 90 Days</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <thead>
               <tr><th>Signal</th><th>Days Triggered</th></tr>
             </thead>

@@ -120,7 +120,7 @@ onMounted(async () => {
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
         <div class="card">
           <h3>Top Gainers</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <tbody>
               <tr v-for="s in report.top_gainers" :key="s.id">
                 <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
@@ -132,7 +132,7 @@ onMounted(async () => {
         </div>
         <div class="card">
           <h3>Top Losers</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <tbody>
               <tr v-for="s in report.top_losers" :key="s.id">
                 <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: s.symbol } }">{{ s.symbol }}</RouterLink></td>
@@ -146,7 +146,7 @@ onMounted(async () => {
 
       <div class="card" style="margin-top: 16px">
         <h3>All Stocks in {{ report.sector }}</h3>
-        <table class="table">
+        <table v-align-numbers class="table">
           <thead>
             <tr>
               <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

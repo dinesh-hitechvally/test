@@ -117,7 +117,7 @@ onMounted(async () => {
           (years recorded), 20% historical average total payout. Requires an actual cash yield (bonus-only years
           don't count) and excludes anything currently flagged Sell or Strong Sell.
         </p>
-        <table class="table" v-if="report.top_picks.length">
+        <table v-align-numbers class="table" v-if="report.top_picks.length">
           <thead>
             <tr><th>#</th><th>Symbol</th><th>Score</th><th>Signal</th><th>Why</th></tr>
           </thead>
@@ -142,7 +142,7 @@ onMounted(async () => {
 
       <div class="card" style="margin-top: 16px">
         <h3>Ranked by {{ sortKey.replace(/_/g, ' ') }}</h3>
-        <table class="table" v-if="sortedStocks.length">
+        <table v-align-numbers class="table" v-if="sortedStocks.length">
           <thead>
             <tr>
               <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

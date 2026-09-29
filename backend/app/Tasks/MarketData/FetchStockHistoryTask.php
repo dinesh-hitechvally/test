@@ -30,17 +30,7 @@ class FetchStockHistoryTask extends Task
 
     public function name(): string
     {
-        return "fetch-history {$this->symbol}";
-    }
-
-    public function description(): string
-    {
-        return 'Fetch (or re-fetch) full price history for one stock';
-    }
-
-    public function logFile(): string
-    {
-        return 'fetch-history.log';
+        return parent::name()." {$this->symbol}";
     }
 
     public function handle(): string

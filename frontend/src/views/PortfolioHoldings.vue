@@ -42,7 +42,7 @@ onMounted(async () => {
     <p v-if="!store.detail" class="muted">Loading…</p>
 
     <div v-else class="card">
-      <table class="table" v-if="store.detail.holdings.length">
+      <table v-align-numbers class="table" v-if="store.detail.holdings.length">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

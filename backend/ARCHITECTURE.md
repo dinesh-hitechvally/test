@@ -14,8 +14,6 @@ app/
 ├── Http/
 │   ├── Controllers/Api/  JSON endpoints for the SPA (routes/api.php, auth:sanctum).
 │   ├── Controllers/      CronController — one invokable action behind every /cron/* URL.
-│   ├── Cron/             CronSchedule — reads config/cron.php (URL → task) for the routes
-│   │                     and the Schedule page. The only cron-specific code in app/.
 │   ├── Middleware/       VerifyCronSecret (?key= on every /cron/* URL).
 │   └── Requests/         One FormRequest per input, grouped by area.
 ├── Models/               Eloquent models (one per table).
@@ -33,7 +31,7 @@ app/
     ├── DataSources/      Talks to the outside world, writes what it gets back.
     │   ├── NepalStock/   nepalstock.com. NepalStockClient is the only class that knows how to
     │   │                 authenticate (headers + token); the others (market status, live prices,
-    │   │                 indices, ~1yr history, securities/sectors, dividends) just call get().
+    │   │                 indices, securities/sectors, dividends) just call get().
     │   ├── ShareSansar/  Full price history (the primary history source).
     │   ├── MeroLagani/   Fundamentals (EPS, P/E, book value).
     │   ├── Csv/          CSV price import.
@@ -60,7 +58,6 @@ app/
     ├── Alerts/           FailureAlertService — log + optional Slack/email when a task fails.
     └── Mail/             EmailLogService — records every outgoing email (email_logs table).
 
-config/cron.php           THE list of /cron/<path> URLs → task class (+ schedule).
 ```
 
 Tests mirror this: `tests/Feature/{Analysis,Auth,Cron,Events,Portfolio,Watchlists}`, `tests/Unit/{Analysis,DataSources}`.
@@ -105,13 +102,15 @@ all in one request. Listeners are registered explicitly (discovery is off in
 
 ## Cron (no server cron / SSH)
 
-An external pinger (cron-job.org etc.) hits `/cron/*?key=CRON_SECRET`. The live
-list with times and ready-to-paste URLs is at **Settings → Data Sources** in the
-SPA (`GET /api/schedule`). **`config/cron.php` is the single source of truth**:
-every URL, the task class it runs, and its schedule is one line there.
+The task URLs are ordinary routes in `routes/web.php` (each one names the task it runs),
+all under `/cron/*` and all needing `?key=CRON_SECRET`. **Scheduling is done in cPanel cron,
+not in code** — add a cron job there that curls the URL at the time you want, e.g.
+`curl -s "https://api.bizrms.com/cron/scrape/market-sync-stock?key=..."`.
 
-- **Scheduled:** sync-stock-list (06:00 NPT), market-sync-stock (15:30),
-  market-sync-index (15:32), train-ml / backtest-signals / backtest-next-close (Mon early morning).
+- **Suggested times (NPT, Asia/Kathmandu — check which timezone your cPanel cron uses):**
+  sync-stock-list 06:00 daily; market-sync-stock 15:30 and market-sync-index 15:32 Mon–Fri
+  (after NEPSE's ~15:00 close); train-ml 03:30, backtest-signals 04:00, backtest-next-close
+  04:15 on Mondays.
 - **On-demand:** fetch-history/{symbol}, market-recalculate (`?all=1` = every
   stock), verify-token.
 - **Per-stock (no batches):** fetch-histories, sync-sectors, sync-dividends,
@@ -121,7 +120,7 @@ every URL, the task class it runs, and its schedule is one line there.
   minutes, because Groq's free tier fits ~2 stocks/minute and the task waits
   out rate limits); later runs only see new or stale stocks.
 
-There are no artisan commands for the pipeline — everything runs through these URLs.
+The app has no console commands of its own — every task runs through these URLs.
 
 ## Where to add new code
 
@@ -132,7 +131,7 @@ There are no artisan commands for the pipeline — everything runs through these
 | Add a signal rule | detect it in `SignalGeneratorService::detectRules()`, add its key + **weight** to `SignalRules::RULES`, then re-run backtest-signals and check it beats baseline |
 | Add an indicator | calculator in `TechnicalAnalysisService`, store it in `IndicatorRecalculationService` (+ migration) |
 | React to something that happened | a listener in `Listeners/`, registered in `AppServiceProvider::LISTENERS` |
-| A new background task | a `Task` (or `PerStockTask` for per-stock work) in `Tasks/<Domain>/`. To trigger it by URL, add **one line** to `config/cron.php` (add `when`/`cron_npt`/`cron_utc` to schedule it); if it needs URL input, override `withRequest()`. To run it from code: `app(TaskRunner::class)->run(app(MyTask::class))`. |
+| A new background task | a `Task` (or `PerStockTask` for per-stock work) in `Tasks/<Domain>/`. To trigger it by URL, add a route in `routes/web.php` (`->defaults('task', MyTask::class)`); schedule it in cPanel cron; if it needs URL input, override `withRequest()`. To run it from code: `app(TaskRunner::class)->run(app(MyTask::class))`. |
 | Swap the AI provider | a new `AiOpinionProvider` implementation + one line in `AppServiceProvider::$bindings` |
 | A new portfolio export format | a `PortfolioExporter` implementation + route |
 | A new API endpoint | FormRequest in `Http/Requests/<Area>/`, the logic in a service method, and a one-line controller method that calls it |

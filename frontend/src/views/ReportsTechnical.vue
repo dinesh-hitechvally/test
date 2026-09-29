@@ -188,7 +188,7 @@ onMounted(async () => {
         <div class="card">
           <h3>Trend</h3>
           <p><span class="badge" :class="biasClass(report.trend.direction)">{{ report.trend.direction }}</span></p>
-          <table class="kv" v-if="report.trend.direction !== 'unknown'">
+          <table v-align-numbers class="kv" v-if="report.trend.direction !== 'unknown'">
             <tbody>
               <tr><td>Price vs SMA50</td><td>{{ report.trend.price_vs_sma50 }}</td></tr>
               <tr><td>SMA50 vs SMA200</td><td>{{ report.trend.sma50_vs_sma200 }}</td></tr>
@@ -206,7 +206,7 @@ onMounted(async () => {
               {{ report.trade_setup.attractive ? 'Favorable risk/reward' : 'Weak risk/reward' }}
             </span>
           </p>
-          <table class="kv">
+          <table v-align-numbers class="kv">
             <tbody>
               <tr><td>Entry reference</td><td>Rs. {{ fmt(report.trade_setup.entry_reference) }}</td></tr>
               <tr><td>Price target</td><td>Rs. {{ fmt(report.trade_setup.target) }}</td></tr>
@@ -223,7 +223,7 @@ onMounted(async () => {
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
         <div class="card">
           <h3>Moving Averages <span class="badge" :class="biasClass(report.moving_averages.alignment)">{{ report.moving_averages.alignment }}</span></h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <thead><tr><th>Period</th><th>Value</th><th>Position</th></tr></thead>
             <tbody>
               <tr v-for="ma in report.moving_averages.series" :key="ma.period">
@@ -237,7 +237,7 @@ onMounted(async () => {
 
         <div class="card">
           <h3>Momentum &amp; Volatility</h3>
-          <table class="kv">
+          <table v-align-numbers class="kv">
             <tbody>
               <tr><td>RSI (14)</td><td>{{ report.rsi.value ?? '—' }} <span class="badge" :class="biasClass(report.rsi.state)">{{ report.rsi.state }}</span></td></tr>
               <tr v-if="report.rsi.divergence"><td>RSI divergence</td><td><span class="badge" :class="biasClass(report.rsi.divergence)">{{ report.rsi.divergence }}</span></td></tr>
@@ -255,7 +255,7 @@ onMounted(async () => {
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
         <div class="card">
           <h3>Support &amp; Resistance</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <thead><tr><th>Type</th><th>Level</th><th>Strength</th></tr></thead>
             <tbody>
               <tr v-for="(r, idx) in report.support_resistance.resistance" :key="`r${idx}`">
@@ -277,7 +277,7 @@ onMounted(async () => {
 
         <div class="card">
           <h3>Volume &amp; Breakout</h3>
-          <table class="kv">
+          <table v-align-numbers class="kv">
             <tbody>
               <tr><td>Today's volume</td><td>{{ report.volume_analysis.today_volume?.toLocaleString() }}</td></tr>
               <tr><td>20-day avg volume</td><td>{{ report.volume_analysis.avg_volume_20d?.toLocaleString() }}</td></tr>
@@ -294,7 +294,7 @@ onMounted(async () => {
       <!-- Candlestick patterns -->
       <div class="card" style="margin-top: 16px">
         <h3>Candlestick Patterns (most recent candles)</h3>
-        <table class="table" v-if="report.candlestick_patterns.length">
+        <table v-align-numbers class="table" v-if="report.candlestick_patterns.length">
           <thead><tr><th>Pattern</th><th>Signal</th><th>Note</th></tr></thead>
           <tbody>
             <tr v-for="p in report.candlestick_patterns" :key="p.name">
@@ -315,7 +315,7 @@ onMounted(async () => {
           swing low Rs. {{ fmt(report.fibonacci.swing_low) }} ({{ report.fibonacci.swing_low_date }})
         </p>
         <div class="grid" style="grid-template-columns: 1fr 1fr">
-          <table class="table">
+          <table v-align-numbers class="table">
             <thead><tr><th>Retracement</th><th>Price</th></tr></thead>
             <tbody>
               <tr v-for="lvl in report.fibonacci.retracement_levels" :key="`ret${lvl.ratio}`">
@@ -324,7 +324,7 @@ onMounted(async () => {
               </tr>
             </tbody>
           </table>
-          <table class="table">
+          <table v-align-numbers class="table">
             <thead><tr><th>Extension (target)</th><th>Price</th></tr></thead>
             <tbody>
               <tr v-for="lvl in report.fibonacci.extension_levels" :key="`ext${lvl.ratio}`">

@@ -52,7 +52,7 @@ onMounted(load)
 
     <div v-else class="card" style="margin-top: 16px">
       <p class="muted">{{ sorted.length }} login{{ sorted.length === 1 ? '' : 's' }} recorded.</p>
-      <table class="table">
+      <table v-align-numbers class="table">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('logged_in_at')">When {{ sortIndicator('logged_in_at') }}</th>

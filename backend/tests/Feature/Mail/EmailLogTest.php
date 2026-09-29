@@ -83,12 +83,12 @@ class EmailLogTest extends TestCase
         $this->useFailingMailer();
         config(['services.cron.alert_email' => 'ops@example.com']);
 
-        app(FailureAlertService::class)->notifyFailure('market:sync', 'nepalstock.com unreachable');
+        app(FailureAlertService::class)->notifyFailure('market-sync', 'nepalstock.com unreachable');
 
         $log = EmailLog::sole();
         $this->assertSame(EmailLog::STATUS_FAILED, $log->status);
         $this->assertSame(['ops@example.com'], $log->to);
-        $this->assertStringContainsString('market:sync', $log->subject);
+        $this->assertStringContainsString('market-sync', $log->subject);
     }
 
     public function test_the_log_can_be_listed_and_filtered_by_status(): void

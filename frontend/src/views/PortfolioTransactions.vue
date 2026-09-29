@@ -38,7 +38,7 @@ onMounted(async () => {
     </p>
 
     <div class="card">
-      <table class="table" v-if="store.transactions.length">
+      <table v-align-numbers class="table" v-if="store.transactions.length">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('transaction_date')">Date {{ sortIndicator('transaction_date') }}</th>

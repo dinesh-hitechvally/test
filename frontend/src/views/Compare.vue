@@ -148,7 +148,7 @@ onMounted(async () => {
       </div>
 
       <div class="card" style="margin-top: 16px">
-        <table class="table">
+        <table v-align-numbers class="table">
           <thead>
             <tr><th>Symbol</th><th>Sector</th><th>Price</th><th>% Change</th><th>RSI (14)</th><th>Signal</th></tr>
           </thead>

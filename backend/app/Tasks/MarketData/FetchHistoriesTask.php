@@ -21,21 +21,6 @@ class FetchHistoriesTask extends PerStockTask
 {
     public function __construct(private readonly PriceHistorySource $history) {}
 
-    public function name(): string
-    {
-        return 'fetch-histories';
-    }
-
-    public function description(): string
-    {
-        return 'Fetch full price history for every stock that doesn\'t have it yet';
-    }
-
-    public function logFile(): string
-    {
-        return 'fetch-histories.log';
-    }
-
     protected function pending(): Builder
     {
         return Stock::whereDoesntHave('scrapeStatus', function ($q) {

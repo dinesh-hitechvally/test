@@ -119,7 +119,7 @@ onMounted(load)
       <p v-if="loadingLongTerm" class="muted">Scoring every stock (dividends, dilution, price history) — this one takes a bit longer…</p>
       <template v-else>
         <p class="muted">{{ sortedLongTerm.length }} candidate{{ sortedLongTerm.length === 1 ? '' : 's' }} (excludes anything currently Sell/Strong Sell or too illiquid to rank).</p>
-        <table class="table">
+        <table v-align-numbers class="table">
           <thead>
             <tr>
               <th class="sortable" @click="toggleLongTermSort('symbol')">Symbol {{ longTermSortIndicator('symbol') }}</th>
@@ -159,7 +159,7 @@ onMounted(load)
 
     <div v-else class="card" style="margin-top: 12px">
       <p class="muted">{{ results.length }} stock{{ results.length === 1 ? '' : 's' }} match.</p>
-      <table class="table">
+      <table v-align-numbers class="table">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

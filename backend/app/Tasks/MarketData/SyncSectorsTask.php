@@ -14,21 +14,6 @@ class SyncSectorsTask extends PerStockTask
 {
     public function __construct(private readonly NepalStockSecurityResolver $resolver) {}
 
-    public function name(): string
-    {
-        return 'sync-sectors';
-    }
-
-    public function description(): string
-    {
-        return 'Fetch each stock\'s sector from nepalstock.com, for stocks missing one';
-    }
-
-    public function logFile(): string
-    {
-        return 'sync-sectors.log';
-    }
-
     protected function pending(): Builder
     {
         return Stock::whereNull('sector_id');

@@ -65,7 +65,7 @@ onMounted(async () => {
 
       <div class="card" style="margin-top: 16px">
         <h3>Sector Allocation</h3>
-        <table class="table">
+        <table v-align-numbers class="table">
           <thead>
             <tr>
               <th class="sortable" @click="toggleSort('label')">Sector {{ sortIndicator('label') }}</th>

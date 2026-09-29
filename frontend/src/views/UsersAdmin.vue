@@ -26,7 +26,7 @@ onMounted(load)
     <p v-if="loading" class="muted">Loading…</p>
 
     <div v-else class="card">
-      <table class="table">
+      <table v-align-numbers class="table">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('name')">Name {{ sortIndicator('name') }}</th>

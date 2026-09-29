@@ -40,8 +40,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/stocks/{symbol}/indicators', [StockController::class, 'indicators']);
     Route::get('/stocks/{symbol}/forecasts', [StockController::class, 'forecasts']);
     Route::get('/stocks/{symbol}/signals', [StockController::class, 'signals']);
-    Route::post('/stocks/{symbol}/fetch-full-history', [StockController::class, 'fetchFullHistory']);
-    Route::post('/stocks/{symbol}/fetch-nepse-history', [StockController::class, 'fetchNepseHistory']);
     Route::get('/stocks/{symbol}/ml-prediction', [StockController::class, 'mlPrediction']);
     Route::get('/stocks/{symbol}/ai-opinion', [StockController::class, 'aiOpinion']);
     Route::get('/stocks/{symbol}/next-close-forecast', [StockController::class, 'nextCloseForecast']);
@@ -55,7 +53,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/alerts', [AlertController::class, 'index']);
 
     Route::get('/indices', [IndexController::class, 'index']);
-    Route::post('/indices/sync', [IndexController::class, 'sync']);
 
     Route::get('/signals/accuracy', [SignalAccuracyController::class, 'index']);
 
@@ -85,7 +82,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/market/screener', [MarketController::class, 'screener']);
     Route::get('/market/52-week', [MarketController::class, 'fiftyTwoWeek']);
 
-    Route::post('/scrape/run-nepse', [ScrapeController::class, 'runNepse']);
     Route::get('/scrape/logs', [ScrapeController::class, 'logs']);
 
     Route::get('/watchlists', [WatchlistController::class, 'index']);

@@ -13,21 +13,6 @@ class SyncStockListTask extends Task
 
     public function __construct(private readonly NepalStockSecurityResolver $resolver) {}
 
-    public function name(): string
-    {
-        return 'stocks:sync-list';
-    }
-
-    public function description(): string
-    {
-        return 'Create a stocks row for every security on the official nepalstock.com list, not just ones that traded today';
-    }
-
-    public function logFile(): string
-    {
-        return 'stocks-sync-list.log';
-    }
-
     public function handle(): string
     {
         try {

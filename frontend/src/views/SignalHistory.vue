@@ -45,7 +45,7 @@ onMounted(load)
       </p>
 
       <div class="card" style="margin-top: 12px">
-        <table class="table">
+        <table v-align-numbers class="table">
           <thead>
             <tr><th>Signal</th><th>Sample Size</th><th>Win Rate</th><th>Baseline Win Rate</th><th>Avg Forward Return</th><th>Beats Baseline?</th></tr>
           </thead>

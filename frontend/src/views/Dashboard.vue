@@ -126,7 +126,7 @@ onMounted(async () => {
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">
         <div class="card">
           <h3 class="card-heading positive-heading"><span class="card-icon positive-icon"><NavIcon name="target" /></span>Top Gainers</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <tbody>
               <tr v-for="m in report.movers.gainers" :key="m.stock_id">
                 <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>
@@ -140,7 +140,7 @@ onMounted(async () => {
         </div>
         <div class="card">
           <h3 class="card-heading negative-heading"><span class="card-icon negative-icon"><NavIcon name="target" /></span>Top Losers</h3>
-          <table class="table">
+          <table v-align-numbers class="table">
             <tbody>
               <tr v-for="m in report.movers.losers" :key="m.stock_id">
                 <td><RouterLink :to="{ name: 'stock-detail', params: { symbol: m.symbol } }">{{ m.symbol }}</RouterLink></td>
@@ -177,7 +177,7 @@ onMounted(async () => {
     </p>
 
     <div class="card" style="margin-top: 20px" v-if="store.todaySignals.length">
-      <table class="table signal-table">
+      <table v-align-numbers class="table signal-table">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

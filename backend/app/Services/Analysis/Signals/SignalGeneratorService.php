@@ -110,7 +110,7 @@ class SignalGeneratorService
         // applying it to every past day would silently corrupt backtested
         // accuracy with data that didn't exist at the time. A first attempt
         // at doing exactly that (applied uniformly across all rows) was
-        // measured via signals:backtest-accuracy and DID demonstrably hurt
+        // measured with the signal backtest and DID demonstrably hurt
         // accuracy — strong_buy's win rate dropped from 55.74% to 38.89%
         // (n 61→18) purely from historical rows being diluted with a value
         // that's valid for TODAY, not for THAT DAY. Confining it to the

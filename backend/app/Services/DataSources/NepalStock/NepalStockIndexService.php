@@ -31,7 +31,7 @@ class NepalStockIndexService
     public function sync(): array
     {
         try {
-            // Same guard as NepalStockScraperService::scrape() — the index
+            // Same market-open guard the price sync used to have — the index
             // value NEPSE returns while closed is often just yesterday's
             // stale close repeated, not a real "today" snapshot worth storing.
             if (! $this->marketStatus->isOpen()) {

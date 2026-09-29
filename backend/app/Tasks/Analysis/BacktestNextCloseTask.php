@@ -9,21 +9,6 @@ class BacktestNextCloseTask extends Task
 {
     public function __construct(private readonly NextCloseEstimatorService $estimator) {}
 
-    public function name(): string
-    {
-        return 'signals:backtest-next-close';
-    }
-
-    public function description(): string
-    {
-        return 'Backtest the next-close price estimator against every real historical (day, next-day) pair';
-    }
-
-    public function logFile(): string
-    {
-        return 'next-close-accuracy.log';
-    }
-
     public function handle(): string
     {
         $stat = $this->estimator->backtest();

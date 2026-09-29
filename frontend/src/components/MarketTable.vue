@@ -143,7 +143,7 @@ function formatInt(value) {
       <span class="muted result-count">{{ filtered.length }} stocks</span>
     </div>
 
-    <table class="table">
+    <table v-align-numbers class="table">
       <thead>
         <tr>
           <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

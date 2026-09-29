@@ -12,21 +12,6 @@ class BacktestSignalsTask extends Task
 
     public function __construct(private readonly SignalAccuracyService $accuracy) {}
 
-    public function name(): string
-    {
-        return 'signals:backtest-accuracy';
-    }
-
-    public function description(): string
-    {
-        return 'Backtest the rule-based signal engine\'s historical win rate over a forward horizon';
-    }
-
-    public function logFile(): string
-    {
-        return 'signal-accuracy.log';
-    }
-
     public function handle(): string
     {
         $result = $this->accuracy->backtest(self::HORIZON_DAYS);

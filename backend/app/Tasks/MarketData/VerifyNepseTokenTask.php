@@ -10,21 +10,6 @@ class VerifyNepseTokenTask extends Task
 {
     public function __construct(private readonly NepalStockClient $client) {}
 
-    public function name(): string
-    {
-        return 'nepse:verify-token';
-    }
-
-    public function description(): string
-    {
-        return 'Mint a nepalstock.com access token and confirm it actually authenticates against the real API';
-    }
-
-    public function logFile(): string
-    {
-        return 'nepse-verify-token.log';
-    }
-
     public function handle(): string
     {
         $this->client->verify();

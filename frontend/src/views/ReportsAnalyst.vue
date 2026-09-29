@@ -220,7 +220,7 @@ const summary = computed(() => {
 
       <div v-if="consensus && consensus.total > 0" class="card" style="margin-top: 16px">
         <h3>Consensus Across Lenses</h3>
-        <table class="table">
+        <table v-align-numbers class="table">
           <thead><tr><th>Lens</th><th>Lean</th></tr></thead>
           <tbody>
             <tr v-for="v in consensus.votes" :key="v.label">
@@ -267,7 +267,7 @@ const summary = computed(() => {
         <div class="card">
           <h3>Dividend History</h3>
           <template v-if="data.dividend">
-            <table class="table">
+            <table v-align-numbers class="table">
               <thead><tr><th>FY</th><th>Cash</th><th>Bonus</th><th>Total</th></tr></thead>
               <tbody>
                 <tr v-for="h in data.dividend.history" :key="h.id">
@@ -324,7 +324,7 @@ const summary = computed(() => {
 
       <div class="card" style="margin-top: 16px">
         <h3>Returns</h3>
-        <table class="table">
+        <table v-align-numbers class="table">
           <tbody>
             <tr>
               <td v-for="(key, label) in { '1 Week': '1w', '1 Month': '1m', '3 Month': '3m', '6 Month': '6m', '1 Year': '1y', YTD: 'ytd' }" :key="key">

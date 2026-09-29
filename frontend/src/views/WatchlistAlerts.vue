@@ -50,7 +50,7 @@ onMounted(load)
     <p v-if="loading" class="muted">Loading…</p>
 
     <div v-else class="card">
-      <table class="table" v-if="alertRows.length">
+      <table v-align-numbers class="table" v-if="alertRows.length">
         <thead>
           <tr>
             <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>

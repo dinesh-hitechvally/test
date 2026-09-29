@@ -50,7 +50,7 @@ onMounted(load)
     <p v-if="loading" class="muted">Loading…</p>
 
     <div v-else class="card">
-      <table class="table" v-if="screens.length">
+      <table v-align-numbers class="table" v-if="screens.length">
         <thead><tr><th>Name</th><th>Filters</th><th>Saved</th><th></th></tr></thead>
         <tbody>
           <tr v-for="s in screens" :key="s.id">

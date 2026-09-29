@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * Manual recalculation. The routine one no longer needs this — every price
  * update fires StockPricesUpdated and RecalculateUpdatedStocks handles it
- * in the same request. This is for re-running by hand: stocks priced
- * today by default, or every stock with ?all=1 after changing indicator
+ * in the same request. This is for re-running by hand: stocks priced on
+ * the latest trading date by default, or every stock with ?all=1 after changing indicator
  * or signal rules.
  */
 class RecalculateMarketTask extends Task
@@ -30,27 +30,17 @@ class RecalculateMarketTask extends Task
 
     public function name(): string
     {
-        return $this->all ? 'market:recalculate --all' : 'market:recalculate';
-    }
-
-    public function description(): string
-    {
-        return 'Manually recompute indicators/signals (today\'s stocks, or ?all=1 for every stock) — routine recalculation follows each price update automatically';
-    }
-
-    public function logFile(): string
-    {
-        return 'market-recalculate.log';
+        return $this->all ? parent::name().' (all stocks)' : parent::name();
     }
 
     public function handle(): string
     {
         $stocks = $this->all
             ? Stock::all()
-            : Stock::whereIn('id', DB::table('daily_prices')->whereDate('trade_date', today())->pluck('stock_id'))->get();
+            : Stock::whereIn('id', DB::table('daily_prices')->where('trade_date', DB::table('daily_prices')->max('trade_date'))->pluck('stock_id'))->get();
 
         if ($stocks->isEmpty()) {
-            return 'No stocks have a price row from today — nothing to recalculate (market closed, or market:sync hasn\'t run yet).';
+            return 'No price rows yet — nothing to recalculate.';
         }
 
         $this->pipeline->runForMany($stocks);

@@ -293,7 +293,7 @@ onMounted(async () => {
 
       <div class="card" style="margin-top: 16px">
         <h3>Holdings</h3>
-        <table class="table" v-if="store.detail.holdings.length">
+        <table v-align-numbers class="table" v-if="store.detail.holdings.length">
           <thead>
             <tr>
               <th class="sortable" @click="toggleSort('symbol')">Symbol {{ sortIndicator('symbol') }}</th>
@@ -389,7 +389,7 @@ onMounted(async () => {
     <div class="card" style="margin-top: 16px">
       <h3>Transaction History</h3>
       <p v-if="deleteError" class="error-text">{{ deleteError }}</p>
-      <table class="table" v-if="store.transactions.length">
+      <table v-align-numbers class="table" v-if="store.transactions.length">
         <thead>
           <tr><th>Date</th><th>Symbol</th><th>Type</th><th>Qty</th><th>Price</th><th>Fees</th><th>Total</th><th>Notes</th><th></th></tr>
         </thead>

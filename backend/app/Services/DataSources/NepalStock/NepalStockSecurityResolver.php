@@ -8,8 +8,8 @@ use RuntimeException;
 
 /**
  * Resolves a stock's nepalstock.com internal numeric security ID, needed by
- * every official-API endpoint that's scoped to one security. Shared by
- * NepalStockHistoryService and NepalStockCorporateActionsService so the
+ * every official-API endpoint that's scoped to one security (sector lookup
+ * here, dividends in NepalStockCorporateActionsService) — one place, so the
  * securities-list cache key and matching logic can't drift between them.
  */
 class NepalStockSecurityResolver
@@ -63,8 +63,8 @@ class NepalStockSecurityResolver
 
     /**
      * Creates a `stocks` row for every security nepalstock.com knows about —
-     * not just the ones that happen to trade on a given day. market:sync
-     * (NepalStockScraperService) only ever creates a stock as a byproduct of
+     * not just the ones that happen to trade on a given day. The market sync
+     * (DailyPriceSyncService) only ever creates a stock as a byproduct of
      * seeing it trade today, so an illiquid, suspended, or brand-new listing
      * that hasn't traded yet would otherwise never appear in this app at
      * all. Always fetches live (bypasses resolve()'s 6h cache — this is the

@@ -9,21 +9,6 @@ class TrainMlTask extends Task
 {
     public function __construct(private readonly MlDirectionPredictorService $predictor) {}
 
-    public function name(): string
-    {
-        return 'ml:train-predictor';
-    }
-
-    public function description(): string
-    {
-        return 'Train the direction predictor (Random Forest) on pooled stock history and report its real out-of-sample accuracy';
-    }
-
-    public function logFile(): string
-    {
-        return 'ml-train.log';
-    }
-
     public function handle(): string
     {
         // The training set is every qualifying stock's full price/indicator

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Contracts\PriceHistorySource;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Stock\ImportPricesCsvRequest;
 use App\Http\Requests\Stock\StockSignalsRequest;
@@ -11,11 +10,9 @@ use App\Services\Ai\AiStockOpinionService;
 use App\Services\Analysis\Forecasting\NextCloseEstimatorService;
 use App\Services\DataSources\CorporateActionsRefreshService;
 use App\Services\DataSources\Csv\CsvPriceImportService;
-use App\Services\DataSources\NepalStock\NepalStockHistoryService;
 use App\Services\MachineLearning\MlDirectionPredictorService;
 use App\Services\Stocks\StockService;
 use Illuminate\Http\Request;
-use Throwable;
 
 class StockController extends Controller
 {
@@ -80,28 +77,6 @@ class StockController extends Controller
     public function importCsv(ImportPricesCsvRequest $request, CsvPriceImportService $importer)
     {
         return response()->json($importer->import($request->validated('file'), $request->validated('symbol')));
-    }
-
-    public function fetchFullHistory(string $symbol, PriceHistorySource $history)
-    {
-        $stock = $this->stocks->findBySymbol($symbol); // outside the try: unknown symbol stays a 404
-
-        try {
-            return response()->json($history->fetchHistory($stock));
-        } catch (Throwable $e) {
-            return response()->json(['message' => 'Full history fetch failed: '.$e->getMessage()], 502);
-        }
-    }
-
-    public function fetchNepseHistory(string $symbol, NepalStockHistoryService $history)
-    {
-        $stock = $this->stocks->findBySymbol($symbol);
-
-        try {
-            return response()->json($history->fetchHistory($stock));
-        } catch (Throwable $e) {
-            return response()->json(['message' => 'NEPSE official history fetch failed: '.$e->getMessage()], 502);
-        }
     }
 
     public function dividends(string $symbol)

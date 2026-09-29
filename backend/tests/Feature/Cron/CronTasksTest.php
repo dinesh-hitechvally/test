@@ -3,12 +3,11 @@
 namespace Tests\Feature\Cron;
 
 use App\Contracts\PriceHistorySource;
-use App\Http\Cron\CronSchedule;
 use App\Models\DailyPrice;
 use App\Models\Stock;
 use App\Models\User;
 use App\Services\Alerts\FailureAlertService;
-use App\Services\DataSources\NepalStock\NepalStockScraperService;
+use App\Services\DataSources\DailyPriceSyncService;
 use App\Tasks\Task;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -35,23 +34,28 @@ class CronTasksTest extends TestCase
 
         $this->get('/cron/reports/market-recalculate?key=test-secret')
             ->assertOk()
-            ->assertSeeText('$ market:recalculate')
+            ->assertSeeText('$ recalculate-market')
             ->assertSeeText('Recalculated indicators/signals for 1 stock(s).')
             ->assertSeeText('[ok]');
 
         $this->get('/cron/reports/market-recalculate?key=test-secret&all=1')
             ->assertOk()
-            ->assertSeeText('$ market:recalculate --all')
+            ->assertSeeText('$ recalculate-market (all stocks)')
             ->assertSeeText('Recalculated indicators/signals for 2 stock(s).');
 
         $this->assertSame(1, $old->technicalIndicators()->count());
     }
 
-    public function test_every_registry_entry_is_a_routed_task(): void
+    public function test_every_cron_route_runs_a_task_and_needs_the_key(): void
     {
-        foreach (CronSchedule::tasks() as $path => $entry) {
-            $this->assertTrue(is_subclass_of($entry['task'], Task::class), $entry['task']);
-            $this->get('/cron/'.str_replace('{symbol}', 'X', $path))->assertForbidden(); // routed + gated by the key
+        $cronRoutes = collect(app('router')->getRoutes()->getRoutes())
+            ->filter(fn ($route) => str_starts_with($route->uri(), 'cron/'));
+
+        $this->assertCount(14, $cronRoutes);
+
+        foreach ($cronRoutes as $route) {
+            $this->assertTrue(is_subclass_of($route->defaults['task'] ?? '', Task::class), $route->uri());
+            $this->get('/'.str_replace('{symbol}', 'X', $route->uri()))->assertForbidden();
         }
     }
 
@@ -68,7 +72,7 @@ class CronTasksTest extends TestCase
 
         $this->get('/cron/scrape/fetch-history/nabil?key=test-secret')
             ->assertOk()
-            ->assertSeeText('$ fetch-history NABIL')
+            ->assertSeeText('$ fetch-stock-history NABIL')
             ->assertSeeText('3 rows imported (2024-01-01 to 2024-01-03).')
             ->assertSeeText('[ok]');
 
@@ -82,17 +86,17 @@ class CronTasksTest extends TestCase
     {
         $this->get('/cron/reports/backtest-signals?key=test-secret')
             ->assertOk()
-            ->assertSeeText('$ signals:backtest-accuracy')
+            ->assertSeeText('$ backtest-signals')
             ->assertSeeText('Backtested over a 30-trading-day horizon')
             ->assertSeeText('[ok]');
     }
 
     public function test_a_failing_task_is_reported_and_alerted(): void
     {
-        $this->mock(NepalStockScraperService::class)
-            ->shouldReceive('scrape')->andThrow(new RuntimeException('nepalstock.com unreachable'));
+        $this->mock(DailyPriceSyncService::class)
+            ->shouldReceive('sync')->andThrow(new RuntimeException('nepalstock.com unreachable'));
         $this->mock(FailureAlertService::class)
-            ->shouldReceive('notifyFailure')->once()->with('market:sync', 'nepalstock.com unreachable');
+            ->shouldReceive('notifyFailure')->once()->with('market-sync', 'nepalstock.com unreachable');
 
         $this->get('/cron/scrape/market-sync-stock?key=test-secret')
             ->assertOk()
@@ -100,19 +104,13 @@ class CronTasksTest extends TestCase
             ->assertSeeText('[failed]');
     }
 
-    public function test_schedule_page_lists_tasks_with_their_descriptions(): void
+    public function test_settings_page_reports_the_secret_and_flagged_stocks(): void
     {
-        $user = User::create(['name' => 'T', 'email' => 't@example.com', 'password' => 'password']);
-        Sanctum::actingAs($user);
+        Sanctum::actingAs(User::create(['name' => 'T', 'email' => 't@example.com', 'password' => 'password']));
 
-        $response = $this->getJson('/api/schedule')
+        $this->getJson('/api/schedule')
             ->assertOk()
-            ->assertJsonPath('jobs.0.command', 'stocks:sync-list')
-            ->assertJsonPath('jobs.1.command', 'market:sync')
-            ->assertJsonPath('jobs.1.description', 'Scrape today\'s prices from the official nepalstock.com API');
-
-        // Recalculation is event-driven now, not a scheduled job.
-        $this->assertNotContains('market:recalculate', array_column($response->json('jobs'), 'command'));
+            ->assertExactJson(['secret_configured' => true, 'flagged_stocks' => []]);
     }
 
     private function price(Stock $stock, string $date): void
