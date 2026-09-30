@@ -3,6 +3,7 @@
 namespace App\GraphQL\Resolvers;
 
 use App\GraphQL\Resolver;
+use App\Models\DataQualityFlag;
 use App\Models\ScrapeLog;
 use App\Services\Analysis\Patterns\CandlestickPatternScanner;
 use App\Services\Analysis\Signals\SignalAccuracyService;
@@ -67,5 +68,28 @@ class MarketResolver extends Resolver
             'secret_configured' => filled(config('services.cron.secret')),
             'flagged_stocks' => app(ScrapeHealthService::class)->flaggedStocks(),
         ]);
+    }
+
+    public function dataQualityFlags($root, array $args): array
+    {
+        // 'sector' isn't a real column (Stock::toArray() derives it from the sector_id relation) —
+        // select the FK instead and let that lazy-load when the collection serializes.
+        $query = DataQualityFlag::with('stock:id,symbol,company_name,sector_id')->latest('detected_at');
+
+        if (! empty($args['severity'])) {
+            $query->where('severity', $args['severity']);
+        }
+
+        $query->when($args['resolved'] ?? false, fn ($q) => $q->whereNotNull('resolved_at'), fn ($q) => $q->whereNull('resolved_at'));
+
+        return $this->plain($query->get());
+    }
+
+    public function resolveDataQualityFlag($root, array $args): array
+    {
+        $flag = DataQualityFlag::with('stock:id,symbol,company_name,sector_id')->findOrFail($args['id']);
+        $flag->update(['resolved_at' => now()]);
+
+        return $this->plain($flag);
     }
 }

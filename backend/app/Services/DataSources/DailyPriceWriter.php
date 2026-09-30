@@ -4,6 +4,7 @@ namespace App\Services\DataSources;
 
 use App\Models\DailyPrice;
 use App\Models\Stock;
+use App\Services\DataQuality\DataQualityService;
 
 /**
  * Saves one trading date's prices, whatever source they came from, and only
@@ -15,6 +16,8 @@ use App\Models\Stock;
 class DailyPriceWriter
 {
     private const PRICE_FIELDS = ['open_price', 'high_price', 'low_price', 'close_price', 'volume', 'turnover'];
+
+    public function __construct(private readonly DataQualityService $quality) {}
 
     /**
      * @param  list<array{symbol: string, open: float, high: float, low: float, close: float, volume: int, turnover: float, company_name?: ?string, nepse_security_id?: ?int}>  $rows
@@ -54,6 +57,10 @@ class DailyPriceWriter
                 $counts['unchanged']++;
 
                 continue;
+            }
+
+            if ($current) {
+                $this->quality->checkOverwrite($current);
             }
 
             $counts[$current ? 'updated' : 'inserted']++;

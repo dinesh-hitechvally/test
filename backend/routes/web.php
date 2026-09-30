@@ -5,6 +5,7 @@ use App\Tasks\Ai\GenerateAiOpinionsTask;
 use App\Tasks\Analysis\BacktestNextCloseTask;
 use App\Tasks\Analysis\BacktestSignalsTask;
 use App\Tasks\Analysis\RecalculateMarketTask;
+use App\Tasks\DataQuality\ScanDataQualityTask;
 use App\Tasks\MachineLearning\TrainMlTask;
 use App\Tasks\MarketData\FetchHistoriesTask;
 use App\Tasks\MarketData\FetchStockHistoryTask;
@@ -42,5 +43,6 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
         Route::get('train-ml', CronController::class)->defaults('task', TrainMlTask::class);
         Route::get('backtest-signals', CronController::class)->defaults('task', BacktestSignalsTask::class);
         Route::get('backtest-next-close', CronController::class)->defaults('task', BacktestNextCloseTask::class);
+        Route::get('data-quality-scan', CronController::class)->defaults('task', ScanDataQualityTask::class);
     });
 });

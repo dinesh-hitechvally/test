@@ -9,6 +9,7 @@ use App\Events\StockPricesUpdated;
 use App\Events\TaskFailed;
 use App\Events\UserLoggedIn;
 use App\Listeners\AlertTaskFailure;
+use App\Listeners\FlagPriceQualityIssues;
 use App\Listeners\RecalculateUpdatedStocks;
 use App\Listeners\RecordEmailSending;
 use App\Listeners\RecordEmailSent;
@@ -57,7 +58,7 @@ class AppServiceProvider extends ServiceProvider
      * @var array<class-string, list<class-string>>
      */
     private const LISTENERS = [
-        StockPricesUpdated::class => [RecalculateUpdatedStocks::class],
+        StockPricesUpdated::class => [RecalculateUpdatedStocks::class, FlagPriceQualityIssues::class],
         ScrapeFinished::class => [RecordScrapeLog::class],
         TaskFailed::class => [AlertTaskFailure::class],
         UserLoggedIn::class => [RecordLoginHistory::class],

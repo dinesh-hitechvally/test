@@ -64,6 +64,11 @@ app/
     ├── Portfolio/        PortfolioService (ledger), valuation/P&L, price alerts, Export/.
     ├── Auth/             Login history + geolocation.
     ├── Alerts/           FailureAlertService — log + optional Slack/email when a task fails.
+    ├── DataQuality/      DataQualityService — detects bad data (invalid OHLC, abnormal moves,
+    │                     missing volume, stale-date corrections, missing trading dates, a likely-
+    │                     unadjusted corporate action) and records it (data_quality_flags), never
+    │                     fixes it. Per-row checks run inline (FlagPriceQualityIssues listener,
+    │                     DailyPriceWriter); market-wide checks run daily (ScanDataQualityTask).
     └── Mail/             EmailLogService — records every outgoing email (email_logs table).
 
 ```
@@ -107,7 +112,7 @@ waits for them.
 
 | Event | Fired by | Listener |
 |---|---|---|
-| `StockPricesUpdated` | market sync, history fetch (either source), CSV import | `RecalculateUpdatedStocks` → RecalculationPipeline for those stocks |
+| `StockPricesUpdated` | market sync, history fetch (either source), CSV import | `RecalculateUpdatedStocks` → RecalculationPipeline for those stocks; `FlagPriceQualityIssues` → DataQualityService checks on each stock's newest row |
 | `ScrapeFinished` | every external fetch, success or failure | `RecordScrapeLog` → `scrape_logs` row |
 | `TaskFailed` | TaskRunner (any failed task) | `AlertTaskFailure` → FailureAlertService |
 | `UserLoggedIn` | the `login` mutation (AuthResolver) | `RecordLoginHistory` → LoginHistoryService (IP, device, location) |
@@ -134,7 +139,7 @@ not in code** — add a cron job there that curls the URL at the time you want, 
 - **Suggested times (NPT, Asia/Kathmandu — check which timezone your cPanel cron uses):**
   sync-stock-list 06:00 daily; market-sync-stock 15:30 and market-sync-index 15:32 Mon–Fri
   (after NEPSE's ~15:00 close); train-ml 03:30, backtest-signals 04:00, backtest-next-close
-  04:15 on Mondays.
+  04:15, data-quality-scan 04:30 on Mondays.
 - **On-demand:** fetch-history/{symbol}, market-recalculate (`?all=1` = every
   stock), verify-token.
 - **Per-stock (no batches):** fetch-histories, sync-sectors, sync-dividends,

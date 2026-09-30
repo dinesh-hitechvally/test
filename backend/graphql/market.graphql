@@ -133,6 +133,20 @@ type ScrapeLog {
     updated_at: String
 }
 
+"A detected data-quality problem — an invalid OHLC bar, an abnormal price move, missing volume, a stale-date correction, a missing trading date, or a likely-unadjusted corporate action."
+type DataQualityFlag {
+    id: Int!
+    stock_id: Int
+    "Null for a market-wide check that isn't about one stock (a missing trading date)."
+    stock: StockRef
+    trade_date: String
+    check_type: String!
+    severity: String!
+    message: String!
+    detected_at: String
+    resolved_at: String
+}
+
 extend type Query @guard {
     "Every stock's most recent signal (optionally one signal type), highest score first."
     todaySignals(signal: String): [Stock!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@todaySignals")
@@ -146,4 +160,11 @@ extend type Query @guard {
     fiftyTwoWeek: [FiftyTwoWeekRow!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@fiftyTwoWeek")
     scrapeLogs(limit: Int = 20): [ScrapeLog!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@scrapeLogs")
     dataSourceStatus: DataSourceStatus! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@dataSourceStatus")
+    "Detected data-quality problems, newest first. severity/resolved narrow the list; unresolved by default."
+    dataQualityFlags(severity: String, resolved: Boolean = false): [DataQualityFlag!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@dataQualityFlags")
+}
+
+extend type Mutation @guard {
+    "Marks a flag reviewed (dismissed as expected, or acted on) so it stops showing by default."
+    resolveDataQualityFlag(id: Int!): DataQualityFlag! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@resolveDataQualityFlag")
 }
