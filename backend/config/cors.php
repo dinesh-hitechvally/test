@@ -31,10 +31,15 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // Content-Disposition carries the export filename — browsers hide response
+    // headers from JS on a cross-origin request unless the server lists them here
+    // (see downloadFile() in frontend/src/api/client.js).
+    'exposed_headers' => ['Content-Disposition'],
 
     'max_age' => 0,
 
+    // No longer needed for auth (the SPA uses a bearer token — see
+    // config/lighthouse.php), but harmless to leave on.
     'supports_credentials' => true,
 
 ];

@@ -5,9 +5,11 @@ export async function me() {
   return (await gql(`{ me { ${USER} } }`)).me
 }
 
+/** @returns { token, token_type, user } */
 export async function login({ email, password }) {
-  return (await gql(`mutation ($email: String, $password: String) { login(email: $email, password: $password) { ${USER} } }`,
-    { email, password })).login
+  return (await gql(`mutation ($email: String, $password: String) {
+    login(email: $email, password: $password) { token token_type user { ${USER} } }
+  }`, { email, password })).login
 }
 
 export async function logout() {

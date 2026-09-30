@@ -24,7 +24,7 @@ type Query {
 }
 
 type Mutation {
-    login(email: String, password: String): User! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@login")
+    login(email: String, password: String): AuthPayload! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@login")
     forgotPassword(email: String): String! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@forgotPassword")
     resetPassword(token: String, email: String, password: String, password_confirmation: String): String!
         @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@resetPassword")

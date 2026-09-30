@@ -4,8 +4,6 @@ import * as reportsApi from '../api/reports'
 import { usePortfolioStore } from '../stores/portfolio'
 import { useStocksStore } from '../stores/stocks'
 import { changeTone, formatPrice } from '../utils/format'
-import StatCard from '../components/ui/StatCard.vue'
-import SearchableSelect from '../components/ui/SearchableSelect.vue'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()

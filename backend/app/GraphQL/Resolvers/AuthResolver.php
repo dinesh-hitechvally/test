@@ -15,11 +15,13 @@ use App\Services\Auth\LoginHistoryService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
- * Login, logout, password reset and the current user's account. Uses the
- * same session-cookie auth as before (Sanctum's stateful middleware runs on
- * /graphql — see config/lighthouse.php).
+ * Login, logout, password reset and the current user's account. No session/cookie involved —
+ * the SPA authenticates every request with a Sanctum bearer token (issued by login(), sent as
+ * Authorization from then on, revoked by logout()). See config/lighthouse.php for why /graphql
+ * carries no stateful/CSRF middleware.
  */
 class AuthResolver extends Resolver
 {
@@ -28,22 +30,36 @@ class AuthResolver extends Resolver
     /** Recording the login (IP, device, location) follows via UserLoggedIn → RecordLoginHistory. */
     public function login($root, array $args): array
     {
-        if (! Auth::attempt($this->validated(LoginRequest::class, $args), remember: true)) {
+        $credentials = $this->validated(LoginRequest::class, $args);
+
+        if (! Auth::guard('web')->validate($credentials)) {
             throw new ApiError('Invalid credentials.', 422);
         }
 
-        request()->session()->regenerate();
+        $user = User::where('email', $credentials['email'])->firstOrFail();
 
-        UserLoggedIn::dispatch(Auth::user(), request()->ip(), request()->userAgent());
+        UserLoggedIn::dispatch(
+            $user,
+            request()->ip(),
+            request()->userAgent()
+        );
 
-        return $this->plain(Auth::user());
+        return [
+            'token' => $user->createToken('spa')->plainTextToken,
+            'token_type' => 'Bearer',
+            'user' => $this->plain($user),
+        ];
     }
 
     public function logout(): string
     {
-        Auth::guard('web')->logout();
-        request()->session()->invalidate();
-        request()->session()->regenerateToken();
+        // Only a real token is revocable — Sanctum resolves a session-authenticated request to
+        // its TransientToken stub instead, which isn't a stored row, nothing to delete. Kept as a
+        // safety check even though every request now arrives via a real token.
+        $token = $this->user()->currentAccessToken();
+        if ($token instanceof PersonalAccessToken) {
+            $token->delete();
+        }
 
         return 'Logged out.';
     }

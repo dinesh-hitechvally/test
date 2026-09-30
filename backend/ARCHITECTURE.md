@@ -86,11 +86,18 @@ task / event, and return the result (`$this->plain(...)`) or throw
 `ApiError($message, $status)`. No queries, loops or response assembly — that
 belongs in a service. No `new SomeService()`.
 
-**GraphQL auth:** `/graphql` runs Sanctum's stateful middleware, so it uses the
-same session cookie as before. Every field except `me`, `login`,
-`forgotPassword` and `resetPassword` is `@guard`ed. Parsed queries are cached as
-PHP files in `bootstrap/cache` (`LIGHTHOUSE_QUERY_CACHE_MODE=opcache`), and
-`php artisan lighthouse:clear-cache` clears the cached schema after a schema change.
+**Auth: Sanctum bearer token, no cookies.** `login` issues a personal access token
+(`$user->createToken('spa')`); the SPA stores it and sends `Authorization: Bearer
+<token>` on every request from then on. `logout` revokes it. Neither `/graphql`
+nor `/api/*` carries `EnsureFrontendRequestsAreStateful`/`statefulApi()` — there's
+no session, no CSRF, no cookie to keep warm (see `config/lighthouse.php` and
+`bootstrap/app.php`). Sanctum's guard resolves the user straight from the token;
+every field except `me`, `login`, `forgotPassword` and `resetPassword` is
+`@guard`ed. A downside: the SPA never proactively checks whether a token is still
+valid — it finds out reactively, the moment a real request 401s (frontend's
+`auth:unauthenticated` handling, see `frontend/src/main.js`). Parsed queries are
+cached as PHP files in `bootstrap/cache` (`LIGHTHOUSE_QUERY_CACHE_MODE=opcache`),
+and `php artisan lighthouse:clear-cache` clears the cached schema after a schema change.
 
 ## Event workflow
 

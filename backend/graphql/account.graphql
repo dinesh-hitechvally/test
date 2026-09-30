@@ -7,6 +7,19 @@ type User {
     updated_at: String
 }
 
+"""
+What `login` returns: a bearer token for the SPA to store (localStorage) and send as
+`Authorization: Bearer <token>` on every request from then on, so the app never has to ask the
+server "am I still logged in?" on load — a stale/revoked token is instead caught the moment it's
+actually used (the failing request's extensions.status is 401), at which point the SPA clears the
+token and sends the user to /login.
+"""
+type AuthPayload {
+    token: String!
+    token_type: String!
+    user: User!
+}
+
 type LoginHistory {
     id: Int!
     ip_address: String

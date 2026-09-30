@@ -4,8 +4,6 @@ import { RouterLink, useRoute } from 'vue-router'
 import * as marketApi from '../api/market'
 import * as watchlistsApi from '../api/watchlists'
 import { changeTone, formatPrice } from '../utils/format'
-import SearchableSelect from '../components/ui/SearchableSelect.vue'
-import Pagination from '../components/ui/Pagination.vue'
 
 const route = useRoute()
 

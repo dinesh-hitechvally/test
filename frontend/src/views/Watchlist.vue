@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import * as watchlistsApi from '../api/watchlists'
 import { useStocksStore } from '../stores/stocks'
 import { formatPrice } from '../utils/format'
-import SearchableSelect from '../components/ui/SearchableSelect.vue'
 import WatchlistTable from '../components/stock/WatchlistTable.vue'
 
 const stocksStore = useStocksStore()

@@ -10,11 +10,10 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
-import { apiBaseUrl } from '../api/client'
+import { downloadFile } from '../api/client'
 import * as portfolioApi from '../api/portfolio'
 import { usePortfolioStore } from '../stores/portfolio'
 import { changeTone, formatPrice } from '../utils/format'
-import StatCard from '../components/ui/StatCard.vue'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 
@@ -22,8 +21,18 @@ const store = usePortfolioStore()
 const history = ref([])
 const metrics = ref(null)
 const loading = ref(true)
+const exportError = ref('')
 
-const exportUrl = computed(() => `${apiBaseUrl}/api/portfolios/${store.activePortfolioId}/export`)
+// A plain <a href> can't carry the Authorization header the API needs, so
+// this fetches the file (with it) and saves it via downloadFile() instead.
+async function exportCsv() {
+  exportError.value = ''
+  try {
+    await downloadFile(`/portfolios/${store.activePortfolioId}/export`)
+  } catch {
+    exportError.value = 'Export failed.'
+  }
+}
 
 const chartData = computed(() => ({
   labels: history.value.map((h) => h.date),
@@ -73,8 +82,9 @@ onMounted(load)
   <div>
     <div class="page-header">
       <h1>Portfolio Performance</h1>
-      <a v-if="store.activePortfolioId" class="btn-secondary btn" :href="exportUrl">Export CSV</a>
+      <a v-if="store.activePortfolioId" href="#" class="btn-secondary btn" @click.prevent="exportCsv">Export CSV</a>
     </div>
+    <p v-if="exportError" class="error-text">{{ exportError }}</p>
 
     <LoadingState v-if="loading" />
     <EmptyState v-else-if="history.length === 0" class="card">

@@ -1,7 +1,6 @@
 <script setup>
 import { ref } from 'vue'
 import { getNotificationPrefs, setNotificationPrefs } from '../utils/notificationPrefs'
-import SearchableSelect from '../components/ui/SearchableSelect.vue'
 
 const prefs = ref(getNotificationPrefs())
 const saved = ref(false)

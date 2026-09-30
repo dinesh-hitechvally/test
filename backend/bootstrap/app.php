@@ -19,7 +19,9 @@ return Application::configure(basePath: dirname(__DIR__))
     // cache can't hide them.
     ->withEvents(discover: false)
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->statefulApi();
+        // No statefulApi() on purpose: /api/* (the price CSV upload and portfolio
+        // downloads) authenticates with the same Sanctum bearer token as /graphql, not a
+        // session cookie — see config/lighthouse.php for why.
         $middleware->alias([
             'cron.secret' => VerifyCronSecret::class,
         ]);

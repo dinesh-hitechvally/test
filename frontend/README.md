@@ -32,7 +32,8 @@ src/api/            the backend API, one module per area (auth, stocks, market, 
 src/api/graphql.js  gql(): POST /graphql; errors come back shaped like axios errors
                     (err.response.status / .data.message / .data.errors)
 src/api/fields.js   the field selections the queries share
-src/api/client.js   the axios client (session-cookie auth) — also used for the CSV upload
+src/api/client.js   the axios client — attaches the bearer token (localStorage) to every request,
+                    plus downloadFile() for the portfolio exports and the CSV upload
 src/utils/format.js formatPrice, formatSignal, changeTone
 src/directives/     v-align-numbers — right-aligns number columns in tables
 ```

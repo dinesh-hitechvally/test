@@ -1,4 +1,27 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
+use App\GraphQL\ErrorHandler;
+use GraphQL\Error\DebugFlag;
+use GraphQL\Validator\Rules\DisableIntrospection;
+use GraphQL\Validator\Rules\QueryComplexity;
+use GraphQL\Validator\Rules\QueryDepth;
+use Nuwave\Lighthouse\Execution\AuthenticationErrorHandler;
+use Nuwave\Lighthouse\Execution\AuthorizationErrorHandler;
+use Nuwave\Lighthouse\Execution\ReportingErrorHandler;
+use Nuwave\Lighthouse\Execution\ValidationErrorHandler;
+use Nuwave\Lighthouse\Http\Middleware\AcceptJson;
+use Nuwave\Lighthouse\Http\Middleware\AttemptAuthentication;
+use Nuwave\Lighthouse\Schema\Directives\ConvertEmptyStringsToNullDirective;
+use Nuwave\Lighthouse\Schema\Directives\DropArgsDirective;
+use Nuwave\Lighthouse\Schema\Directives\RenameArgsDirective;
+use Nuwave\Lighthouse\Schema\Directives\SanitizeDirective;
+use Nuwave\Lighthouse\Schema\Directives\SpreadDirective;
+use Nuwave\Lighthouse\Schema\Directives\TransformArgsDirective;
+use Nuwave\Lighthouse\Schema\Directives\TrimDirective;
+use Nuwave\Lighthouse\Subscriptions\SubscriptionRouter;
+use Nuwave\Lighthouse\Tracing\ApolloTracing\ApolloTracing;
+use Nuwave\Lighthouse\Validation\ValidateDirective;
 
 return [
     /*
@@ -32,15 +55,16 @@ return [
             // Nuwave\Lighthouse\Http\Middleware\EnsureXHR::class,
 
             // Always set the `Accept: application/json` header.
-            Nuwave\Lighthouse\Http\Middleware\AcceptJson::class,
+            AcceptJson::class,
 
-            // Session-cookie auth for the SPA, exactly like the REST API: cookies,
-            // session and the XSRF check for requests from SANCTUM_STATEFUL_DOMAINS.
-            Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+            // No stateful/cookie middleware here on purpose: the SPA authenticates with a
+            // Sanctum bearer token (Authorization header), not a session cookie — so there's no
+            // CSRF check to satisfy and no session to keep warm. Sanctum's guard (below, via
+            // AttemptAuthentication) resolves the user straight from that token.
 
             // Logs in a user if they are authenticated. In contrast to Laravel's 'auth'
             // middleware, this delegates auth and permission checks to the field level.
-            Nuwave\Lighthouse\Http\Middleware\AttemptAuthentication::class,
+            AttemptAuthentication::class,
 
             // Logs every incoming GraphQL query.
             // Nuwave\Lighthouse\Http\Middleware\LogGraphQLQueries::class,
@@ -228,11 +252,11 @@ return [
     */
 
     'security' => [
-        'max_query_complexity' => GraphQL\Validator\Rules\QueryComplexity::DISABLED,
-        'max_query_depth' => GraphQL\Validator\Rules\QueryDepth::DISABLED,
+        'max_query_complexity' => QueryComplexity::DISABLED,
+        'max_query_depth' => QueryDepth::DISABLED,
         'disable_introspection' => (bool) env('LIGHTHOUSE_SECURITY_DISABLE_INTROSPECTION', false)
-            ? GraphQL\Validator\Rules\DisableIntrospection::ENABLED
-            : GraphQL\Validator\Rules\DisableIntrospection::DISABLED,
+            ? DisableIntrospection::ENABLED
+            : DisableIntrospection::DISABLED,
     ],
 
     /*
@@ -287,7 +311,7 @@ return [
     |
     */
 
-    'debug' => env('LIGHTHOUSE_DEBUG', GraphQL\Error\DebugFlag::INCLUDE_DEBUG_MESSAGE | GraphQL\Error\DebugFlag::INCLUDE_TRACE),
+    'debug' => env('LIGHTHOUSE_DEBUG', DebugFlag::INCLUDE_DEBUG_MESSAGE | DebugFlag::INCLUDE_TRACE),
 
     /*
     |--------------------------------------------------------------------------
@@ -302,11 +326,11 @@ return [
 
     'error_handlers' => [
         // First: map 401/404/422-style exceptions to extensions.status for the frontend.
-        App\GraphQL\ErrorHandler::class,
-        Nuwave\Lighthouse\Execution\AuthenticationErrorHandler::class,
-        Nuwave\Lighthouse\Execution\AuthorizationErrorHandler::class,
-        Nuwave\Lighthouse\Execution\ValidationErrorHandler::class,
-        Nuwave\Lighthouse\Execution\ReportingErrorHandler::class,
+        ErrorHandler::class,
+        AuthenticationErrorHandler::class,
+        AuthorizationErrorHandler::class,
+        ValidationErrorHandler::class,
+        ReportingErrorHandler::class,
     ],
 
     /*
@@ -321,14 +345,14 @@ return [
     */
 
     'field_middleware' => [
-        Nuwave\Lighthouse\Schema\Directives\TrimDirective::class,
-        Nuwave\Lighthouse\Schema\Directives\ConvertEmptyStringsToNullDirective::class,
-        Nuwave\Lighthouse\Schema\Directives\SanitizeDirective::class,
-        Nuwave\Lighthouse\Validation\ValidateDirective::class,
-        Nuwave\Lighthouse\Schema\Directives\TransformArgsDirective::class,
-        Nuwave\Lighthouse\Schema\Directives\SpreadDirective::class,
-        Nuwave\Lighthouse\Schema\Directives\RenameArgsDirective::class,
-        Nuwave\Lighthouse\Schema\Directives\DropArgsDirective::class,
+        TrimDirective::class,
+        ConvertEmptyStringsToNullDirective::class,
+        SanitizeDirective::class,
+        ValidateDirective::class,
+        TransformArgsDirective::class,
+        SpreadDirective::class,
+        RenameArgsDirective::class,
+        DropArgsDirective::class,
     ],
 
     /*
@@ -465,17 +489,17 @@ return [
             'echo' => [
                 'driver' => 'echo',
                 'connection' => env('LIGHTHOUSE_SUBSCRIPTION_REDIS_CONNECTION', 'default'),
-                'routes' => Nuwave\Lighthouse\Subscriptions\SubscriptionRouter::class . '@echoRoutes',
+                'routes' => SubscriptionRouter::class.'@echoRoutes',
             ],
             'pusher' => [
                 'driver' => 'pusher',
                 'connection' => 'pusher',
-                'routes' => Nuwave\Lighthouse\Subscriptions\SubscriptionRouter::class . '@pusher',
+                'routes' => SubscriptionRouter::class.'@pusher',
             ],
             'reverb' => [
                 'driver' => 'pusher',
                 'connection' => 'reverb',
-                'routes' => Nuwave\Lighthouse\Subscriptions\SubscriptionRouter::class . '@reverb',
+                'routes' => SubscriptionRouter::class.'@reverb',
             ],
         ],
 
@@ -548,6 +572,6 @@ return [
          *
          * In Lighthouse v7 the default will be changed to 'Nuwave\Lighthouse\Tracing\FederatedTracing\FederatedTracing::class'.
          */
-        'driver' => Nuwave\Lighthouse\Tracing\ApolloTracing\ApolloTracing::class,
+        'driver' => ApolloTracing::class,
     ],
 ];

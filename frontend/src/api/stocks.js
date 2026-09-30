@@ -76,3 +76,28 @@ export async function refreshCorporateActions(symbol) {
   return (await gql(`mutation ($symbol: String!) { refreshCorporateActions(symbol: $symbol) { dividends right_shares sources } }`,
     { symbol })).refreshCorporateActions
 }
+
+/**
+ * Everything the Stock Detail page needs on load, in ONE request instead of the ~10 separate
+ * ones each of the calls above would make — GraphQL lets unrelated root fields ride together in
+ * a single operation. Signal history is included for page 1 with no filters; later pages/filters
+ * still go through `signals()` above.
+ */
+export async function detail(symbol, days = 1000) {
+  return gql(`query ($symbol: String!, $days: Int) {
+    stock(symbol: $symbol) { ${STOCK_BASE} latest_price { ${PRICE} } latest_signal { ${SIGNAL} } fundamental { ${FUNDAMENTAL} } }
+    stockPrices(symbol: $symbol, days: $days) { ${PRICE} }
+    stockIndicators(symbol: $symbol, days: $days) { ${INDICATOR} }
+    stockForecasts(symbol: $symbol, days: $days) { trade_date next_close }
+    stockMlPrediction(symbol: $symbol) {
+      prediction { direction probability as_of_date }
+      model { trained_at horizon_days accuracy baseline_accuracy beats_baseline precision recall test_samples stocks_used }
+    }
+    stockDividends(symbol: $symbol) { ${DIVIDEND} }
+    stockRightShares(symbol: $symbol) { ${RIGHT_SHARE} }
+    stockAiOpinion(symbol: $symbol) { available message verdict confidence reasoning generated_at }
+    stockNextCloseForecast(symbol: $symbol) { available message trade_date next_close reasons }
+    stockSignals(symbol: $symbol, page: 1, per_page: 30) { data { ${SIGNAL} forecast_price } page per_page total total_pages }
+    nextCloseAccuracy { available sample_size stocks_used mape naive_mape direction_accuracy beats_baseline computed_at }
+  }`, { symbol, days })
+}

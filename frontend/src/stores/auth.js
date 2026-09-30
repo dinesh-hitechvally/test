@@ -1,40 +1,51 @@
 import { defineStore } from 'pinia'
-import { ensureCsrfCookie } from '../api/client'
 import * as authApi from '../api/auth'
+
+// Hydrated synchronously so the very first render (and the router's first
+// guard check) already knows whether there's a session — no boot-time
+// request, no loading flash. If the token turns out to be stale/revoked,
+// the first real API call that needs it gets a 401 and client.js/graphql.js
+// raise 'auth:unauthenticated' (handled in main.js) to clear it and redirect.
+function storedUser() {
+  try {
+    return JSON.parse(localStorage.getItem('auth_user') || 'null')
+  } catch {
+    return null
+  }
+}
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    user: null,
-    checked: false,
+    token: localStorage.getItem('auth_token') || null,
+    user: storedUser(),
   }),
   getters: {
-    isAuthenticated: (state) => !!state.user,
+    isAuthenticated: (state) => !!state.token,
   },
   actions: {
-    async fetchUser() {
-      try {
-        this.user = await authApi.me()
-      } catch {
-        this.user = null
-      } finally {
-        this.checked = true
-      }
-    },
     async login(credentials) {
-      await ensureCsrfCookie()
-      await authApi.login(credentials)
-      await this.fetchUser()
+      const { token, user } = await authApi.login(credentials)
+      this.token = token
+      this.user = user
     },
     async forgotPassword(email) {
-      await ensureCsrfCookie()
       return authApi.forgotPassword(email)
     },
     async resetPassword(payload) {
-      await ensureCsrfCookie()
       return authApi.resetPassword(payload)
     },
     async logout() {
-      await authApi.logout()
+      try {
+        await authApi.logout()
+      } finally {
+        // Clear locally even if the request itself failed (offline, token
+        // already gone) — the user asked to log out, so the app should act
+        // logged out regardless of whether the server round trip succeeded.
+        this.clearSession()
+      }
+    },
+    clearSession() {
+      this.token = null
       this.user = null
     },
   },

@@ -1,14 +1,24 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { usePortfolioStore } from '../stores/portfolio'
 import { changeTone, formatPrice } from '../utils/format'
-import { apiBaseUrl } from '../api/client'
-import StatCard from '../components/ui/StatCard.vue'
+import { downloadFile } from '../api/client'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const store = usePortfolioStore()
 
-const exportUrl = computed(() => `${apiBaseUrl}/api/portfolios/${store.activePortfolioId}/export`)
+const exportError = ref('')
+
+// A plain <a href> can't carry the Authorization header the API needs, so
+// this fetches the file (with it) and saves it via downloadFile() instead.
+async function exportCsv() {
+  exportError.value = ''
+  try {
+    await downloadFile(`/portfolios/${store.activePortfolioId}/export`)
+  } catch {
+    exportError.value = 'Export failed.'
+  }
+}
 
 const holdingsTable = useSortableTable(
   computed(() => store.detail?.holdings ?? []),
@@ -36,8 +46,9 @@ onMounted(load)
   <div>
     <div class="page-header">
       <h1>Portfolio Reports</h1>
-      <a v-if="store.activePortfolioId" class="btn" :href="exportUrl">Export CSV</a>
+      <a v-if="store.activePortfolioId" href="#" class="btn" @click.prevent="exportCsv">Export CSV</a>
     </div>
+    <p v-if="exportError" class="error-text">{{ exportError }}</p>
 
     <LoadingState v-if="!store.detail" />
     <template v-else>

@@ -1,7 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import * as reportsApi from '../api/reports'
 import * as stocksApi from '../api/stocks'
 import PriceChart from '../components/charts/PriceChart.vue'
 import IndicatorChart from '../components/charts/IndicatorChart.vue'
@@ -51,48 +50,34 @@ async function loadAll(symbol) {
   aiOpinionMessage.value = ''
   nextCloseForecast.value = null
   nextCloseForecastMessage.value = ''
-  const [stockData, pricesData, indicatorsData, forecastHistoryData, ml, dividendsData, rightSharesData, ai, forecast] = await Promise.all([
-    stocksApi.get(symbol),
-    // Most recent 1000 trading days (~4 years) — the Price & Moving
-    // Averages chart zooms/pans within this range. Capped rather than
-    // "everything on record" so a stock with a decade of full history
-    // doesn't force a multi-thousand-row fetch on every page load.
-    stocksApi.prices(symbol, 1000),
-    stocksApi.indicators(symbol, 1000),
-    stocksApi.forecasts(symbol, 1000),
-    stocksApi.mlPrediction(symbol),
-    stocksApi.dividends(symbol),
-    stocksApi.rightShares(symbol),
-    // A plain DB read (the cron pipeline is the only thing that ever calls
-    // the AI itself) — safe to fetch on every page load like everything
-    // else here, no button/latency/quota concern.
-    stocksApi.aiOpinion(symbol),
-    // Same story: forecasts are only ever written by the recalculation
-    // pipeline's backfill, never generated on request.
-    stocksApi.nextCloseForecast(symbol),
-  ])
+  // One request for everything this page needs (stock, price/indicator/forecast series, ML,
+  // dividends, right shares, AI opinion, next-close forecast + its accuracy, and page 1 of signal
+  // history) — was ~10 separate round trips, each its own request hitting the server.
+  const data = await stocksApi.detail(symbol, 1000)
 
-  stock.value = stockData
-  prices.value = pricesData
-  indicators.value = indicatorsData
-  forecastHistory.value = forecastHistoryData
-  mlPrediction.value = ml.prediction
-  mlModel.value = ml.model
-  dividends.value = dividendsData
-  rightShares.value = rightSharesData
-  if (ai.available) {
-    aiOpinion.value = ai
+  stock.value = data.stock
+  prices.value = data.stockPrices
+  indicators.value = data.stockIndicators
+  forecastHistory.value = data.stockForecasts
+  mlPrediction.value = data.stockMlPrediction.prediction
+  mlModel.value = data.stockMlPrediction.model
+  dividends.value = data.stockDividends
+  rightShares.value = data.stockRightShares
+  if (data.stockAiOpinion.available) {
+    aiOpinion.value = data.stockAiOpinion
   } else {
-    aiOpinionMessage.value = ai.message
+    aiOpinionMessage.value = data.stockAiOpinion.message
   }
-  if (forecast.available) {
-    nextCloseForecast.value = forecast
+  if (data.stockNextCloseForecast.available) {
+    nextCloseForecast.value = data.stockNextCloseForecast
   } else {
-    nextCloseForecastMessage.value = forecast.message
+    nextCloseForecastMessage.value = data.stockNextCloseForecast.message
   }
+  if (data.nextCloseAccuracy.available) nextCloseAccuracy.value = data.nextCloseAccuracy
+  signals.value = data.stockSignals.data.reverse()
+  signalsPage.value = data.stockSignals.page
+  signalsTotalPages.value = data.stockSignals.total_pages
   loading.value = false
-
-  await loadSignalsPage(1)
 }
 
 async function loadSignalsPage(page) {
@@ -155,14 +140,7 @@ async function handleFetchCorporateActions() {
   }
 }
 
-onMounted(() => {
-  loadAll(route.params.symbol)
-  // Global (not per-stock), so fetched once here rather than in loadAll —
-  // no need to re-fetch it every time the symbol changes.
-  reportsApi.nextCloseAccuracy().then((data) => {
-    if (data.available) nextCloseAccuracy.value = data
-  })
-})
+onMounted(() => loadAll(route.params.symbol))
 watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 </script>
 

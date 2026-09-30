@@ -65,13 +65,13 @@ const router = createRouter({
   routes,
 })
 
-router.beforeEach(async (to) => {
+router.beforeEach((to) => {
   const auth = useAuthStore()
 
-  if (!auth.checked) {
-    await auth.fetchUser()
-  }
-
+  // No async check here: the auth store is hydrated synchronously from
+  // localStorage on creation (see stores/auth.js), so this never blocks
+  // navigation. A stale/revoked token is caught reactively — the first API
+  // call that needs it 401s and the app logs out and redirects from there.
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
