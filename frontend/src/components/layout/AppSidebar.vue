@@ -5,8 +5,8 @@ import NavIcon from './NavIcon.vue'
 
 const route = useRoute()
 
-// Ordered for a retail investor's mental model first: the app's core value
-// prop (Signals) and casual browsing (Market), then their own money
+// Ordered for a retail investor's mental model first: casual browsing
+// (Market) and the app's core value prop (Signals), then their own money
 // (Portfolio, Watchlist) — all visible with no extra click. The deeper/expert
 // tooling (Screener, Technical Analysis, Compare, the full Reports suite)
 // still has every route it always did, just grouped under one
@@ -14,16 +14,6 @@ const route = useRoute()
 // top-billing with 10 other equally-weighted menus.
 const navItems = [
   { to: '/', label: 'Dashboard', icon: 'home' },
-  {
-    label: 'Signals',
-    icon: 'target',
-    base: '/signals',
-    children: [
-      { to: '/signals/buy', label: 'Buy Signals' },
-      { to: '/signals/sell', label: 'Sell Signals' },
-      { to: '/signals/history', label: 'Signal History / Accuracy' },
-    ],
-  },
   {
     label: 'Market',
     icon: 'chart',
@@ -37,6 +27,16 @@ const navItems = [
       { to: '/market/52-week', label: '52 Week High/Low' },
       { to: '/market/sector-overview', label: 'Sector Overview' },
       { to: '/market/indices', label: 'Indices' },
+    ],
+  },
+  {
+    label: 'Signals',
+    icon: 'target',
+    base: '/signals',
+    children: [
+      { to: '/signals/buy', label: 'Buy Signals' },
+      { to: '/signals/sell', label: 'Sell Signals' },
+      { to: '/signals/history', label: 'Signal History / Accuracy' },
     ],
   },
   {

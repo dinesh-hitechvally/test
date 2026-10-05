@@ -63,3 +63,17 @@ export async function dataSourceStatus() {
     secret_configured flagged_stocks { id symbol company_name scrape_error_source scrape_error scrape_error_at }
   } }`)).dataSourceStatus
 }
+
+/** Detected data-quality problems, newest first. Unresolved only by default. */
+export async function dataQualityFlags(severity = null, resolved = false) {
+  return (await gql(`query ($severity: String, $resolved: Boolean) { dataQualityFlags(severity: $severity, resolved: $resolved) {
+    id stock_id stock { symbol company_name } trade_date check_type severity message detected_at resolved_at
+  } }`, { severity, resolved })).dataQualityFlags
+}
+
+/** Marks a flag reviewed so it drops out of the default (unresolved) list. */
+export async function resolveDataQualityFlag(id) {
+  return (await gql(`mutation ($id: Int!) { resolveDataQualityFlag(id: $id) {
+    id resolved_at
+  } }`, { id })).resolveDataQualityFlag
+}

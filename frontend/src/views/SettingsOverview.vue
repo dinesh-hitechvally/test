@@ -34,6 +34,11 @@ const SECTIONS = [
     description: 'The real scraping schedule and recent scrape activity.',
   },
   {
+    to: 'settings-data-quality',
+    label: 'Data Quality',
+    description: 'Invalid prices, abnormal moves, and other data problems the automated checks found.',
+  },
+  {
     to: 'settings-login-history',
     label: 'Login History',
     description: 'Recent sign-ins to your account — IP, location, and device.',

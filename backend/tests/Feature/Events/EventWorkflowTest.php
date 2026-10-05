@@ -50,6 +50,34 @@ class EventWorkflowTest extends TestCase
         $this->assertSame(0, $untouched->technicalIndicators()->count());
     }
 
+    public function test_recalculation_also_populates_support_resistance_52_week_and_volume_ratio(): void
+    {
+        $stock = Stock::create(['symbol' => 'FUL', 'company_name' => 'F', 'is_active' => true]);
+
+        foreach (range(0, 24) as $i) {
+            DailyPrice::create([
+                'stock_id' => $stock->id,
+                'trade_date' => now()->subDays(24 - $i)->toDateString(),
+                'open_price' => 100 + $i,
+                'high_price' => 105 + $i,
+                'low_price' => 95 + $i,
+                'close_price' => 100 + $i,
+                'volume' => 1000 + ($i * 10),
+            ]);
+        }
+
+        StockPricesUpdated::dispatch([$stock->id], 'test');
+
+        $latest = $stock->technicalIndicators()->orderByDesc('trade_date')->first();
+
+        $this->assertNotNull($latest->fifty_two_week_high);
+        $this->assertNotNull($latest->fifty_two_week_low);
+        $this->assertEqualsWithDelta(129.0, (float) $latest->fifty_two_week_high, 0.0001); // 105 + 24
+        $this->assertEqualsWithDelta(95.0, (float) $latest->fifty_two_week_low, 0.0001); // the first day's low
+        $this->assertNotNull($latest->volume_ratio); // 25 days of rising volume — well past the 20-day warm-up
+        $this->assertGreaterThan(1.0, (float) $latest->volume_ratio); // today's volume is the highest yet
+    }
+
     public function test_scrape_finished_is_recorded_in_the_scrape_log(): void
     {
         ScrapeFinished::dispatch(source: 'nepalstock.com', succeeded: false, recordsProcessed: 0, message: 'timeout');

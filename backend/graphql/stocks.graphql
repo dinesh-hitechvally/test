@@ -79,6 +79,20 @@ type TechnicalIndicator {
     stoch_k: String
     stoch_d: String
     atr_14: String
+    "atr_14 as a % of the close — comparable across stocks of different price levels, unlike atr_14 itself."
+    atr_percent: String
+    "Trend strength, 0-100, direction-agnostic (<20 no trend/choppy, >25 trending). plus_di_14/minus_di_14 say which direction is winning."
+    adx_14: String
+    plus_di_14: String
+    minus_di_14: String
+    "Closest support/resistance level as of this day (section 13 of the data architecture doc)."
+    support_price: String
+    resistance_price: String
+    "Trailing 365-calendar-day high/low as of this day."
+    fifty_two_week_high: String
+    fifty_two_week_low: String
+    "Today's volume over its trailing 20-day average — \"volume change\"."
+    volume_ratio: String
     created_at: String
     updated_at: String
 }

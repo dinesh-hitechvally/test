@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Models\Stock;
+use App\Services\Analysis\Indicators\TechnicalAnalysisService;
 
 /**
  * Assembles a full discretionary-style technical analysis report for one
@@ -21,6 +22,8 @@ use App\Models\Stock;
 class TechnicalAnalysisReportService
 {
     private const LOOKBACK_DAYS = 260;
+
+    public function __construct(private readonly TechnicalAnalysisService $ta) {}
 
     public function build(Stock $stock): array
     {
@@ -67,7 +70,7 @@ class TechnicalAnalysisReportService
         $votes = [];
 
         $trend = $this->trend($ind, $closes, $i, $votes);
-        $supportResistance = $this->supportResistance($highs, $lows, $close);
+        $supportResistance = $this->ta->supportResistanceLevels($highs, $lows, $close);
         $candlesticks = $this->candlestickPatterns($opens, $highs, $lows, $closes, $i, $votes);
         $volume = $this->volumeAnalysis($volumes, $closes, $i, $votes);
         $movingAverages = $this->movingAverages($ind, $close, $i, $votes);
@@ -128,70 +131,6 @@ class TechnicalAnalysisReportService
             'sma50_vs_sma200' => $sma50 > $sma200 ? 'above' : 'below',
             'sma50_slope' => $slope,
         ];
-    }
-
-    /**
-     * Swing highs/lows via a local-extreme window, clustered into levels by
-     * proximity so several nearby touches count as one stronger level.
-     */
-    private function supportResistance(array $highs, array $lows, float $currentPrice, int $window = 3): array
-    {
-        $n = count($highs);
-        $swingHighs = [];
-        $swingLows = [];
-
-        for ($k = $window; $k < $n - $window; $k++) {
-            $highWindow = array_slice($highs, $k - $window, $window * 2 + 1);
-            if ($highs[$k] === max($highWindow)) {
-                $swingHighs[] = $highs[$k];
-            }
-            $lowWindow = array_slice($lows, $k - $window, $window * 2 + 1);
-            if ($lows[$k] === min($lowWindow)) {
-                $swingLows[] = $lows[$k];
-            }
-        }
-
-        $resistance = $this->clusterLevels(array_filter($swingHighs, fn ($p) => $p > $currentPrice));
-        usort($resistance, fn ($a, $b) => $a['price'] <=> $b['price']);
-
-        $support = $this->clusterLevels(array_filter($swingLows, fn ($p) => $p < $currentPrice));
-        usort($support, fn ($a, $b) => $b['price'] <=> $a['price']);
-
-        return [
-            'resistance' => array_slice($resistance, 0, 3),
-            'support' => array_slice($support, 0, 3),
-        ];
-    }
-
-    /**
-     * @return list<array{price: float, strength: int}>
-     */
-    private function clusterLevels(array $prices, float $tolerancePct = 0.015): array
-    {
-        $prices = array_values($prices);
-        sort($prices);
-
-        $clusters = [];
-        foreach ($prices as $p) {
-            $matched = false;
-            foreach ($clusters as &$cluster) {
-                if ($cluster['price'] > 0 && abs($p - $cluster['price']) / $cluster['price'] <= $tolerancePct) {
-                    $cluster['price'] = (($cluster['price'] * $cluster['strength']) + $p) / ($cluster['strength'] + 1);
-                    $cluster['strength']++;
-                    $matched = true;
-                    break;
-                }
-            }
-            unset($cluster);
-            if (! $matched) {
-                $clusters[] = ['price' => $p, 'strength' => 1];
-            }
-        }
-
-        usort($clusters, fn ($a, $b) => $b['strength'] <=> $a['strength']);
-        $strongest = array_slice($clusters, 0, 6);
-
-        return array_map(fn ($c) => ['price' => round($c['price'], 2), 'strength' => $c['strength']], $strongest);
     }
 
     /**
