@@ -89,8 +89,8 @@ type TechnicalIndicator {
     support_price: String
     resistance_price: String
     "Trailing 365-calendar-day high/low as of this day."
-    fifty_two_week_high: String
-    fifty_two_week_low: String
+    high_52w: String
+    low_52w: String
     "Today's volume over its trailing 20-day average — \"volume change\"."
     volume_ratio: String
     created_at: String

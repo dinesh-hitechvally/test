@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'macd', 'macd_signal', 'macd_histogram',
     'bb_upper', 'bb_middle', 'bb_lower', 'bb_percent_b', 'stoch_k', 'stoch_d', 'atr_14', 'atr_percent',
     'adx_14', 'plus_di_14', 'minus_di_14',
-    'support_price', 'resistance_price', 'fifty_two_week_high', 'fifty_two_week_low', 'volume_ratio',
+    'support_price', 'resistance_price', 'high_52w', 'low_52w', 'volume_ratio',
 ])]
 class TechnicalIndicator extends Model
 {
