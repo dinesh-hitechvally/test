@@ -73,9 +73,6 @@ export async function performance(portfolioId) {
   } }`, { portfolio_id: portfolioId })).portfolioPerformance
 }
 
-const BUY_ORDER = `id portfolio_id stock_id status trade_date signal_score quantity entry_price stop_loss target_price risk_per_share
-  risk_amount position_value fees risk_reward stock { id symbol company_name }`
-
 /** Sell / hold for every holding, with each rule that fired: [{ stock_id, action, primary_reason, reasons, trailing_stop, … }]. */
 export async function sellChecks(portfolioId) {
   return (await gql(`query ($portfolio_id: Int!) { sellChecks(portfolio_id: $portfolio_id) {
@@ -84,31 +81,15 @@ export async function sellChecks(portfolioId) {
   } }`, { portfolio_id: portfolioId })).sellChecks
 }
 
-/** What a stock's BUY signal would become for this portfolio, or why not. Nothing is stored. */
-export async function buyOrderPreview(portfolioId, symbol) {
-  return (await gql(`query ($portfolio_id: Int!, $symbol: String!) { buyOrderPreview(portfolio_id: $portfolio_id, symbol: $symbol) {
+/** What acting on a stock's BUY signal would look like for this portfolio, or why it would not be worth it. Advice only: nothing is stored or placed. */
+export async function tradePlan(portfolioId, symbol) {
+  return (await gql(`query ($portfolio_id: Int!, $symbol: String!) { tradePlan(portfolio_id: $portfolio_id, symbol: $symbol) {
     approved reason checks { name passed detail }
     plan { stock_id quantity entry_price stop_loss target_price risk_per_share risk_amount position_value fees risk_reward }
-  } }`, { portfolio_id: portfolioId, symbol })).buyOrderPreview
+  } }`, { portfolio_id: portfolioId, symbol })).tradePlan
 }
 
-export async function buyOrders(portfolioId, status = null) {
-  return (await gql(`query ($portfolio_id: Int!, $status: String) { buyOrders(portfolio_id: $portfolio_id, status: $status) { ${BUY_ORDER} } }`,
-    { portfolio_id: portfolioId, status })).buyOrders
-}
-
-/** Rejects (422) with the first failed check's reason. */
-export async function placeBuyOrder(portfolioId, symbol) {
-  return (await gql(`mutation ($portfolio_id: Int!, $symbol: String!) { placeBuyOrder(portfolio_id: $portfolio_id, symbol: $symbol) { ${BUY_ORDER} } }`,
-    { portfolio_id: portfolioId, symbol })).placeBuyOrder
-}
-
-export async function cancelBuyOrder(portfolioId, orderId) {
-  return (await gql(`mutation ($portfolio_id: Int!, $order_id: Int!) { cancelBuyOrder(portfolio_id: $portfolio_id, order_id: $order_id) { ${BUY_ORDER} } }`,
-    { portfolio_id: portfolioId, order_id: orderId })).cancelBuyOrder
-}
-
-/** Cash available for buying; pending orders reserve part of it. */
+/** Cash you have available to invest; used to size the trade plan. */
 export async function setCash(portfolioId, cashBalance) {
   return (await gql(`mutation ($portfolio_id: Int!, $cash_balance: Float) { setPortfolioCash(portfolio_id: $portfolio_id, cash_balance: $cash_balance) { ${PORTFOLIO} } }`,
     { portfolio_id: portfolioId, cash_balance: num(cashBalance) })).setPortfolioCash

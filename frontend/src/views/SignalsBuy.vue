@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import * as marketApi from '../api/market'
-import BuyPlanPanel from '../components/stock/BuyPlanPanel.vue'
+import TradePlanPanel from '../components/stock/TradePlanPanel.vue'
 import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
@@ -40,14 +40,14 @@ onMounted(async () => {
 
 <template>
   <div>
-    <BuyPlanPanel
+    <TradePlanPanel
       v-if="planFor && portfolio.activePortfolioId"
       :key="planFor"
       :portfolio-id="portfolio.activePortfolioId"
       :symbol="planFor"
       @close="planFor = null"
     />
-    <p v-else-if="planFor" class="muted">Create a portfolio first (Portfolio page) to plan a buy.</p>
+    <p v-else-if="planFor" class="muted">Create a portfolio first (Portfolio page) to see a trade plan.</p>
 
     <LoadingState v-if="loading" />
 
@@ -90,7 +90,7 @@ onMounted(async () => {
                 <li v-for="(r, i) in s.reasons" :key="i">{{ r }}</li>
               </ul>
             </td>
-            <td><button class="btn-secondary btn" @click="planFor = s.symbol">Plan buy</button></td>
+            <td><button class="btn-secondary btn" @click="planFor = s.symbol">Trade plan</button></td>
           </tr>
         </tbody>
       </table>

@@ -1,11 +1,9 @@
 <!--
-  What a stock's BUY signal becomes for the active portfolio: the checks it has
-  to pass (signal, risk, portfolio, cash, sizing) and, if they all pass, the
-  entry / stop / target / quantity, with a button to place the pending order.
-  Nothing is bought here — the order is a plan; the purchase is still recorded
-  as a transaction on the Portfolio page.
+  The trade plan for a stock's BUY signal and the active portfolio: the checks it has to pass (signal, risk,
+  portfolio, cash, sizing) and, if they all pass, the entry / stop / target / quantity. Advice only: this
+  system never buys or sells. You trade with your broker, then log it as a transaction on the Portfolio page.
 
-  <BuyPlanPanel :portfolio-id="1" symbol="NRN" @close="…" @placed="…" />
+  <TradePlanPanel :portfolio-id="1" symbol="NRN" @close="…" />
 -->
 <script setup>
 import { onMounted, ref } from 'vue'
@@ -16,43 +14,27 @@ const props = defineProps({
   portfolioId: { type: Number, required: true },
   symbol: { type: String, required: true },
 })
-const emit = defineEmits(['close', 'placed'])
+const emit = defineEmits(['close'])
 
 const loading = ref(true)
 const result = ref(null)
 const error = ref('')
-const placing = ref(false)
-const placed = ref(false)
 
 const CHECK_LABELS = { signal: 'Signal', risk: 'Risk / reward', portfolio: 'Portfolio', cash: 'Cash', sizing: 'Position size' }
 
 onMounted(async () => {
   try {
-    result.value = await portfolioApi.buyOrderPreview(props.portfolioId, props.symbol)
+    result.value = await portfolioApi.tradePlan(props.portfolioId, props.symbol)
   } catch (e) {
     error.value = e.response?.data?.message || 'Could not check this buy.'
   } finally {
     loading.value = false
   }
 })
-
-async function place() {
-  placing.value = true
-  error.value = ''
-  try {
-    await portfolioApi.placeBuyOrder(props.portfolioId, props.symbol)
-    placed.value = true
-    emit('placed')
-  } catch (e) {
-    error.value = e.response?.data?.message || 'Could not place the order.'
-  } finally {
-    placing.value = false
-  }
-}
 </script>
 
 <template>
-  <Card :title="`Buy plan — ${symbol}`" style="margin-bottom: 16px">
+  <Card :title="`Trade plan — ${symbol}`" style="margin-bottom: 16px">
     <LoadingState v-if="loading" />
     <template v-else-if="result">
       <ul class="checks">
@@ -71,14 +53,12 @@ async function place() {
         <div><span class="muted">Cost</span> Rs. {{ formatPrice(result.plan.position_value) }} + {{ formatPrice(result.plan.fees) }} fees</div>
         <div><span class="muted">Max loss at stop</span> Rs. {{ formatPrice(result.plan.risk_amount) }}</div>
       </div>
-      <p v-else class="negative"><strong>Not approved:</strong> {{ result.reason }}</p>
+      <p v-else class="negative"><strong>No plan:</strong> {{ result.reason }}</p>
     </template>
 
     <p v-if="error" class="error-text">{{ error }}</p>
-    <p v-if="placed" class="positive">Order placed. Record the purchase as a transaction on the Portfolio page once you buy.</p>
 
     <div class="row">
-      <button v-if="result?.approved && !placed" class="btn" :disabled="placing" @click="place">{{ placing ? 'Placing…' : 'Place buy order' }}</button>
       <button class="btn-secondary btn" @click="emit('close')">Close</button>
     </div>
   </Card>

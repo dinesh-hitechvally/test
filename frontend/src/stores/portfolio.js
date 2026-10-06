@@ -8,7 +8,6 @@ export const usePortfolioStore = defineStore('portfolio', {
     detail: null, // { portfolio, summary, holdings, realized }
     transactions: [],
     sellChecks: [], // sell/hold decision per holding
-    buyOrders: [], // pending buy orders
     loading: false,
   }),
   actions: {
@@ -39,19 +38,15 @@ export const usePortfolioStore = defineStore('portfolio', {
     async fetchSellChecks(portfolioId) {
       this.sellChecks = await portfolioApi.sellChecks(portfolioId)
     },
-    async fetchBuyOrders(portfolioId) {
-      this.buyOrders = await portfolioApi.buyOrders(portfolioId, 'pending')
-    },
-    /** Holdings, their sell checks, transactions and pending orders — everything a ledger change can move. */
+    /** Holdings, their sell checks and transactions — everything a ledger change can move. */
     async refreshAll(portfolioId) {
       await Promise.all([
         this.fetchDetail(portfolioId),
         this.fetchTransactions(portfolioId),
         this.fetchSellChecks(portfolioId),
-        this.fetchBuyOrders(portfolioId),
       ])
     },
-    // A buy fills its pending order and hands its stop/target to the position, so reload all of it.
+    // Logging a buy can also set the holding's stop / target, so reload all of it.
     async addTransaction(portfolioId, payload) {
       const data = await portfolioApi.addTransaction(portfolioId, payload)
       await this.refreshAll(portfolioId)
@@ -65,15 +60,6 @@ export const usePortfolioStore = defineStore('portfolio', {
       const data = await portfolioApi.setPositionTarget(portfolioId, stockId, payload)
       await Promise.all([this.fetchDetail(portfolioId), this.fetchSellChecks(portfolioId)])
       return data
-    },
-    async placeBuyOrder(portfolioId, symbol) {
-      const order = await portfolioApi.placeBuyOrder(portfolioId, symbol)
-      await this.fetchBuyOrders(portfolioId)
-      return order
-    },
-    async cancelBuyOrder(portfolioId, orderId) {
-      await portfolioApi.cancelBuyOrder(portfolioId, orderId)
-      await this.fetchBuyOrders(portfolioId)
     },
     async setCash(portfolioId, amount) {
       const data = await portfolioApi.setCash(portfolioId, amount)

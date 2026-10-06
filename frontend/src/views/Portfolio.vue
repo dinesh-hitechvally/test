@@ -64,18 +64,6 @@ async function saveCash() {
   }
 }
 
-const cancellingOrderId = ref(null)
-
-async function cancelOrder(order) {
-  if (!window.confirm(`Cancel the pending buy order for ${order.quantity} ${order.stock?.symbol ?? ''}?`)) return
-  cancellingOrderId.value = order.id
-  try {
-    await store.cancelBuyOrder(store.activePortfolioId, order.id)
-  } finally {
-    cancellingOrderId.value = null
-  }
-}
-
 async function handleCreatePortfolio() {
   if (!newPortfolioName.value.trim()) return
   await store.createPortfolio(newPortfolioName.value.trim())
@@ -309,7 +297,7 @@ onMounted(async () => {
           <template v-if="!editingCash">
             <p class="cash">Rs. {{ formatPrice(store.detail.portfolio.cash_balance) }}</p>
             <p class="muted small">
-              Available for new buys. Set it by hand — recording a transaction doesn't change it. Pending buy orders reserve part of it.
+              Cash you have available to invest. It sizes the trade plan on Buy Signals. Set it by hand — recording a transaction doesn't change it.
             </p>
             <button class="btn-secondary btn" @click="openCashEditor">Edit cash</button>
           </template>
@@ -323,34 +311,6 @@ onMounted(async () => {
           </div>
         </Card>
       </div>
-
-      <Card v-if="store.buyOrders.length" title="Pending Buy Orders" style="margin-top: 16px">
-        <p class="muted small">
-          Planned buys that passed the risk, portfolio and cash checks. Record the purchase as a transaction (Add Transaction) and the
-          order is marked filled and its stop-loss / target are set on the holding. Unfilled orders lapse after 5 days.
-        </p>
-        <table v-align-numbers class="table">
-          <thead>
-            <tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Stop-Loss</th><th>Target</th><th>R:R</th><th>Cost</th><th>Max loss</th><th>Planned</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="o in store.buyOrders" :key="o.id">
-              <td><StockLink v-if="o.stock" :symbol="o.stock.symbol" /></td>
-              <td>{{ o.quantity }}</td>
-              <td>{{ formatPrice(o.entry_price) }}</td>
-              <td class="negative">{{ formatPrice(o.stop_loss) }}</td>
-              <td class="positive">{{ formatPrice(o.target_price) }}</td>
-              <td>1:{{ o.risk_reward }}</td>
-              <td>{{ formatPrice(Number(o.position_value) + Number(o.fees)) }}</td>
-              <td>{{ formatPrice(o.risk_amount) }}</td>
-              <td class="muted">{{ o.trade_date }}</td>
-              <td>
-                <button class="btn-secondary btn" :disabled="cancellingOrderId === o.id" @click="cancelOrder(o)">Cancel</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </Card>
 
       <Card title="Holdings" style="margin-top: 16px">
         <table v-align-numbers class="table" v-if="store.detail.holdings.length">
