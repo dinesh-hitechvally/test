@@ -70,3 +70,4 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
         Route::get('data-quality', CronController::class)->defaults('task', ScanDataQualityTask::class);
     });
 });
+
