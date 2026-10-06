@@ -34,12 +34,6 @@ onMounted(load)
 
 <template>
   <div>
-    <p class="muted">
-      Every stock currently flagged Sell or Strong Sell, ranked by score — highest conviction first. NEPSE doesn't
-      allow short-selling, so this is for existing holders deciding whether to exit: "Target" is how far it may still
-      fall, "Invalidation" is the level above which the bearish read would be wrong. Not financial advice.
-    </p>
-
     <LoadingState v-if="loading" />
 
     <Card v-else>

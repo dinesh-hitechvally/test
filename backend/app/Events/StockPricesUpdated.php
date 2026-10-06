@@ -8,7 +8,7 @@ use Illuminate\Foundation\Events\Dispatchable;
  * New or changed daily_prices rows landed for these stocks — from the daily
  * market sync, a full-history fetch, or a CSV import. Everything derived
  * from prices (indicators, signals, next-close estimate) is stale for them
- * until the generate/indicators cron (RecalculateMarketTask) recomputes it.
+ * until the generate/indicators cron (RecalculateMarketTask) and then generate/signals recompute it.
  *
  * Listeners run synchronously (no queue worker on this hosting), so
  * whatever fired this waits for them to finish.

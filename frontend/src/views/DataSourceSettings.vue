@@ -33,10 +33,6 @@ onMounted(load)
 
 <template>
   <div>
-    <p class="muted">
-      Data is fetched by the <code>/cron/*</code> URLs (see <code>routes/web.php</code>), scheduled in cPanel cron.
-    </p>
-
     <p v-if="!loading && !secretConfigured" class="error-text card" style="margin-top: 12px">
       <code>CRON_SECRET</code> isn't set in the backend's <code>.env</code> — every cron URL will 403 until it is.
     </p>

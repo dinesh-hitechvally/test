@@ -47,8 +47,6 @@ onMounted(async () => {
 
 <template>
   <div>
-    <p class="muted">How your current portfolio value is spread across sectors and individual stocks.</p>
-
     <LoadingState v-if="!store.detail" />
 
     <template v-else-if="sectorSlices.length">

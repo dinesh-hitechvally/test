@@ -40,13 +40,6 @@ onMounted(async () => {
 
 <template>
   <div>
-    <p class="muted">
-      Every stock currently flagged Buy or Strong Buy, ranked by score — highest conviction first. A signal alone never
-      buys: use "Plan buy" to run it through the risk, portfolio and cash checks and get the entry, stop-loss, target and
-      position size for your portfolio. The Target / Stop-Loss columns here are an indicative read from ATR and support/resistance
-      — the plan's numbers are the ones that count. Not financial advice.
-    </p>
-
     <BuyPlanPanel
       v-if="planFor && portfolio.activePortfolioId"
       :key="planFor"

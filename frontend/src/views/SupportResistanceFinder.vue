@@ -34,12 +34,6 @@ onMounted(load)
 
 <template>
   <div>
-    <p class="muted">
-      A market-wide scan using each stock's 52-week high/low as a fast proxy for resistance/support — the same
-      swing-level detection used on a single stock's Technical Analysis report isn't run across all {{ rows.length }}
-      stocks live (too slow to do on every page load), so this uses the cheaper, already-tracked 52-week range instead.
-    </p>
-
     <div class="filters">
       <button class="btn-secondary btn" :class="{ active: mode === 'resistance' }" @click="mode = 'resistance'">Testing Resistance (near 52W High)</button>
       <button class="btn-secondary btn" :class="{ active: mode === 'support' }" @click="mode = 'support'">Testing Support (near 52W Low)</button>

@@ -12,7 +12,7 @@
         <li><strong>URL pattern:</strong> <code>/cron/&lt;kind&gt;/&lt;what&gt;</code>, where kind is <code>fetch</code> (pull external data, compute nothing), <code>generate</code> (compute from stored data) or <code>check</code> (health checks).</li>
         <li><strong>Response:</strong> <code>text/plain</code>, always HTTP 200 once the key is accepted:
 <pre><code>$ recalculate-market
-Recalculated indicators/signals for 42 stock(s).
+Recalculated indicators for 42 stock(s).
 [ok]</code></pre>
             The last line is <code>[ok]</code> or <code>[failed]</code>. A failing task still answers 200 with <code>[failed]</code>, so set your scheduler to look for that word, not just the status code.</li>
         <li><strong>Safe to repeat:</strong> every job is idempotent. Running one twice does no harm, and unchanged data is skipped.</li>
@@ -31,12 +31,14 @@ Recalculated indicators/signals for 42 stock(s).
 15:30  fetch/prices                              final prices once the market has closed
 15:32  fetch/index
 15:40  generate/indicators                       needs the prices above
-15:45  generate/ai-opinions                      needs indicators and signals; slow
+15:45  generate/signals                          needs the indicators above
+15:50  generate/ai-opinions                      needs signals; slow
 03:30  generate/ml-model     04:00 generate/backtest-signals     04:15 generate/backtest-next-close
 Mon 04:30  check/data-quality</code></pre>
 <div class="note">
-    <strong>Fetch jobs only store raw data.</strong> Indicators, signals and next-close estimates exist only after
-    <code>generate/indicators</code> runs, so schedule it after every price fetch. Syncing prices alone leaves them stale.
+    <strong>Fetch jobs only store raw data.</strong> Indicators and next-close estimates exist only after
+    <code>generate/indicators</code> runs, and signals only after <code>generate/signals</code> runs on top of them, so schedule both
+    after every price fetch, in that order. Syncing prices alone leaves them stale.
 </div>
 
 @foreach ($cron as $kind => $jobs)
@@ -78,7 +80,7 @@ Mon 04:30  check/data-quality</code></pre>
     <tr><td>Scrape history</td><td>Fetch jobs record each run (source, success, rows) in the scrape log, readable with the <code>scrapeLogs</code> and <code>dataSourceStatus</code> queries.</td></tr>
     <tr><td>cPanel</td><td>Add a cron job running <code>curl -s "{{ $baseUrl }}/cron/fetch/prices?key=…" &gt; /dev/null</code> at the time you want. For the weekday jobs use the day-of-week field <code>1-5</code>.</td></tr>
     <tr><td>cron-job.org / UptimeRobot</td><td>Create a GET monitor with the full URL. Add a keyword check for <code>[failed]</code> to be told when a job fails.</td></tr>
-    <tr><td>First install</td><td>Run in order by hand: <code>fetch/stock-list</code> (also sets sectors), <code>fetch/histories</code> (long), <code>generate/indicators?all=1</code>, then <code>fetch/dividends</code> and <code>fetch/fundamentals</code>.</td></tr>
+    <tr><td>First install</td><td>Run in order by hand: <code>fetch/stock-list</code> (also sets sectors), <code>fetch/histories</code> (long), <code>generate/indicators?all=1</code>, <code>generate/signals?all=1</code>, then <code>fetch/dividends</code> and <code>fetch/fundamentals</code>.</td></tr>
     <tr><td>Everything failing at once</td><td>Run <code>check/nepse-token</code> first; an outdated nepalstock.com token breaks every NEPSE fetch.</td></tr>
-    <tr><td>After changing indicator or signal logic</td><td>Run <code>generate/indicators?all=1</code>, then <code>generate/backtest-signals</code> and compare accuracy before keeping the change.</td></tr>
+    <tr><td>After changing indicator or signal logic</td><td>Indicator maths: run <code>generate/indicators?all=1</code> and then <code>generate/signals?all=1</code>. Signal rules only: just <code>generate/signals?all=1</code>. Then run <code>generate/backtest-signals</code> and compare accuracy before keeping the change.</td></tr>
 </table>

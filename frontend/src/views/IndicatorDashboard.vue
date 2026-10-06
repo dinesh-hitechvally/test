@@ -68,8 +68,6 @@ onMounted(load)
 
 <template>
   <div>
-    <p class="muted">RSI, MACD, and volume for every tracked stock in one sortable table — click a column to sort.</p>
-
     <LoadingState v-if="loading" />
 
     <template v-else>

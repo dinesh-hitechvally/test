@@ -94,8 +94,6 @@ onMounted(load)
 
 <template>
   <div>
-    <p class="muted">One-click screens built from real, already-tracked data (RSI, signals, 52-week range) — not fitted or backtested, just common-sense filters.</p>
-
     <div class="filters">
       <button v-for="p in PRESETS" :key="p.key" class="btn-secondary btn" :class="{ active: activePreset === p.key }" @click="activePreset = p.key">
         {{ p.label }}

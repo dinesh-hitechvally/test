@@ -39,8 +39,6 @@ onMounted(load)
 
 <template>
   <div>
-    <p class="muted">A whole-market view — breadth, sector performance, and the biggest movers, as of the latest scrape.</p>
-
     <LoadingState v-if="loading" />
 
     <template v-else-if="report">

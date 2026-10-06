@@ -21,11 +21,6 @@ function save() {
 
 <template>
   <div>
-    <p class="muted">
-      The only notifications in this app today are the in-app topbar bell (stop-loss/target hits on your portfolio
-      holdings) — there's no email or push yet. These preferences are saved on this browser only.
-    </p>
-
     <Card class="form-stack" style="margin-top: 16px; max-width: 420px">
       <label class="toggle-row">
         <input type="checkbox" v-model="prefs.showStopLossAlerts" />

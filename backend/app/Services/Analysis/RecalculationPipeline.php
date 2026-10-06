@@ -5,25 +5,23 @@ namespace App\Services\Analysis;
 use App\Models\Stock;
 use App\Services\Analysis\Forecasting\NextCloseEstimatorService;
 use App\Services\Analysis\Indicators\IndicatorRecalculationService;
-use App\Services\Analysis\Signals\SignalGeneratorService;
 use Illuminate\Support\Collection;
 
 /**
- * Runs indicators -> signals -> next-close estimate for one or more stocks,
- * in order, synchronously. Called right after a scrape or CSV import.
+ * Runs indicators -> next-close estimate for one or more stocks, in order, synchronously (the
+ * generate/indicators cron). Signals are a separate step with their own cron (generate/signals): they read
+ * the indicators stored here.
  */
 class RecalculationPipeline
 {
     public function __construct(
         private readonly IndicatorRecalculationService $indicators,
-        private readonly SignalGeneratorService $signals,
         private readonly NextCloseEstimatorService $nextClose,
     ) {}
 
     public function runFor(Stock $stock): void
     {
         $this->indicators->recalculate($stock);
-        $this->signals->generate($stock);
         $this->estimateNextClose($stock);
     }
 

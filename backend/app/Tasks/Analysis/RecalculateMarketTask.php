@@ -10,12 +10,10 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The one cron that generates technical indicators (and the signals and
- * next-close estimate built on them). Price syncs only write prices; this
- * picks up every stock with a price row that has no indicator row yet, or
- * was written after its indicator row, so it is safe to run as often as
- * wanted. ?all=1 forces every stock, e.g. after changing indicator or
- * signal rules.
+ * The one cron that generates technical indicators (and the next-close estimate built on them). Price syncs
+ * only write prices; this picks up every stock with a price row that has no indicator row yet, or was written
+ * after its indicator row, so it is safe to run as often as wanted. ?all=1 forces every stock, e.g. after
+ * changing the indicator maths. Buy / sell / hold signals are NOT made here: run generate/signals afterwards.
  */
 class RecalculateMarketTask extends Task
 {
@@ -47,7 +45,7 @@ class RecalculateMarketTask extends Task
 
         $this->pipeline->runForMany($stocks);
 
-        return "Recalculated indicators/signals for {$stocks->count()} stock(s).";
+        return "Recalculated indicators for {$stocks->count()} stock(s).";
     }
 
     /**

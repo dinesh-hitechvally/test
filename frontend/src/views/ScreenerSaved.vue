@@ -40,11 +40,6 @@ onMounted(load)
 
 <template>
   <div>
-    <p class="muted">
-      Your saved filter combinations from the Custom Screener. Save a new one from
-      <RouterLink :to="{ name: 'screener' }">Custom Screener</RouterLink>.
-    </p>
-
     <LoadingState v-if="loading" />
 
     <Card v-else>

@@ -6,6 +6,7 @@ use App\Http\Controllers\DocsController;
 use App\Tasks\Ai\GenerateAiOpinionsTask;
 use App\Tasks\Analysis\BacktestNextCloseTask;
 use App\Tasks\Analysis\BacktestSignalsTask;
+use App\Tasks\Analysis\GenerateSignalsTask;
 use App\Tasks\Analysis\RecalculateMarketTask;
 use App\Tasks\DataQuality\ScanDataQualityTask;
 use App\Tasks\MachineLearning\TrainMlTask;
@@ -56,7 +57,8 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
 
     // Derived from stored data. Run after the fetches above.
     Route::prefix('generate')->group(function () {
-        Route::get('indicators', CronController::class)->defaults('task', RecalculateMarketTask::class); // + signals + next-close; ?all=1 = every stock
+        Route::get('indicators', CronController::class)->defaults('task', RecalculateMarketTask::class); // + next-close; ?all=1 = every stock
+        Route::get('signals', CronController::class)->defaults('task', GenerateSignalsTask::class); // from the stored indicators; ?all=1 = every stock
         Route::get('ai-opinions', CronController::class)->defaults('task', GenerateAiOpinionsTask::class); // calls Groq
         Route::get('ml-model', CronController::class)->defaults('task', TrainMlTask::class);
         Route::get('backtest-signals', CronController::class)->defaults('task', BacktestSignalsTask::class);

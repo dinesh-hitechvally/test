@@ -25,12 +25,6 @@ onMounted(async () => {
 
 <template>
   <div>
-    <p class="muted">
-      Export your current portfolio — holdings, transactions, and realized gains/losses — as a document. For
-      per-transaction realized-gain detail on screen, see
-      <RouterLink :to="{ name: 'portfolio-reports' }">Realized P/L / Tax Report</RouterLink>.
-    </p>
-
     <LoadingState v-if="!store.activePortfolioId">Loading your portfolio…</LoadingState>
 
     <template v-else>

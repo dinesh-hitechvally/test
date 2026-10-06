@@ -73,7 +73,7 @@
     <h4>Where the data comes from</h4>
     <ol>
         <li><code>/cron/fetch/*</code> jobs pull raw prices, indices, dividends and so on into the database.</li>
-        <li><code>/cron/generate/indicators</code> turns stored prices into indicators, signals and next-close estimates.</li>
+        <li><code>/cron/generate/indicators</code> turns stored prices into indicators and next-close estimates, then <code>/cron/generate/signals</code> turns the indicators into buy / sell / hold signals.</li>
         <li>The API serves what is stored. Schedules and order are in <a href="#cron-order">Cron jobs</a>.</li>
     </ol>
 </div>

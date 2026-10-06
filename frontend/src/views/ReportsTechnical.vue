@@ -134,12 +134,6 @@ onMounted(async () => {
 
 <template>
   <div>
-    <p class="muted">
-      A full rule-based technical read on one stock — trend, levels, candlesticks, volume, momentum, Fibonacci, and a
-      suggested target/stop/risk-reward setup. Every section is a transparent heuristic on already-computed
-      indicators, not a fitted model — not financial advice.
-    </p>
-
     <Card>
       <SearchableSelect v-model="selected" :options="stockOptions" style="max-width: 340px" placeholder="Select a stock…" @change="onSelect" />
     </Card>

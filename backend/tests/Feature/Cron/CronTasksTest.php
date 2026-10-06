@@ -35,7 +35,7 @@ class CronTasksTest extends TestCase
         $this->get('/cron/generate/indicators?key=test-secret')
             ->assertOk()
             ->assertSeeText('$ recalculate-market')
-            ->assertSeeText('Recalculated indicators/signals for 2 stock(s).')
+            ->assertSeeText('Recalculated indicators for 2 stock(s).')
             ->assertSeeText('[ok]');
 
         $this->get('/cron/generate/indicators?key=test-secret')
@@ -45,7 +45,7 @@ class CronTasksTest extends TestCase
         $this->get('/cron/generate/indicators?key=test-secret&all=1')
             ->assertOk()
             ->assertSeeText('$ recalculate-market (all stocks)')
-            ->assertSeeText('Recalculated indicators/signals for 2 stock(s).');
+            ->assertSeeText('Recalculated indicators for 2 stock(s).');
 
         $this->assertSame(1, $b->technicalIndicators()->count());
     }
@@ -55,7 +55,7 @@ class CronTasksTest extends TestCase
         $cronRoutes = collect(app('router')->getRoutes()->getRoutes())
             ->filter(fn ($route) => str_starts_with($route->uri(), 'cron/'));
 
-        $this->assertCount(16, $cronRoutes);
+        $this->assertCount(17, $cronRoutes);
 
         foreach ($cronRoutes as $route) {
             $this->assertTrue(is_subclass_of($route->defaults['task'] ?? '', Task::class), $route->uri());

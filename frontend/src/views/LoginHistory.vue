@@ -45,8 +45,6 @@ onMounted(load)
 
 <template>
   <div>
-    <p class="muted">The last 50 times your account signed in — IP address, approximate location, and device.</p>
-
     <LoadingState v-if="loading" style="margin-top: 16px" />
 
     <Card v-else style="margin-top: 16px">

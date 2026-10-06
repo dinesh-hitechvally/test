@@ -87,8 +87,6 @@ function selectTier(key) {
 
 <template>
   <div>
-    <p class="muted">Find buy and sell candidates by holding period — short-term (days/weeks), mid-term (weeks/months), and long-term (buy-and-hold).</p>
-
     <div class="filters">
       <button v-for="t in TIERS" :key="t.key" class="btn-secondary btn" :class="{ active: activeTier === t.key }" @click="selectTier(t.key)">
         {{ t.label }}

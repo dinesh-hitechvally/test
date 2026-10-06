@@ -88,10 +88,6 @@ onMounted(load)
     <p v-else-if="error" class="error-text">{{ error }}</p>
 
     <template v-else-if="report">
-      <p class="muted">
-        Today's performance, breadth and stocks for this sector.
-      </p>
-
       <div class="grid grid-cards">
         <StatCard label="Stocks" :value="report.totals.stock_count" />
         <StatCard label="Advancing" :value="report.totals.advancing" tone="positive" />

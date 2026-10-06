@@ -32,11 +32,6 @@ onMounted(async () => {
 
 <template>
   <div>
-    <p class="muted">
-      Full buy/sell history log. To add or delete a transaction, use
-      <RouterLink :to="{ name: 'portfolio' }">Portfolio Overview</RouterLink>.
-    </p>
-
     <Card>
       <table v-align-numbers class="table" v-if="store.transactions.length">
         <thead>

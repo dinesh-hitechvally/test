@@ -67,8 +67,6 @@ onMounted(load)
 
 <template>
   <div>
-    <p class="muted">Account, notifications, data source, and the people on this instance.</p>
-
     <Card style="margin-top: 16px">
       <div class="account-row">
         <div>

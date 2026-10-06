@@ -27,11 +27,6 @@ onMounted(async () => {
 
 <template>
   <div>
-    <p class="muted">
-      Everything you currently hold, at a glance. To buy, sell, or set stop-loss/target levels, use
-      <RouterLink :to="{ name: 'portfolio' }">Portfolio Overview</RouterLink>.
-    </p>
-
     <LoadingState v-if="!store.detail" />
 
     <Card v-else>

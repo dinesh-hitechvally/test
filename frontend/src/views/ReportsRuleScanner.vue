@@ -65,11 +65,6 @@ onMounted(loadRules)
 
 <template>
   <div>
-    <p class="muted">
-      Pick any combination of the buy/sell conditions the signal engine checks daily, and find every stock whose
-      latest signal fired them. This reads today's already-computed signals — not financial advice.
-    </p>
-
     <LoadingState v-if="loadingRules">Loading rules…</LoadingState>
 
     <template v-else>

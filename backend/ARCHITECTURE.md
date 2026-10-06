@@ -50,7 +50,7 @@ app/
     │   │                 (backtest), SignalFeedService (today / buy-sell feeds), SignalRuleScanner.
     │   ├── Forecasting/  NextCloseEstimatorService.
     │   ├── Patterns/     CandlestickPatternScanner (market-wide pattern scan).
-    │   └── RecalculationPipeline   indicators → signals → next-close, for one or many stocks.
+    │   └── RecalculationPipeline   indicators → next-close, for one or many stocks (signals are the separate generate/signals cron).
     ├── MachineLearning/  Direction predictor (Random Forest) + its feature builder.
     ├── Reports/          Read-side assembly for pages, one class per job:
     │                     PriceStatisticsService (% change, returns, 52-week, trend — used by the
@@ -125,7 +125,7 @@ transport exception is caught by the hook in `bootstrap/app.php`; code that catc
 itself must `report($e)` for the row to be marked failed. Bodies are never stored (reset links
 are secrets). Read it with the `emailLogs(status: "failed")` GraphQL query.
 
-So the daily chain is: **fetch/prices (prices only) → generate/indicators (indicators → signals → next-close)**.
+So the daily chain is: **fetch/prices (prices only) → generate/indicators (indicators → next-close) → generate/signals (signals, from the stored indicators)**.
 Listeners are registered explicitly (discovery is off in
 `bootstrap/app.php`) so a stale `event:cache` can never silently drop one.
 
@@ -143,15 +143,15 @@ URL pattern: `/cron/<kind>/<what>`
 | Kind | Does | URL → task |
 |---|---|---|
 | `fetch/` | Pulls from an external source and saves raw data. Never computes anything. | `stock-list` (also sets sectors and instrument types) · `prices` (live while open, final after close) · `index` · `histories` (one pending stock per ping) · `history/{symbol}` (one named stock) · `dividends` (one pending stock per ping) · `dividends/{symbol}` · `fundamentals` (one due stock per ping) · `fundamentals/{symbol}` |
-| `generate/` | Computes derived data from what is already in the database. | `indicators` (indicators → signals → next-close; `?all=1` = every stock) · `ai-opinions` (Groq) · `ml-model` · `backtest-signals` · `backtest-next-close` |
+| `generate/` | Computes derived data from what is already in the database. | `indicators` (indicators → next-close; `?all=1` = every stock) · `signals` (buy/sell/hold from the stored indicators; `?all=1` = every stock) · `ai-opinions` (Groq) · `ml-model` · `backtest-signals` · `backtest-next-close` |
 | `check/` | Health checks. | `nepse-token` · `data-quality` |
 
-- **Order matters:** `fetch/prices` → `generate/indicators` → `generate/ai-opinions`. `generate/indicators`
-  is the only thing that creates indicator rows; it picks up stocks with new or changed prices, so it is
-  safe to run as often as you like.
+- **Order matters:** `fetch/prices` → `generate/indicators` → `generate/signals` → `generate/ai-opinions`.
+  `generate/indicators` is the only thing that creates indicator rows and `generate/signals` the only thing
+  that creates signal rows; each picks up only what changed, so both are safe to run as often as you like.
 - **Suggested times (NPT, Asia/Kathmandu — check which timezone your cPanel cron uses):**
   fetch/stock-list 06:00 daily; fetch/prices 15:30 and fetch/index 15:32 Mon–Fri (after NEPSE's
-  ~15:00 close); generate/indicators 15:40 Mon–Fri; generate/ml-model 03:30,
+  ~15:00 close); generate/indicators 15:40 and generate/signals 15:45 Mon–Fri; generate/ml-model 03:30,
   generate/backtest-signals 04:00, generate/backtest-next-close 04:15, check/data-quality 04:30 on Mondays.
 - **Per-stock:** fetch/histories, fetch/dividends, fetch/fundamentals,
   generate/ai-opinions. Each run processes **every** pending stock, except
@@ -201,5 +201,6 @@ php artisan optimize:clear       # clears cached config/routes/events
 php artisan lighthouse:clear-cache   # when a graphql/*.graphql file changed
 ```
 
-After changing indicator or signal logic: open `/cron/generate/indicators?all=1&key=…`,
-then `/cron/generate/backtest-signals?key=…`.
+After changing indicator maths: open `/cron/generate/indicators?all=1&key=…` then `/cron/generate/signals?all=1&key=…`.
+After changing only the signal rules: just `/cron/generate/signals?all=1&key=…`.
+Then `/cron/generate/backtest-signals?key=…`.
