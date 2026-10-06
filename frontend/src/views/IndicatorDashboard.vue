@@ -68,7 +68,7 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Indicator Dashboard">RSI, MACD, and volume for every tracked stock in one sortable table — click a column to sort.</PageHeader>
+    <p class="muted">RSI, MACD, and volume for every tracked stock in one sortable table — click a column to sort.</p>
 
     <LoadingState v-if="loading" />
 

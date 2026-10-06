@@ -20,7 +20,7 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Users">No role/permission system exists yet — every logged-in user has full access. This is just the registered account list, not an admin panel with permissions to manage.</PageHeader>
+    <p class="muted">No role/permission system exists yet — every logged-in user has full access. This is just the registered account list, not an admin panel with permissions to manage.</p>
 
     <LoadingState v-if="loading" />
 

@@ -41,10 +41,10 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Price Alerts">
+    <p class="muted">
       Every price alert set across your watchlists (separate from the portfolio stop-loss/target alerts, which live
       on the Portfolio page). Manage individual alerts from <RouterLink :to="{ name: 'watchlist' }">Watchlist</RouterLink>.
-    </PageHeader>
+    </p>
 
     <LoadingState v-if="loading" />
 

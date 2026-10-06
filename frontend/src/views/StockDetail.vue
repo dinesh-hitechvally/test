@@ -5,11 +5,15 @@ import * as stocksApi from '../api/stocks'
 import PriceChart from '../components/charts/PriceChart.vue'
 import IndicatorChart from '../components/charts/IndicatorChart.vue'
 import { formatPrice, formatSignal } from '../utils/format'
+import { usePageTitle } from '../composables/usePageTitle'
 import { useSortableTable } from '../composables/useSortableTable'
 
 const route = useRoute()
 
 const stock = ref(null)
+
+// The top bar shows "NABIL — Nabil Bank Limited" instead of this page drawing its own heading.
+usePageTitle(() => (stock.value ? [stock.value.symbol, stock.value.company_name].filter(Boolean).join(' — ') : ''))
 const prices = ref([])
 const indicators = ref([])
 const forecastHistory = ref([])
@@ -149,7 +153,6 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
   <div v-else>
     <div class="page-header">
       <div>
-        <h1>{{ stock.symbol }} <span class="muted" style="font-weight: 400">{{ stock.company_name }}</span></h1>
         <p v-if="stock.latest_signal">
           <SignalBadge :signal="stock.latest_signal.signal" />
           <span class="muted" style="margin-left: 10px">as of {{ stock.latest_signal.trade_date }}</span>

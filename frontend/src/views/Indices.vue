@@ -20,11 +20,11 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Indices">
+    <p class="muted">
       NEPSE Index and sub-indices from the official nepalstock.com API. Trend history only starts accumulating from
       when this was first tracked — no official source offers historical index backfill, so early on this chart will
       be short and grow day by day.
-    </PageHeader>
+    </p>
 
     <LoadingState v-if="loading" />
 

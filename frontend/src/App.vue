@@ -13,7 +13,6 @@ watch(
   isAuthenticated,
   (authed) => {
     if (authed) {
-      stocksStore.fetchStocks()
       stocksStore.fetchScrapeLogs()
     }
   },

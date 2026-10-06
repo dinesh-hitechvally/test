@@ -175,11 +175,11 @@ const summary = computed(() => {
 
 <template>
   <div>
-    <PageHeader title="Analyst Report">
+    <p class="muted">
       Every lens this app has on one stock, synthesized in one place — price performance, technical read, dividend
       history, rule-based signal (with its own honest track record), and ML direction call. Not financial advice —
       a merge of already-computed data, not a new prediction of its own.
-    </PageHeader>
+    </p>
 
     <Card>
       <SearchableSelect v-model="selected" :options="stockOptions" style="max-width: 340px" placeholder="Select a stock…" @change="onSelect" />

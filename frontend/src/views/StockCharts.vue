@@ -198,7 +198,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <PageHeader title="Stock Charts">Pick a report type, then narrow it down with a sector or stock and a chart style.</PageHeader>
+    <p class="muted">Pick a report type, then narrow it down with a sector or stock and a chart style.</p>
 
     <div class="card">
       <div class="picker-row">

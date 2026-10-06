@@ -40,10 +40,10 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Saved Screens">
+    <p class="muted">
       Your saved filter combinations from the Custom Screener. Save a new one from
       <RouterLink :to="{ name: 'screener' }">Custom Screener</RouterLink>.
-    </PageHeader>
+    </p>
 
     <LoadingState v-if="loading" />
 

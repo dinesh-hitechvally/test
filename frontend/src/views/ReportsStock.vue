@@ -70,7 +70,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <PageHeader title="Stock Report">Pick a stock to see its returns over standard lookback periods, recent signal activity, and price trend.</PageHeader>
+    <p class="muted">Pick a stock to see its returns over standard lookback periods, recent signal activity, and price trend.</p>
 
     <Card>
       <SearchableSelect v-model="selected" :options="stockOptions" style="max-width: 340px" placeholder="Select a stock…" @change="onSelect" />

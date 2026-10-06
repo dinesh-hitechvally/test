@@ -72,12 +72,12 @@ onMounted(async () => {
 
 <template>
   <div>
-    <PageHeader title="Stock vs Index">
+    <p class="muted">
       Compares a stock's price performance against a NEPSE index, normalized to % change from the start of the
       range. Index history only started accumulating recently — the further back you look, the shorter the index
       line will be until more days build up. Sector-vs-index isn't available yet — there's no computed sector price
       series to compare against, only individual stocks and the official indices.
-    </PageHeader>
+    </p>
 
     <div class="card">
       <div class="picker-row">

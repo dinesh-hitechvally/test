@@ -141,10 +141,10 @@ function formatInt(value) {
       @reset="columns.reset"
     />
 
-    <PageHeader title="Sector List">
+    <p class="muted">
       How each sector is moving today: its stocks, how many advanced and declined, the average change and the turnover.
       Click a sector to open its page.
-    </PageHeader>
+    </p>
 
     <p v-if="error" class="error-text">{{ error }}</p>
     <LoadingState v-if="loading && sectors.length === 0" />

@@ -1,9 +1,8 @@
 // The shared UI building blocks, registered globally (main.js) so any page
-// can use them without importing: <PageHeader>, <Card>, <SortableTh>, …
+// can use them without importing: <Card>, <SortableTh>, …
 import Card from './Card.vue'
 import EmptyState from './EmptyState.vue'
 import LoadingState from './LoadingState.vue'
-import PageHeader from './PageHeader.vue'
 import Pagination from './Pagination.vue'
 import ScreenOptions from './ScreenOptions.vue'
 import SearchableSelect from './SearchableSelect.vue'
@@ -13,7 +12,7 @@ import SortableTh from './SortableTh.vue'
 import StatCard from './StatCard.vue'
 import StockLink from './StockLink.vue'
 
-const components = { Card, EmptyState, LoadingState, PageHeader, Pagination, ScreenOptions, SearchableSelect, SellBadge, SignalBadge, SortableTh, StatCard, StockLink }
+const components = { Card, EmptyState, LoadingState, Pagination, ScreenOptions, SearchableSelect, SellBadge, SignalBadge, SortableTh, StatCard, StockLink }
 
 export default {
   install(app) {

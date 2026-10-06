@@ -26,11 +26,11 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Chart Patterns">
+    <p class="muted">
       Every stock whose most recent candle forms a recognizable pattern (Doji, Hammer, Shooting Star, or an
       Engulfing pattern) — a lighter, faster scan than the deeper per-stock pattern detection on the
       Technical Analysis report, run across the whole market.
-    </PageHeader>
+    </p>
 
     <div class="filters">
       <button class="btn-secondary btn" :class="{ active: filter === '' }" @click="filter = ''">All</button>

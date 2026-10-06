@@ -195,7 +195,6 @@ onMounted(async () => {
 
 <template>
   <div>
-    <PageHeader title="Market Screener" />
 
     <Card title="Filters" style="margin-bottom: 20px">
       <div class="filter-grid">

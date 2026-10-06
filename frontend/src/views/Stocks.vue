@@ -65,10 +65,6 @@ onBeforeUnmount(() => clearTimeout(timer))
       @reset="columns.reset"
     />
 
-    <div class="page-header">
-      <h1>Stocks</h1>
-    </div>
-
     <p v-if="error" class="error-text">{{ error }}</p>
     <LoadingState v-if="loading && rows.length === 0" />
     <div v-else :class="{ updating: loading }">

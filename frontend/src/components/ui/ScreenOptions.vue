@@ -51,6 +51,7 @@ const open = ref(false)
   border-radius: 8px;
   background: var(--surface);
   padding: 12px 16px 10px;
+  margin-bottom: 20px;
 }
 
 .panel-body {
@@ -94,8 +95,8 @@ const open = ref(false)
 
 .tab-row {
   position: absolute;
-  right: 25px;
-  top: 100%;
+  right: 0;
+  top: -25px;
   z-index: 5;
 }
 

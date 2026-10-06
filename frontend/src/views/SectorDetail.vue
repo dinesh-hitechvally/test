@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import * as reportsApi from '../api/reports'
 import { useColumnOptions } from '../composables/useColumnOptions'
+import { usePageTitle } from '../composables/usePageTitle'
 import { changeTone } from '../utils/format'
 import SignalDistributionChart from '../components/charts/SignalDistributionChart.vue'
 import TrendChart from '../components/charts/TrendChart.vue'
@@ -11,6 +12,9 @@ import MarketTable from '../components/stock/MarketTable.vue'
 const route = useRoute()
 
 const report = ref(null)
+
+// The sector's name goes in the top bar rather than in a heading on the page.
+usePageTitle(() => report.value?.sector ?? '')
 const loading = ref(true)
 const error = ref('')
 const notFound = ref(false)
@@ -84,9 +88,9 @@ onMounted(load)
     <p v-else-if="error" class="error-text">{{ error }}</p>
 
     <template v-else-if="report">
-      <PageHeader :title="report.sector">
+      <p class="muted">
         Today's performance, breadth and stocks for this sector.
-      </PageHeader>
+      </p>
 
       <div class="grid grid-cards">
         <StatCard label="Stocks" :value="report.totals.stock_count" />

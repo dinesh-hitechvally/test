@@ -65,12 +65,12 @@ onMounted(async () => {
 
 <template>
   <div>
-    <PageHeader title="Dividend Report">
+    <p class="muted">
       Every stock with recorded dividend/bonus history, ranked by trailing dividend yield (cash dividend as a % of
       market price — bonus shares aren't included since they're not a cash return). Also shows each company's right
       share history — extra shares existing holders were offered to buy (at a set issue price), separate from a
       bonus/dividend.
-    </PageHeader>
+    </p>
 
     <Card>
       <div style="display: flex; gap: 16px; flex-wrap: wrap">

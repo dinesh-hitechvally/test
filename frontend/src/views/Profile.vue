@@ -56,7 +56,6 @@ async function savePassword() {
 
 <template>
   <div>
-    <PageHeader title="Profile" />
 
     <Card title="Account details" class="form-stack" style="margin-top: 16px">
       <input v-model="name" class="input" placeholder="Name" />

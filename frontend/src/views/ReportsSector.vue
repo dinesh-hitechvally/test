@@ -76,7 +76,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <PageHeader title="Sector Report">Pick a sector to see its today's performance, breadth, and constituent stocks.</PageHeader>
+    <p class="muted">Pick a sector to see its today's performance, breadth, and constituent stocks.</p>
 
     <Card>
       <SearchableSelect v-model="selected" :options="sectorOptions" style="max-width: 340px" placeholder="Select a sector…" @change="onSelect" />

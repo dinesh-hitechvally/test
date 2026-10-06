@@ -142,7 +142,7 @@ URL pattern: `/cron/<kind>/<what>`
 
 | Kind | Does | URL → task |
 |---|---|---|
-| `fetch/` | Pulls from an external source and saves raw data. Never computes anything. | `stock-list` (also sets sectors and instrument types) · `prices` (live while open, final after close) · `index` · `histories` (one pending stock per ping) · `history/{symbol}` (one named stock) · `dividends` (one pending stock per ping) · `dividends/{symbol}` · `fundamentals` (every stale stock) · `fundamentals/{symbol}` |
+| `fetch/` | Pulls from an external source and saves raw data. Never computes anything. | `stock-list` (also sets sectors and instrument types) · `prices` (live while open, final after close) · `index` · `histories` (one pending stock per ping) · `history/{symbol}` (one named stock) · `dividends` (one pending stock per ping) · `dividends/{symbol}` · `fundamentals` (one due stock per ping) · `fundamentals/{symbol}` |
 | `generate/` | Computes derived data from what is already in the database. | `indicators` (indicators → signals → next-close; `?all=1` = every stock) · `ai-opinions` (Groq) · `ml-model` · `backtest-signals` · `backtest-next-close` |
 | `check/` | Health checks. | `nepse-token` · `data-quality` |
 
@@ -155,8 +155,8 @@ URL pattern: `/cron/<kind>/<what>`
   generate/backtest-signals 04:00, generate/backtest-next-close 04:15, check/data-quality 04:30 on Mondays.
 - **Per-stock:** fetch/histories, fetch/dividends, fetch/fundamentals,
   generate/ai-opinions. Each run processes **every** pending stock, except
-  **fetch/histories and fetch/dividends, which handle ONE stock per run** (a full history
-  is about a minute per stock; a dividend fetch is two NEPSE requests) and report how many are
+  **fetch/histories, fetch/dividends and fetch/fundamentals, which handle ONE stock per run** (a full
+  history is about a minute per stock; the others are one or two requests plus a pause each) and report how many are
   still pending: ping again for the next. Each
   stock is saved as it finishes, so if the host cuts a long request short,
   ping again and it resumes. First runs are long (ai-opinions ≈ pending ÷ 2

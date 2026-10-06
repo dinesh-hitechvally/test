@@ -47,11 +47,11 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Data Quality">
+    <p class="muted">
       Problems the data-quality checks found — invalid prices, abnormal moves, missing trading dates and
       likely-unadjusted corporate actions. Detected automatically as prices land and on a daily sweep; a
       <code>critical</code> row is worth checking before trusting that stock's indicators.
-    </PageHeader>
+    </p>
 
     <div class="filters">
       <button

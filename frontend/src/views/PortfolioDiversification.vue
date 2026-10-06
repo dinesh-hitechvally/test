@@ -47,7 +47,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <PageHeader title="Diversification">How your current portfolio value is spread across sectors and individual stocks.</PageHeader>
+    <p class="muted">How your current portfolio value is spread across sectors and individual stocks.</p>
 
     <LoadingState v-if="!store.detail" />
 

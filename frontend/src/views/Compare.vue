@@ -112,7 +112,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <PageHeader title="Compare Stocks">Pick up to 4 stocks to overlay their price performance (normalized to % change) and compare key stats.</PageHeader>
+    <p class="muted">Pick up to 4 stocks to overlay their price performance (normalized to % change) and compare key stats.</p>
 
     <div class="card" style="margin-bottom: 20px">
       <div class="picker-row">

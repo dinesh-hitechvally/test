@@ -39,7 +39,7 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Market Report">A whole-market view — breadth, sector performance, and the biggest movers, as of the latest scrape.</PageHeader>
+    <p class="muted">A whole-market view — breadth, sector performance, and the biggest movers, as of the latest scrape.</p>
 
     <LoadingState v-if="loading" />
 

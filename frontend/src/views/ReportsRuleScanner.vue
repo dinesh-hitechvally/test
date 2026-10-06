@@ -65,10 +65,10 @@ onMounted(loadRules)
 
 <template>
   <div>
-    <PageHeader title="Rule Scanner">
+    <p class="muted">
       Pick any combination of the buy/sell conditions the signal engine checks daily, and find every stock whose
       latest signal fired them. This reads today's already-computed signals — not financial advice.
-    </PageHeader>
+    </p>
 
     <LoadingState v-if="loadingRules">Loading rules…</LoadingState>
 

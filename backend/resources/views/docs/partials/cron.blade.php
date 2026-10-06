@@ -16,7 +16,7 @@ Recalculated indicators/signals for 42 stock(s).
 [ok]</code></pre>
             The last line is <code>[ok]</code> or <code>[failed]</code>. A failing task still answers 200 with <code>[failed]</code>, so set your scheduler to look for that word, not just the status code.</li>
         <li><strong>Safe to repeat:</strong> every job is idempotent. Running one twice does no harm, and unchanged data is skipped.</li>
-        <li><strong>Long runs:</strong> jobs ignore the caller disconnecting and have no time limit, so a scheduler that gives up after 30 seconds will not stop a job half-way. Per-stock jobs save each stock as it finishes, so pinging again resumes where it stopped. <code>fetch/histories</code> and <code>fetch/dividends</code> are the exceptions: they handle <strong>one</strong> stock per ping and tells you how many are still pending.</li>
+        <li><strong>Long runs:</strong> jobs ignore the caller disconnecting and have no time limit, so a scheduler that gives up after 30 seconds will not stop a job half-way. Per-stock jobs save each stock as it finishes, so pinging again resumes where it stopped. <code>fetch/histories</code>, <code>fetch/dividends</code> and <code>fetch/fundamentals</code> are the exceptions: they handle <strong>one</strong> stock per ping and tells you how many are still pending.</li>
     </ul>
 </div>
 

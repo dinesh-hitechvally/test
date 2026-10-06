@@ -45,7 +45,7 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Login History">The last 50 times your account signed in — IP address, approximate location, and device.</PageHeader>
+    <p class="muted">The last 50 times your account signed in — IP address, approximate location, and device.</p>
 
     <LoadingState v-if="loading" style="margin-top: 16px" />
 

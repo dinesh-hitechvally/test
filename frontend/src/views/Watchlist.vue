@@ -78,7 +78,6 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader title="Watchlist" />
 
     <Card title="Add a stock" style="margin-bottom: 20px">
       <div class="add-row">

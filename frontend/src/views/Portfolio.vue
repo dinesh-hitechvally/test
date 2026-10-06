@@ -247,8 +247,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="page-header">
-      <h1>Portfolio</h1>
+    <div class="page-header" style="justify-content: flex-end">
       <div class="actions">
         <SearchableSelect
           v-if="store.portfolios.length > 1"

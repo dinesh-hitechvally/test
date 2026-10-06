@@ -80,8 +80,7 @@ onMounted(load)
 
 <template>
   <div>
-    <div class="page-header">
-      <h1>Portfolio Performance</h1>
+    <div v-if="store.activePortfolioId" class="page-header" style="justify-content: flex-end">
       <a v-if="store.activePortfolioId" href="#" class="btn-secondary btn" @click.prevent="exportCsv">Export CSV</a>
     </div>
     <p v-if="exportError" class="error-text">{{ exportError }}</p>
