@@ -173,11 +173,12 @@
             <h2 id="cronTitle">Pick a cron job</h2>
             <div class="muted" id="cronDesc">Cron jobs are real: running one fetches data or recalculates exactly as the scheduler would.</div>
             <div class="note"><strong>Heads-up for local development:</strong> <code>php artisan serve</code> on Windows handles one request at a time. A long job (fetch histories, AI opinions, ML training) blocks <em>every</em> page, including this one, until it finishes. Run long jobs from curl, or serve the app with Apache/nginx.</div>
-            <div class="params">
-                <label>Cron key (CRON_SECRET) <input type="password" id="cronKey" size="28" autocomplete="off"></label>
+            <form class="params" id="cronForm" autocomplete="off" onsubmit="return false">
+                <input type="text" name="username" value="cron" autocomplete="username" hidden aria-hidden="true" tabindex="-1">
+                <label>Cron key (CRON_SECRET) <input type="password" id="cronKey" size="28" autocomplete="new-password"></label>
                 <label id="symbolBox" hidden>symbol <input type="text" id="cronSymbol" size="10" value="NABIL"></label>
                 <label id="allBox" hidden>all <select id="cronAll"><option value="">not set</option><option value="1">1 (every stock)</option></select></label>
-            </div>
+            </form>
             <div class="mono muted" id="cronUrl"></div>
             <div class="row">
                 <button class="primary" id="cronRun" disabled>Run job ▶</button>

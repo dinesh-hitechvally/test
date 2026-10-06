@@ -12,10 +12,8 @@ const routes = [
   { path: '/portfolio', name: 'portfolio', component: () => import('../views/Portfolio.vue'), meta: { requiresAuth: true, title: 'Portfolio' } },
   { path: '/portfolio/performance', name: 'portfolio-performance', component: () => import('../views/PortfolioPerformance.vue'), meta: { requiresAuth: true, title: 'Portfolio Performance' } },
   { path: '/portfolio/reports', name: 'portfolio-reports', component: () => import('../views/PortfolioReports.vue'), meta: { requiresAuth: true, title: 'Portfolio Reports' } },
-  { path: '/market/gainers', name: 'market-gainers', component: () => import('../views/MarketList.vue'), meta: { requiresAuth: true, title: 'Gainers', preset: 'gainers' } },
-  { path: '/market/losers', name: 'market-losers', component: () => import('../views/MarketList.vue'), meta: { requiresAuth: true, title: 'Losers', preset: 'losers' } },
-  { path: '/market/turnover', name: 'market-turnover', component: () => import('../views/MarketList.vue'), meta: { requiresAuth: true, title: 'Turnover', preset: 'turnover' } },
-  { path: '/market/volume', name: 'market-volume', component: () => import('../views/MarketList.vue'), meta: { requiresAuth: true, title: 'Volume', preset: 'volume' } },
+  // The Gainers / Losers / Turnover / Volume pages are gone — old bookmarks land on All Stocks, which sorts and filters the same data.
+  { path: '/market/:preset(gainers|losers|turnover|volume)', redirect: '/stocks' },
   { path: '/market/52-week', name: 'market-52-week', component: () => import('../views/Market52Week.vue'), meta: { requiresAuth: true, title: '52 Week High/Low' } },
   { path: '/market/sector-overview', name: 'market-sector-overview', component: () => import('../views/MarketSectorOverview.vue'), meta: { requiresAuth: true, title: 'Sector Overview' } },
   { path: '/market/indices', name: 'market-indices', component: () => import('../views/Indices.vue'), meta: { requiresAuth: true, title: 'Indices' } },

@@ -23,10 +23,18 @@ class StockService
         return Stock::with($with)->where('symbol', strtoupper($symbol))->firstOrFail();
     }
 
-    /** Every stock (or those whose symbol/name matches $search), with today's change_pct. */
-    public function list(?string $search = null): Collection
+    /**
+     * Every stock (or those whose symbol/name matches $search), with today's change_pct.
+     *
+     * $with / $changePct let a caller skip what it will not show: each relation is a query over
+     * every stock, and change_pct is another. The sector is always loaded, because Stock::toArray()
+     * reads it for every row.
+     *
+     * @param  list<string>  $with  any of latestPrice, latestSignal, aiOpinion
+     */
+    public function list(?string $search = null, array $with = ['latestPrice', 'latestSignal', 'aiOpinion'], bool $changePct = true): Collection
     {
-        $query = Stock::query()->with(['sector', 'latestPrice', 'latestSignal', 'aiOpinion'])->orderBy('symbol');
+        $query = Stock::query()->with(['sector', ...$with])->orderBy('symbol');
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -35,7 +43,9 @@ class StockService
             });
         }
 
-        return $this->prices->withChangePct($query->get());
+        $stocks = $query->get();
+
+        return $changePct ? $this->prices->withChangePct($stocks) : $stocks;
     }
 
     /** @param  array{symbol: string, company_name?: ?string, sector?: ?string}  $data */

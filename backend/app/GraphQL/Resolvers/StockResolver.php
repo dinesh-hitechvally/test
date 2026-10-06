@@ -11,15 +11,28 @@ use App\Services\Analysis\Forecasting\NextCloseEstimatorService;
 use App\Services\DataSources\CorporateActionsRefreshService;
 use App\Services\MachineLearning\MlDirectionPredictorService;
 use App\Services\Stocks\StockService;
+use GraphQL\Type\Definition\ResolveInfo;
 
 /** The stock list and everything on a Stock Detail page. */
 class StockResolver extends Resolver
 {
     public function __construct(private readonly StockService $stocks) {}
 
-    public function stocks($root, array $args): array
+    /**
+     * Loads only what the query asks for: the web app's column picker (Stocks page > Screen Options)
+     * sends just the fields of the columns you left on, so the AI opinions, prices, signals and
+     * change_pct for every stock are not fetched when nobody will see them.
+     */
+    public function stocks($root, array $args, $context, ResolveInfo $info): array
     {
-        return $this->plain($this->stocks->list($args['search'] ?? null));
+        $selected = $info->getFieldSelection();
+        $with = array_keys(array_filter([
+            'latestPrice' => isset($selected['latest_price']),
+            'latestSignal' => isset($selected['latest_signal']),
+            'aiOpinion' => isset($selected['ai_opinion']),
+        ]));
+
+        return $this->plain($this->stocks->list($args['search'] ?? null, $with, isset($selected['change_pct'])));
     }
 
     public function stock($root, array $args): array

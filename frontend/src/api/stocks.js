@@ -1,9 +1,34 @@
 import { gql } from './graphql'
 import { AI_OPINION, DIVIDEND, FUNDAMENTAL, INDICATOR, PRICE, RIGHT_SHARE, SIGNAL, STOCK_BASE, STOCK_ROW } from './fields'
 
-/** Every stock with today's change_pct and latest price/signal. */
-export async function list(search = null) {
-  return (await gql(`query ($search: String) { stocks(search: $search) { ${STOCK_ROW} ai_opinion { ${AI_OPINION} } } }`,
+// Which price field each price-based table column needs.
+const PRICE_COLUMNS = { last_close: 'close_price', high: 'high_price', low: 'low_price', turnover: 'turnover', volume: 'volume' }
+
+/**
+ * The fields a stocks table needs for the columns that are switched on, so the API (which only
+ * does the work for fields it is asked for) isn't made to load prices, signals, AI opinions or
+ * today's change for columns nobody sees. `columns` = the visible column keys; null = everything.
+ */
+export function stockSelection(columns = null) {
+  if (!columns) return `${STOCK_ROW} ai_opinion { ${AI_OPINION} }`
+
+  const on = (key) => columns.includes(key)
+  const priceFields = Object.entries(PRICE_COLUMNS).filter(([key]) => on(key)).map(([, field]) => field)
+
+  return [
+    'id symbol', // always: row identity and the link
+    on('company_name') && 'company_name',
+    on('sector') && 'sector',
+    on('change_pct') && 'change_pct',
+    priceFields.length > 0 && `latest_price { ${priceFields.join(' ')} }`,
+    on('signal') && 'latest_signal { signal }',
+    on('ai_opinion') && 'ai_opinion { verdict reasoning }',
+  ].filter(Boolean).join(' ')
+}
+
+/** Every stock; with `columns` only the fields those table columns show (see stockSelection). */
+export async function list(search = null, columns = null) {
+  return (await gql(`query ($search: String) { stocks(search: $search) { ${stockSelection(columns)} } }`,
     { search })).stocks
 }
 

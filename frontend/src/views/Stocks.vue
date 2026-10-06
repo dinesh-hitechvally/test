@@ -1,99 +1,88 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-import { useStocksStore } from '../stores/stocks'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import * as stocksApi from '../api/stocks'
+import { useColumnOptions } from '../composables/useColumnOptions'
 import MarketTable from '../components/stock/MarketTable.vue'
 
-const store = useStocksStore()
+// Screen Options: which columns this page shows. Saved in the browser, and the stock query asks
+// the API only for the fields these columns need — switching one off stops it being fetched.
+const columns = useColumnOptions('stocks', [
+  { key: 'symbol', label: 'Symbol', locked: true },
+  { key: 'company_name', label: 'Company' },
+  { key: 'sector', label: 'Sector' },
+  { key: 'last_close', label: 'Last Close' },
+  { key: 'high', label: 'High' },
+  { key: 'low', label: 'Low' },
+  { key: 'change_pct', label: '% Change' },
+  { key: 'turnover', label: 'Turnover' },
+  { key: 'volume', label: 'Volume' },
+  { key: 'signal', label: 'Signal' },
+  { key: 'ai_opinion', label: 'AI Opinion' },
+])
 
-const showAddForm = ref(false)
-const newSymbol = ref('')
-const newCompanyName = ref('')
-const newSector = ref('')
-const addError = ref('')
+// Kept here, not in the shared stocks store: this list holds only the columns shown, while other
+// pages (search box, portfolio, watchlists…) rely on the store having the full set of fields.
+const rows = ref([])
+const loading = ref(true)
+const error = ref('')
 
-const showImportForm = ref(false)
-const importFile = ref(null)
-const importSymbol = ref('')
-const importResult = ref('')
-const importError = ref('')
-const importing = ref(false)
-
-async function handleAddStock() {
-  addError.value = ''
+let latest = 0
+async function load() {
+  const request = ++latest
+  loading.value = true
+  error.value = ''
   try {
-    await store.addStock({
-      symbol: newSymbol.value,
-      company_name: newCompanyName.value || null,
-      sector: newSector.value || null,
-    })
-    newSymbol.value = ''
-    newCompanyName.value = ''
-    newSector.value = ''
-    showAddForm.value = false
+    const data = await stocksApi.list(null, columns.visibleKeys.value)
+    if (request === latest) rows.value = data // ignore an older response that arrives late
   } catch (e) {
-    addError.value = e.response?.data?.message || 'Could not add stock.'
-  }
-}
-
-function handleFileChange(e) {
-  importFile.value = e.target.files[0] || null
-}
-
-async function handleImport() {
-  if (!importFile.value) return
-  importing.value = true
-  importError.value = ''
-  importResult.value = ''
-  try {
-    const result = await store.importCsv(importFile.value, importSymbol.value || null)
-    importResult.value = `Imported ${result.prices} price rows (${result.stocks} new stock(s)).`
-    await store.fetchStocks()
-  } catch (e) {
-    importError.value = e.response?.data?.message || 'Import failed.'
+    if (request === latest) error.value = e.response?.data?.message || 'Could not load stocks.'
   } finally {
-    importing.value = false
+    if (request === latest) loading.value = false
   }
 }
 
-onMounted(() => {
-  if (store.stocks.length === 0) store.fetchStocks()
+// Re-ask the API when the columns change (a short delay lets several ticks in a row become one request).
+let timer = null
+watch(columns.visibleKeys, () => {
+  clearTimeout(timer)
+  timer = setTimeout(load, 250)
 })
+
+onMounted(load)
+onBeforeUnmount(() => clearTimeout(timer))
 </script>
 
 <template>
   <div>
+    <ScreenOptions
+      title="Columns"
+      :options="columns.options"
+      :visible="columns.visibleKeys.value"
+      note="Only the data for the columns you leave on is requested from the server. Your choice is saved in this browser."
+      @toggle="columns.toggle"
+      @reset="columns.reset"
+    />
+
     <div class="page-header">
       <h1>Stocks</h1>
-      <div class="actions">
-        <button class="btn-secondary btn" @click="showImportForm = !showImportForm">Import CSV</button>
-        <button class="btn" @click="showAddForm = !showAddForm">Add Stock</button>
-      </div>
     </div>
 
-    <Card v-if="showAddForm" title="Add a new stock" class="form-stack" style="margin-bottom: 20px">
-      <input v-model="newSymbol" class="input" placeholder="Symbol (e.g. NABIL)" required />
-      <input v-model="newCompanyName" class="input" placeholder="Company name (optional)" />
-      <input v-model="newSector" class="input" placeholder="Sector (optional)" />
-      <p v-if="addError" class="error-text">{{ addError }}</p>
-      <button class="btn" @click="handleAddStock">Save</button>
-    </Card>
-
-    <Card v-if="showImportForm" title="Import historical prices from CSV" class="form-stack" style="margin-bottom: 20px">
-      <p class="muted">Columns: Date, Open, High, Low, Close, Volume. A Symbol column is used per-row if present, otherwise provide one below.</p>
-      <input type="file" accept=".csv,text/csv" @change="handleFileChange" />
-      <input v-model="importSymbol" class="input" placeholder="Symbol (only if CSV has no Symbol column)" />
-      <p v-if="importError" class="error-text">{{ importError }}</p>
-      <p v-if="importResult" class="muted">{{ importResult }}</p>
-      <button class="btn" :disabled="importing" @click="handleImport">{{ importing ? 'Importing…' : 'Import' }}</button>
-    </Card>
-
-    <MarketTable :stocks="store.stocks" :show-turnover-volume="true" :show-ai-opinion="true" />
+    <p v-if="error" class="error-text">{{ error }}</p>
+    <LoadingState v-if="loading && rows.length === 0" />
+    <div v-else :class="{ updating: loading }">
+      <MarketTable
+        :stocks="rows"
+        :columns="columns.visibleKeys.value"
+        :show-turnover-volume="true"
+        :show-ai-opinion="true"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.actions {
-  display: flex;
-  gap: 10px;
+.updating {
+  opacity: 0.55;
+  transition: opacity 0.15s;
 }
 </style>
