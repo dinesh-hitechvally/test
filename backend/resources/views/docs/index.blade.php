@@ -18,6 +18,7 @@
             }
         }
         * { box-sizing: border-box; }
+        [hidden] { display: none !important; } /* class rules like .auth { display: flex } must not defeat the hidden attribute */
         html { scroll-behavior: smooth; scroll-padding-top: 20px; }
         body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 system-ui, -apple-system, Segoe UI, sans-serif; }
         a { color: var(--accent); text-decoration: none; }
@@ -27,6 +28,10 @@
         nav.side { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 22px 14px 40px; border-right: 1px solid var(--line); background: var(--panel); }
         nav.side .brand { font-weight: 700; margin: 0 6px 2px; }
         nav.side .tagline { margin: 0 6px 14px; color: var(--muted); font-size: .8rem; }
+        nav.side .acct { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 0 6px 12px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; font-size: .8rem; background: var(--bg); }
+        nav.side .acct .on { color: var(--good); font-weight: 600; }
+        nav.side .acct button { margin-left: auto; padding: 2px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+        nav.side .acct button:hover { border-color: var(--accent); }
         nav.side input { width: 100%; padding: 7px 10px; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: .85rem; }
         nav.side .topic { display: block; margin: 12px 0 2px; padding: 5px 8px; font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
         nav.side a.link { display: block; padding: 4px 8px 4px 16px; border-left: 2px solid transparent; color: var(--text); font-size: .88rem; border-radius: 0 6px 6px 0; }
@@ -77,6 +82,10 @@
     <nav class="side" id="toc">
         <div class="brand">Share Market Signals</div>
         <div class="tagline">API &amp; cron documentation</div>
+        <div class="acct" id="acct" hidden>
+            <span id="acctText"></span>
+            <button type="button" id="acctLogout" hidden>Log out</button>
+        </div>
         <a class="link" href="{{ url('console') }}" style="font-weight:600">▶ Try the APIs (console)</a>
         <input type="search" id="tocfilter" placeholder="Filter topics…" autocomplete="off" style="margin-top:8px">
 
@@ -121,6 +130,52 @@
 </div>
 
 <script>
+    // Who is logged in? Shares the console's saved token (same browser, same origin).
+    (function () {
+        const base = @json($baseUrl);
+        const KEY = 'console_token';
+        const box = document.getElementById('acct'), text = document.getElementById('acctText'), out = document.getElementById('acctLogout');
+        const read = () => { try { return localStorage.getItem(KEY) || ''; } catch { return ''; } };
+        const clear = () => { try { localStorage.removeItem(KEY); } catch {} };
+        const call = async (query, token) => {
+            try {
+                const res = await fetch(base + '/graphql', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify({ query }) });
+                return await res.json();
+            } catch { return null; }
+        };
+        const link = '<a href="' + base + '/console">Log in in the console</a>';
+        function show(html, withLogout) { box.hidden = false; text.innerHTML = html; out.hidden = !withLogout; }
+
+        async function refresh() {
+            const token = read();
+            if (!token) { show('Not logged in · ' + link, false); return; }
+            const json = await call('{ me { name email } }', token);
+            const me = json && json.data && json.data.me;
+            if (me) {
+                const label = document.createElement('span');
+                label.className = 'on';
+                label.textContent = '● ' + (me.name || me.email);
+                text.replaceChildren(label);
+                box.hidden = false; out.hidden = false;
+            } else if (json) {
+                show('Saved token is no longer valid · ' + link, false);
+                clear();
+            } else {
+                show('API not reachable', false);
+            }
+        }
+
+        out.addEventListener('click', async () => {
+            out.disabled = true;
+            const token = read();
+            if (token) await call('mutation { logout }', token); // revokes it on the server
+            clear();
+            out.disabled = false;
+            show('Logged out · ' + link, false);
+        });
+        refresh();
+    })();
+
     // Highlight the topic currently in view.
     const links = [...document.querySelectorAll('nav.side a.link')];
     const targets = links.map(a => document.getElementById(a.getAttribute('href').slice(1))).filter(Boolean);

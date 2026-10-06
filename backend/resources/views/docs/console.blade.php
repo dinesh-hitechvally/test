@@ -18,6 +18,7 @@
             }
         }
         * { box-sizing: border-box; }
+        [hidden] { display: none !important; } /* class rules like .auth { display: flex } must not defeat the hidden attribute */
         body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; height: 100vh; display: flex; flex-direction: column; }
         a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
         code, pre, textarea, .mono { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
@@ -77,12 +78,18 @@
     <span class="muted mono" id="endpoint"></span>
     <span class="spacer"></span>
     <form class="auth" id="loginForm" autocomplete="on">
-        <input type="text" id="email" placeholder="email" autocomplete="username" size="18">
-        <input type="password" id="password" placeholder="password" autocomplete="current-password" size="12">
-        <button class="primary" type="submit">Log in</button>
-        <input type="text" id="token" placeholder="…or paste a bearer token" size="22" class="mono">
-        <button type="button" id="logout">Clear</button>
-        <span class="state" id="authState"></span>
+        <span class="auth" id="loginFields">
+            <input type="text" id="email" placeholder="email" autocomplete="username" size="18">
+            <input type="password" id="password" placeholder="password" autocomplete="current-password" size="12">
+            <button class="primary" type="submit">Log in</button>
+            <input type="text" id="token" placeholder="…or paste a bearer token" size="22" class="mono">
+            <button type="button" id="applyToken" title="Use this token (checks it with the API)">Apply</button>
+            <span class="state" id="authState"></span>
+        </span>
+        <span class="auth" id="loggedIn" hidden>
+            <span class="state ok" id="whoLabel"></span>
+            <button type="button" id="logout" title="Revokes this token on the server and clears it from this browser">Log out</button>
+        </span>
     </form>
 </header>
 <div id="authBanner" class="banner" hidden></div>
@@ -165,6 +172,7 @@
         <div class="pane" id="pane-cron">
             <h2 id="cronTitle">Pick a cron job</h2>
             <div class="muted" id="cronDesc">Cron jobs are real: running one fetches data or recalculates exactly as the scheduler would.</div>
+            <div class="note"><strong>Heads-up for local development:</strong> <code>php artisan serve</code> on Windows handles one request at a time. A long job (fetch histories, AI opinions, ML training) blocks <em>every</em> page, including this one, until it finishes. Run long jobs from curl, or serve the app with Apache/nginx.</div>
             <div class="params">
                 <label>Cron key (CRON_SECRET) <input type="password" id="cronKey" size="28" autocomplete="off"></label>
                 <label id="symbolBox" hidden>symbol <input type="text" id="cronSymbol" size="10" value="NABIL"></label>
@@ -207,7 +215,14 @@
         el.className = 'banner ' + (cls || 'info');
         el.textContent = msg || '';
     }
+    let who = null; // the user the API says the token belongs to, once verified
+    function renderWho() {
+        $('loginFields').hidden = !!who;
+        $('loggedIn').hidden = !who;
+        if (who) $('whoLabel').textContent = '● Logged in as ' + (who.name || who.email);
+    }
     function showAuth(msg, cls) {
+        renderWho();
         $('token').value = token;
         const el = $('authState');
         el.className = 'state ' + (cls || (token ? 'ok' : 'muted'));
@@ -217,12 +232,13 @@
     async function verify(prefix) {
         const r = await gql('{ me { name email } }');
         const me = r.json?.data?.me;
+        who = me || null;
         if (me) {
-            showAuth('logged in as ' + (me.name || me.email), 'ok');
+            showAuth();
             banner((prefix || 'Logged in') + ' as ' + me.name + ' (' + me.email + '). Requests now carry your token.', 'ok');
         } else if (token) {
             showAuth('token rejected', 'bad');
-            banner('The API did not accept this token (HTTP ' + r.http + '). It may have expired or been revoked: log in again.', 'bad');
+            banner('The API did not accept this token' + (r.network ? ' (could not reach it: ' + r.text + ')' : ' (it treated the request as not logged in)') + '. It may be mistyped, expired or revoked: log in again.', 'bad');
         } else {
             showAuth();
         }
@@ -237,9 +253,27 @@
             : '';
         return 'Login failed: ' + err.message + fields;
     }
-    $('token').addEventListener('input', e => { token = e.target.value.trim(); store.set('console_token', token); showAuth(); });
-    $('token').addEventListener('change', () => { if (token) verify('Token accepted'); });
-    $('logout').addEventListener('click', () => { token = ''; store.del('console_token'); showAuth(); banner('Token cleared.', 'info'); });
+    // The token box is a draft until Apply (or Enter): nothing is saved or sent while you type or paste.
+    async function applyToken() {
+        const value = $('token').value.trim();
+        if (!value) { banner('Paste a bearer token first, then press Apply.', 'bad'); return; }
+        token = value; store.set('console_token', token); who = null;
+        showAuth('checking…', 'muted');
+        banner('Checking the token…', 'info');
+        await verify('Token applied');
+    }
+    $('applyToken').addEventListener('click', applyToken);
+    $('token').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyToken(); } });
+    $('logout').addEventListener('click', async () => {
+        $('logout').disabled = true;
+        // Revoke the token server-side first (the API deletes it), then forget it here whatever happens.
+        const r = await gql('mutation { logout }');
+        const revoked = !!r.json?.data?.logout;
+        token = ''; who = null; store.del('console_token');
+        $('logout').disabled = false;
+        showAuth();
+        banner(revoked ? 'Logged out. The token was revoked on the server.' : 'Logged out of this browser. The server could not revoke the token (' + (r.json?.errors?.[0]?.message || 'HTTP ' + r.http) + ').', revoked ? 'ok' : 'info');
+    });
     $('loginForm').addEventListener('submit', async e => {
         e.preventDefault();
         const email = $('email').value.trim(), password = $('password').value;
