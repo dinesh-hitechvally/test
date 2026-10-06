@@ -56,6 +56,21 @@ const search = ref('')
 const sectorFilter = ref('')
 const signalFilter = ref('')
 const aiOpinionFilter = ref('')
+// Numeric / range filters — each only applies while its column is shown (hidden columns aren't fetched).
+const priceMin = ref('')
+const priceMax = ref('')
+const changeMode = ref('') // '' | 'up' | 'down' | 'flat'
+const changeMin = ref('')
+const changeMax = ref('')
+const volumeMin = ref('')
+const turnoverMin = ref('')
+
+const CHANGE_MODES = [
+  { value: '', label: 'All' },
+  { value: 'up', label: '▲ Up' },
+  { value: 'down', label: '▼ Down' },
+  { value: 'flat', label: 'Unchanged' },
+]
 const sortKey = ref(props.defaultSort.key)
 const sortDir = ref(props.defaultSort.dir)
 const page = ref(1)
@@ -94,6 +109,44 @@ function sortValue(stock, key) {
   return stock[key] ?? ''
 }
 
+function numberOrNull(value) {
+  return value === null || value === undefined || value === '' ? null : Number(value)
+}
+const bound = (value) => numberOrNull(value)
+
+// Which filters are narrowing the list (counted only for columns that are shown).
+const activeFilters = computed(() => {
+  const on = []
+  if (search.value.trim()) on.push('search')
+  if (show('sector') && sectorFilter.value) on.push('sector')
+  if (show('signal') && signalFilter.value) on.push('signal')
+  if (show('ai_opinion') && aiOpinionFilter.value) on.push('ai')
+  if (show('last_close') && (priceMin.value !== '' || priceMax.value !== '')) on.push('price')
+  if (show('change_pct') && (changeMode.value || changeMin.value !== '' || changeMax.value !== '')) on.push('change')
+  if (show('volume') && volumeMin.value !== '') on.push('volume')
+  if (show('turnover') && turnoverMin.value !== '') on.push('turnover')
+  return on
+})
+
+function clearFilters() {
+  search.value = ''
+  sectorFilter.value = ''
+  signalFilter.value = ''
+  aiOpinionFilter.value = ''
+  priceMin.value = ''
+  priceMax.value = ''
+  changeMin.value = ''
+  changeMax.value = ''
+  volumeMin.value = ''
+  turnoverMin.value = ''
+  changeMode.value = ''
+}
+
+// Any filter change starts again from page 1.
+watch([search, sectorFilter, signalFilter, aiOpinionFilter, priceMin, priceMax, changeMode, changeMin, changeMax, volumeMin, turnoverMin], () => {
+  page.value = 1
+})
+
 const filtered = computed(() => {
   let list = props.stocks
 
@@ -109,6 +162,34 @@ const filtered = computed(() => {
   }
   if (aiOpinionFilter.value) {
     list = list.filter((s) => s.ai_opinion?.verdict === aiOpinionFilter.value)
+  }
+
+  // A blank box means "no limit"; a stock with no value for a filtered field is left out.
+  const between = (value, min, max) => {
+    if (min === null && max === null) return true
+    if (value === null || Number.isNaN(value)) return false
+    return (min === null || value >= min) && (max === null || value <= max)
+  }
+  if (show('last_close')) {
+    const min = bound(priceMin.value)
+    const max = bound(priceMax.value)
+    list = list.filter((s) => between(numberOrNull(s.latest_price?.close_price), min, max))
+  }
+  if (show('change_pct')) {
+    const min = bound(changeMin.value)
+    const max = bound(changeMax.value)
+    list = list.filter((s) => between(numberOrNull(s.change_pct), min, max))
+    if (changeMode.value === 'up') list = list.filter((s) => s.change_pct > 0)
+    if (changeMode.value === 'down') list = list.filter((s) => s.change_pct < 0)
+    if (changeMode.value === 'flat') list = list.filter((s) => s.change_pct === 0)
+  }
+  if (show('volume')) {
+    const min = bound(volumeMin.value)
+    list = list.filter((s) => between(numberOrNull(s.latest_price?.volume), min, null))
+  }
+  if (show('turnover')) {
+    const min = bound(turnoverMin.value)
+    list = list.filter((s) => between(numberOrNull(s.latest_price?.turnover), min, null))
   }
 
   return [...list].sort((a, b) => {
@@ -144,10 +225,6 @@ function sortIndicator(key) {
 // What <SortableTh> needs — this table sorts by hand (custom sort values).
 const table = { toggleSort, sortIndicator }
 
-function resetToFirstPage() {
-  page.value = 1
-}
-
 function formatInt(value) {
   if (value === null || value === undefined) return '—'
   return Number(value).toLocaleString()
@@ -156,12 +233,53 @@ function formatInt(value) {
 
 <template>
   <div>
-    <div class="filter-bar">
-      <input v-model="search" class="input" style="max-width: 280px" placeholder="Search symbol or company…" @input="resetToFirstPage" />
-      <SearchableSelect v-if="show('sector')" v-model="sectorFilter" :options="sectorOptions" style="max-width: 200px" @change="resetToFirstPage" />
-      <SearchableSelect v-if="show('signal')" v-model="signalFilter" :options="SIGNAL_OPTIONS" style="max-width: 180px" @change="resetToFirstPage" />
-      <SearchableSelect v-if="show('ai_opinion')" v-model="aiOpinionFilter" :options="AI_OPINION_OPTIONS" style="max-width: 180px" @change="resetToFirstPage" />
-      <span class="muted result-count">{{ filtered.length }} stocks</span>
+    <div class="filters">
+      <div class="filter-row">
+        <input v-model="search" class="input search" placeholder="Search symbol or company…" />
+        <SearchableSelect v-if="show('sector')" v-model="sectorFilter" :options="sectorOptions" style="max-width: 200px" />
+        <SearchableSelect v-if="show('signal')" v-model="signalFilter" :options="SIGNAL_OPTIONS" style="max-width: 180px" />
+        <SearchableSelect v-if="show('ai_opinion')" v-model="aiOpinionFilter" :options="AI_OPINION_OPTIONS" style="max-width: 180px" />
+      </div>
+
+      <div v-if="show('last_close') || show('change_pct') || show('volume') || show('turnover')" class="filter-row">
+        <div v-if="show('last_close')" class="field">
+          <label>Price (Rs.)</label>
+          <div class="range">
+            <input v-model="priceMin" type="number" min="0" step="any" class="input" placeholder="Min" />
+            <span class="muted">–</span>
+            <input v-model="priceMax" type="number" min="0" step="any" class="input" placeholder="Max" />
+          </div>
+        </div>
+
+        <div v-if="show('change_pct')" class="field">
+          <label>Today's change</label>
+          <div class="range">
+            <div class="chips" role="group" aria-label="Direction of today's change">
+              <button v-for="m in CHANGE_MODES" :key="m.value" type="button" class="chip" :class="{ on: changeMode === m.value }" @click="changeMode = m.value">
+                {{ m.label }}
+              </button>
+            </div>
+            <input v-model="changeMin" type="number" step="any" class="input" placeholder="Min %" />
+            <span class="muted">–</span>
+            <input v-model="changeMax" type="number" step="any" class="input" placeholder="Max %" />
+          </div>
+        </div>
+
+        <div v-if="show('volume')" class="field">
+          <label>Min volume</label>
+          <input v-model="volumeMin" type="number" min="0" step="any" class="input" placeholder="e.g. 10000" />
+        </div>
+
+        <div v-if="show('turnover')" class="field">
+          <label>Min turnover (Rs.)</label>
+          <input v-model="turnoverMin" type="number" min="0" step="any" class="input" placeholder="e.g. 1000000" />
+        </div>
+      </div>
+
+      <div class="filter-foot">
+        <button v-if="activeFilters.length" type="button" class="clear" @click="clearFilters">Clear {{ activeFilters.length }} filter{{ activeFilters.length === 1 ? '' : 's' }}</button>
+        <span class="muted result-count">{{ filtered.length }} of {{ stocks.length }} stocks</span>
+      </div>
     </div>
 
     <table v-align-numbers class="table">
@@ -217,12 +335,96 @@ function formatInt(value) {
 </template>
 
 <style scoped>
-.filter-bar {
+.filters {
   display: flex;
-  gap: 10px;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.filter-row {
+  display: flex;
+  gap: 10px 20px;
+  align-items: flex-end;
   flex-wrap: wrap;
+}
+
+.search {
+  max-width: 280px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.range {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.range .input,
+.field > .input {
+  width: 110px;
+}
+
+.chips {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.chip {
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.chip:last-child {
+  border-right: 0;
+}
+
+.chip.on {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.filter-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.clear {
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
 }
 
 .result-count {

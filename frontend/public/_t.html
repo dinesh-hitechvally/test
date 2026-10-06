@@ -1,0 +1,47 @@
+<!doctype html>
+<body>
+<iframe id="f" style="width:1400px;height:900px"></iframe>
+<script>
+const TOKEN = '1|FbpRExMNv9agwOkaRTfYxv3ttNwoBai5MgyHtGLp87fc10ea';
+localStorage.setItem('auth_token', TOKEN);
+localStorage.setItem('auth_user', JSON.stringify({ id: 1, name: 'Tester', email: 't@example.com' }));
+const f = document.getElementById('f');
+f.src = '/stocks';
+const log = [];
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const doc = () => f.contentDocument;
+const rowsText = () => [...doc().querySelectorAll('table.table tbody tr')].map((r) => r.children[0]?.textContent.trim()).filter((t) => t && !t.startsWith('No stocks')).join(',');
+const count = () => (doc().querySelector('.result-count')?.textContent || '').trim();
+function setInput(placeholder, value) {
+  const el = [...doc().querySelectorAll('input')].find((i) => i.placeholder === placeholder);
+  if (!el) { log.push('MISSING input ' + placeholder); return; }
+  el.value = value;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+function clickText(sel, text) {
+  const el = [...doc().querySelectorAll(sel)].find((b) => b.textContent.trim() === text);
+  if (!el) { log.push('MISSING ' + sel + ' ' + text); return; }
+  el.click();
+}
+async function step(name, fn) { fn(); await wait(400); log.push(name.padEnd(34) + ' -> ' + rowsText() + '   [' + count() + ']'); }
+
+(async () => {
+  await wait(4500);
+  log.push('filters shown: ' + [...doc().querySelectorAll('.field label')].map((l) => l.textContent).join(' | '));
+  await step('no filters', () => {});
+  await step('price 100 - 300', () => { setInput('Min', '100'); });
+  await step('price 100 - 300 (max)', () => { const inputs = [...doc().querySelectorAll('input')].filter((i) => i.placeholder === 'Max'); inputs[0].value = '300'; inputs[0].dispatchEvent(new Event('input', { bubbles: true })); });
+  await step('clear', () => clickText('.clear', 'Clear 1 filter'));
+  await step('direction Up', () => clickText('.chip', '▲ Up'));
+  await step('direction Down', () => clickText('.chip', '▼ Down'));
+  await step('direction Unchanged', () => clickText('.chip', 'Unchanged'));
+  await step('reset direction + change min 5%', () => { clickText('.chip', 'All'); setInput('Min %', '5'); });
+  await step('+ min volume 20000', () => { setInput('e.g. 10000', '20000'); });
+  await step('clear all', () => { const b = [...doc().querySelectorAll('.clear')][0]; b && b.click(); });
+  await step('min turnover 5,000,000', () => { setInput('e.g. 1000000', '5000000'); });
+  await step('search "ddd"', () => { setInput('e.g. 1000000', ''); setInput('Search symbol or company…', 'ddd'); });
+  await step('clear all', () => { const b = [...doc().querySelectorAll('.clear')][0]; b && b.click(); });
+  document.body.setAttribute('data-r', log.join('\n'));
+})();
+</script>
+</body>
