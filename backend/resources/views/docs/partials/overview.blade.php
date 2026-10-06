@@ -42,7 +42,7 @@
 <table>
     <tr><th><code>extensions.status</code></th><th>Meaning</th></tr>
     <tr><td>401</td><td>Missing, expired or revoked token. Log in again.</td></tr>
-    <tr><td>404</td><td>The stock, portfolio or order does not exist, or is not yours.</td></tr>
+    <tr><td>404</td><td>The stock or portfolio does not exist, or is not yours.</td></tr>
     <tr><td>422</td><td>Input rejected. <code>extensions.validation</code> maps each field to its messages, e.g. <code>{"quantity": ["The quantity must be at least 1."]}</code>. Business-rule refusals, such as a failed buy check, also use 422 with the reason as <code>message</code>.</td></tr>
     <tr><td>502</td><td>An upstream data source (nepalstock.com and similar) failed.</td></tr>
 </table>
@@ -51,7 +51,7 @@
 <ul>
     <li><strong>Numbers.</strong> Database decimals (prices, percentages) arrive as <strong>strings</strong> exactly as stored, e.g. <code>"567.0000"</code>. Computed numbers (P&amp;L, ratios) arrive as floats. Parse prices before doing arithmetic.</li>
     <li><strong>Dates.</strong> <code>YYYY-MM-DD</code> for trading days, ISO 8601 for timestamps.</li>
-    <li><strong>Ownership.</strong> Portfolios, watchlists and orders belong to the logged-in user. Another user's id returns 404, never their data.</li>
+    <li><strong>Ownership.</strong> Portfolios and watchlists belong to the logged-in user. Another user's id returns 404, never their data.</li>
     <li><strong>Stocks.</strong> Most operations take a <code>symbol</code> (<code>NABIL</code>, case-insensitive). Portfolio ledger operations take the numeric <code>stock_id</code>.</li>
     <li><strong>Read-only data.</strong> The API only reads what the cron jobs have stored. Calling it never triggers a fetch or a recalculation.</li>
     <li><strong>Explore interactively.</strong> The schema is introspectable: point GraphiQL, Insomnia or Postman at <code>{{ $baseUrl }}/graphql</code> with the bearer header. <code>php artisan lighthouse:print-schema</code> prints the whole schema.</li>
@@ -59,12 +59,12 @@
 
 <h3 id="flows">Typical flows</h3>
 <div class="card">
-    <h4>From a buy signal to a position, and out again</h4>
+    <h4>From a buy signal to a logged position, and out again</h4>
+    <p class="muted">This system gives advice and keeps records. It never buys or sells; you trade with your broker.</p>
     <ol>
         <li><code>actionableSignals(bias: "buy")</code> lists stocks with a buy signal.</li>
-        <li><code>buyOrderPreview(portfolio_id, symbol)</code> runs the signal through the risk, portfolio and cash checks and returns entry, stop, target and quantity.</li>
-        <li><code>placeBuyOrder</code> stores that plan as a pending order.</li>
-        <li>You buy through your broker, then record it with <code>addTransaction</code>. The order is marked executed and its stop and target move onto the holding.</li>
+        <li><code>tradePlan(portfolio_id, symbol)</code> runs the signal through the risk, portfolio and cash checks and returns a plan: entry, stop, target and quantity, or the reason there isn't one. Nothing is placed.</li>
+        <li>You buy through your broker, then log it with <code>addTransaction</code>. If the holding has no levels yet, its stop and target are set from the stock's support and resistance.</li>
         <li><code>sellChecks(portfolio_id)</code> says, per holding, sell or hold and why. Record the sale with <code>addTransaction</code> (type <code>sell</code>).</li>
     </ol>
     <p class="muted">Every rule is explained in <a href="#trading">Buy / sell rules</a>.</p>

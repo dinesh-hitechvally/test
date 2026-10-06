@@ -1,16 +1,13 @@
 <?php
 
 /**
- * Rules a BUY signal has to pass before it becomes a buy order
- * (App\Services\Portfolio\BuyOrderService). A signal alone never buys.
+ * Rules a BUY signal has to pass to become a trade plan
+ * (App\Services\Portfolio\TradePlanService). Advice only: this system never trades.
  */
 return [
     // Signal gate: only these signals, at or above this -1..1 score, on a signal no older than this many days.
     'min_score' => 0.5,
     'signal_max_age_days' => 3,
-
-    // A pending order lapses (status 'expired') after this many days, freeing its reserved cash and position slot.
-    'order_valid_days' => 5,
 
     // Risk gate.
     'min_risk_reward' => 1.5,
@@ -18,7 +15,7 @@ return [
     'max_stop_distance_pct' => 10, // refuse trades whose stop is further than this % under entry
 
     // Portfolio gate.
-    'max_positions' => 10,         // open holdings + pending orders
+    'max_positions' => 10,         // most positions held at once
     'max_position_pct' => 20,      // one position's cost, as % of portfolio equity (cash + holdings)
 
     // Position sizing.

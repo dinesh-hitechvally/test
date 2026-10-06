@@ -162,19 +162,43 @@ class SellSignalTest extends TestCase
         $this->assertSame('hold', $this->decision()['action']);
     }
 
-    public function test_a_filled_buy_order_hands_its_stop_and_target_to_the_position(): void
+    private const BUY = 'mutation ($p: Int!, $s: Int) { addTransaction(portfolio_id: $p, stock_id: $s, type: "buy", quantity: 100, price: 820, transaction_date: "2026-09-02") { id } }';
+
+    public function test_logging_a_buy_sets_the_holdings_stop_and_target_from_the_stocks_levels(): void
     {
         $this->portfolio->transactions()->delete();
-        $this->portfolio->buyOrders()->create([
-            'stock_id' => $this->stock->id, 'status' => 'pending', 'trade_date' => '2026-09-01', 'signal_score' => 0.7, 'quantity' => 100,
-            'entry_price' => 820, 'stop_loss' => 776.1, 'target_price' => 900, 'risk_per_share' => 43.9, 'risk_amount' => 4390,
-            'position_value' => 82000, 'fees' => 328, 'risk_reward' => 1.82,
-        ]);
+        $this->close('2026-09-01', 820);
+        TechnicalIndicator::create(['stock_id' => $this->stock->id, 'trade_date' => '2026-09-01', 'support_price' => 780, 'resistance_price' => 900]);
 
-        $this->graphQL('mutation ($p: Int!, $s: Int) { addTransaction(portfolio_id: $p, stock_id: $s, type: "buy", quantity: 100, price: 820, transaction_date: "2026-09-02") { id } }', ['p' => $this->portfolio->id, 's' => $this->stock->id])->assertOk();
+        $this->graphQL(self::BUY, ['p' => $this->portfolio->id, 's' => $this->stock->id])->assertOk();
 
         $target = PositionTarget::where('portfolio_id', $this->portfolio->id)->first();
-        $this->assertEquals(776.1, (float) $target->stop_loss);
+        $this->assertEquals(776.1, (float) $target->stop_loss); // support 780 less the 0.5% buffer
         $this->assertEquals(900, (float) $target->target_price);
+    }
+
+    public function test_logging_a_buy_never_overwrites_levels_you_already_set(): void
+    {
+        $this->portfolio->transactions()->delete();
+        $this->close('2026-09-01', 820);
+        TechnicalIndicator::create(['stock_id' => $this->stock->id, 'trade_date' => '2026-09-01', 'support_price' => 780, 'resistance_price' => 900]);
+        $this->levels(stop: 700, target: 1000);
+
+        $this->graphQL(self::BUY, ['p' => $this->portfolio->id, 's' => $this->stock->id])->assertOk();
+
+        $target = PositionTarget::where('portfolio_id', $this->portfolio->id)->first();
+        $this->assertEquals(700, (float) $target->stop_loss);
+        $this->assertEquals(1000, (float) $target->target_price);
+    }
+
+    public function test_logging_a_buy_without_usable_levels_still_works_and_sets_none(): void
+    {
+        $this->portfolio->transactions()->delete();
+        $this->close('2026-09-01', 820); // no indicator row, so no support / resistance
+
+        $this->graphQL(self::BUY, ['p' => $this->portfolio->id, 's' => $this->stock->id])->assertOk();
+
+        $this->assertSame(1, $this->portfolio->transactions()->count());
+        $this->assertSame(0, PositionTarget::count());
     }
 }

@@ -19,7 +19,7 @@ class PortfolioService
 {
     public function __construct(
         private readonly PortfolioValuationService $valuation,
-        private readonly BuyOrderService $buyOrders,
+        private readonly TradePlanService $tradePlans,
     ) {}
 
     /**
@@ -85,7 +85,7 @@ class PortfolioService
         $transaction = $portfolio->transactions()->create([...$data, 'fees' => $data['fees'] ?? 0]);
 
         if ($data['type'] === 'buy') {
-            $this->buyOrders->markExecuted($portfolio, (int) $data['stock_id']);
+            $this->tradePlans->setLevelsFromPlan($portfolio, Stock::findOrFail((int) $data['stock_id']));
         }
 
         return $transaction->load('stock:id,symbol,company_name');

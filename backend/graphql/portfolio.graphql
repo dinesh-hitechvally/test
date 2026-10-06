@@ -118,34 +118,15 @@ type PortfolioPerformance {
     metrics: PerformanceMetrics
 }
 
-type BuyOrder {
-    id: Int!
-    portfolio_id: Int
-    stock_id: Int
-    "pending | executed | cancelled | expired"
-    status: String!
-    trade_date: String
-    signal_score: String
-    quantity: Int!
-    entry_price: String
-    stop_loss: String
-    target_price: String
-    risk_per_share: String
-    risk_amount: String
-    position_value: String
-    fees: String
-    risk_reward: String
-    stock: StockRef
-}
-
-"One step of the buy checks: signal, risk, portfolio, cash, sizing."
-type BuyCheck {
+"One step of the trade-plan checks: signal, risk, portfolio, cash, sizing."
+type TradeCheck {
     name: String!
     passed: Boolean!
     detail: String!
 }
 
-type BuyPlan {
+"The levels and size of a trade plan. Advice only: nothing is bought."
+type TradePlanLevels {
     stock_id: Int!
     quantity: Int!
     entry_price: Float!
@@ -158,13 +139,13 @@ type BuyPlan {
     risk_reward: Float!
 }
 
-"What a BUY signal would become, or why it would not. Nothing is stored."
-type BuyEvaluation {
+"What acting on a stock's BUY signal would look like for a portfolio, or why it would not be worth it. Nothing is stored or bought."
+type TradePlan {
     approved: Boolean!
     "The first failed check, null when approved."
     reason: String
-    checks: [BuyCheck!]!
-    plan: BuyPlan
+    checks: [TradeCheck!]!
+    plan: TradePlanLevels
 }
 
 type SellReason {
@@ -196,11 +177,9 @@ type SellDecision {
 
 extend type Query @guard {
     "Every holding judged against the sell rules: stop loss, trailing stop, target, breakdown, signal reversal. Recommends only; nothing is sold."
-    sellChecks(portfolio_id: Int!): [SellDecision!]! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@sellChecks")
-    "Run a stock's latest BUY signal through the risk, portfolio and cash checks without placing an order."
-    buyOrderPreview(portfolio_id: Int!, symbol: String!): BuyEvaluation! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@preview")
-    "Newest first."
-    buyOrders(portfolio_id: Int!, status: String): [BuyOrder!]! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@orders")
+    sellChecks(portfolio_id: Int!): [SellDecision!]! @field(resolver: "App\\GraphQL\\Resolvers\\TradePlanResolver@sellChecks")
+    "Run a stock's latest BUY signal through the risk, portfolio and cash checks and size it by risk. Advice only: nothing is placed."
+    tradePlan(portfolio_id: Int!, symbol: String!): TradePlan! @field(resolver: "App\\GraphQL\\Resolvers\\TradePlanResolver@tradePlan")
     "The user's portfolios, each with its summary."
     portfolios: [Portfolio!]! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@portfolios")
     portfolio(id: Int!): PortfolioDetails! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@portfolio")
@@ -210,11 +189,8 @@ extend type Query @guard {
 }
 
 extend type Mutation @guard {
-    "Create a pending buy order from the stock's BUY signal. Fails with the first failed check's reason (422)."
-    placeBuyOrder(portfolio_id: Int!, symbol: String!): BuyOrder! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@place")
-    cancelBuyOrder(portfolio_id: Int!, order_id: Int!): BuyOrder! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@cancel")
-    "Cash available for buying; pending orders reserve part of it."
-    setPortfolioCash(portfolio_id: Int!, cash_balance: Float): Portfolio! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@setCash")
+    "Cash you have available to invest; used to size the trade plan."
+    setPortfolioCash(portfolio_id: Int!, cash_balance: Float): Portfolio! @field(resolver: "App\\GraphQL\\Resolvers\\TradePlanResolver@setCash")
     createPortfolio(name: String): Portfolio! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@createPortfolio")
     addTransaction(
         portfolio_id: Int!

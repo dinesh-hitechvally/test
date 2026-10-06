@@ -40,7 +40,7 @@ class DocsPageTest extends TestCase
     {
         $this->get('/docs')
             ->assertOk()
-            ->assertSee('placeBuyOrder')          // from the GraphQL schema
+            ->assertSee('tradePlan')              // from the GraphQL schema
             ->assertSee('sellChecks')
             ->assertSee('/cron/generate/indicators', false) // from the registered routes
             ->assertSee('/cron/fetch/history/{symbol}', false)
@@ -74,7 +74,7 @@ class DocsPageTest extends TestCase
         $this->get('/console')
             ->assertOk()
             ->assertSee('Check all')
-            ->assertSee('buyOrderPreview')
+            ->assertSee('tradePlan')
             ->assertSee('data-cron="/cron/generate/indicators"', false);
     }
 

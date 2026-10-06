@@ -171,7 +171,7 @@ The app has no console commands of its own — every task runs through these URL
 |---|---|
 | Call a new nepalstock.com endpoint | `$this->client->get('/api/...')` via `NepalStockClient` — never build the auth headers yourself |
 | Fetch from a new website | a service in `Services/DataSources/<Site>/`; fire `ScrapeFinished` (+ `StockPricesUpdated` if it writes prices) |
-| Change when a BUY signal may become an order | the limits in `config/trading.php` (min risk/reward, stop buffer, risk per trade, position caps, fees); the check order lives in `BuyOrderService::evaluate()` |
+| Change when a BUY signal gets a trade plan | the limits in `config/trading.php` (min risk/reward, stop buffer, risk per trade, position caps, fees); the check order lives in `BuyOrderService::evaluate()` |
 | Add a signal rule | detect it in `SignalGeneratorService::detectRules()`, add its key + **weight** to `SignalRules::RULES`, then re-run generate/backtest-signals and check it beats baseline |
 | Add an indicator | calculator in `TechnicalAnalysisService`, store it in `IndicatorRecalculationService` (+ migration) |
 | React to something that happened | a listener in `Listeners/`, registered in `AppServiceProvider::LISTENERS` |

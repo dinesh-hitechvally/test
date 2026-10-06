@@ -27,12 +27,6 @@ class Portfolio extends Model
         return $this->hasMany(PortfolioTransaction::class);
     }
 
-    /** @return HasMany<BuyOrder, $this> */
-    public function buyOrders(): HasMany
-    {
-        return $this->hasMany(BuyOrder::class);
-    }
-
     /**
      * Newest first, with the stock's symbol/name — the order every listing
      * and export shows transactions in.
