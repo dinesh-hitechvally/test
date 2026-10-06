@@ -51,14 +51,14 @@ class AppServiceProvider extends ServiceProvider
     /**
      * The whole event workflow at a glance — what happens after what.
      * Registered explicitly (auto-discovery is off in bootstrap/app.php)
-     * so a stale `event:cache` manifest can never silently drop a
-     * listener: that would stop recalculation after every price update
+     * listener: that would stop it with no error anywhere. All listeners
+     * run synchronously.
      * with no error anywhere. All listeners run synchronously.
      *
      * @var array<class-string, list<class-string>>
      */
     private const LISTENERS = [
-        StockPricesUpdated::class => [RecalculateUpdatedStocks::class, FlagPriceQualityIssues::class],
+        StockPricesUpdated::class => [FlagPriceQualityIssues::class],
         ScrapeFinished::class => [RecordScrapeLog::class],
         TaskFailed::class => [AlertTaskFailure::class],
         UserLoggedIn::class => [RecordLoginHistory::class],

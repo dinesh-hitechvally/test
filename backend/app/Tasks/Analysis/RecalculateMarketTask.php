@@ -6,14 +6,16 @@ use App\Models\Stock;
 use App\Services\Analysis\RecalculationPipeline;
 use App\Tasks\Task;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Manual recalculation. The routine one no longer needs this — every price
- * update fires StockPricesUpdated and RecalculateUpdatedStocks handles it
- * in the same request. This is for re-running by hand: stocks priced on
- * the latest trading date by default, or every stock with ?all=1 after changing indicator
- * or signal rules.
+ * The one cron that generates technical indicators (and the signals and
+ * next-close estimate built on them). Price syncs only write prices; this
+ * picks up every stock with a price row that has no indicator row yet, or
+ * was written after its indicator row, so it is safe to run as often as
+ * wanted. ?all=1 forces every stock, e.g. after changing indicator or
+ * signal rules.
  */
 class RecalculateMarketTask extends Task
 {
@@ -35,16 +37,35 @@ class RecalculateMarketTask extends Task
 
     public function handle(): string
     {
-        $stocks = $this->all
-            ? Stock::all()
-            : Stock::whereIn('id', DB::table('daily_prices')->where('trade_date', DB::table('daily_prices')->max('trade_date'))->pluck('stock_id'))->get();
+        set_time_limit(0); // a full market recalculation runs a few hundred stocks inline
+
+        $stocks = $this->all ? Stock::all() : Stock::whereIn('id', $this->staleStockIds())->get();
 
         if ($stocks->isEmpty()) {
-            return 'No price rows yet — nothing to recalculate.';
+            return 'Indicators are up to date — nothing to recalculate.';
         }
 
         $this->pipeline->runForMany($stocks);
 
         return "Recalculated indicators/signals for {$stocks->count()} stock(s).";
+    }
+
+    /**
+     * Stocks with a price row that has no indicator row at least as new as it.
+     *
+     * @return Collection<int, int>
+     */
+    private function staleStockIds(): Collection
+    {
+        return DB::table('daily_prices as dp')
+            ->whereNotExists(function ($q) {
+                $q->selectRaw('1')
+                    ->from('technical_indicators as ti')
+                    ->whereColumn('ti.stock_id', 'dp.stock_id')
+                    ->whereColumn('ti.trade_date', 'dp.trade_date')
+                    ->whereColumn('ti.updated_at', '>=', 'dp.updated_at');
+            })
+            ->distinct()
+            ->pluck('dp.stock_id');
     }
 }

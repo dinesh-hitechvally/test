@@ -12,12 +12,14 @@ const stocksStore = useStocksStore()
 const portfolioOptions = computed(() => store.portfolios.map((p) => ({ value: p.id, label: p.name })))
 const stockOptions = computed(() => stocksStore.stocks.map((s) => ({ value: s.id, label: `${s.symbol} — ${s.company_name}` })))
 
+const decisions = computed(() => Object.fromEntries(store.sellChecks.map((d) => [d.stock_id, d])))
+
 const holdingsTable = useSortableTable(
   computed(() => store.detail?.holdings ?? []),
   {
     valueGetters: {
       signal: (h) => h.latest_signal?.signal ?? null,
-      position_status: (h) => h.position_status ?? null,
+      sell_check: (h) => decisions.value[h.stock_id]?.action ?? null,
     },
   }
 )
@@ -39,7 +41,39 @@ const submitting = ref(false)
 
 async function loadActive() {
   if (!store.activePortfolioId) return
-  await Promise.all([store.fetchDetail(store.activePortfolioId), store.fetchTransactions(store.activePortfolioId)])
+  await store.refreshAll(store.activePortfolioId)
+}
+
+const editingCash = ref(false)
+const cashInput = ref('')
+const cashError = ref('')
+
+function openCashEditor() {
+  cashInput.value = store.detail?.portfolio?.cash_balance ?? 0
+  cashError.value = ''
+  editingCash.value = true
+}
+
+async function saveCash() {
+  cashError.value = ''
+  try {
+    await store.setCash(store.activePortfolioId, cashInput.value)
+    editingCash.value = false
+  } catch (e) {
+    cashError.value = e.response?.data?.errors?.cash_balance?.[0] || e.response?.data?.message || 'Could not save cash.'
+  }
+}
+
+const cancellingOrderId = ref(null)
+
+async function cancelOrder(order) {
+  if (!window.confirm(`Cancel the pending buy order for ${order.quantity} ${order.stock?.symbol ?? ''}?`)) return
+  cancellingOrderId.value = order.id
+  try {
+    await store.cancelBuyOrder(store.activePortfolioId, order.id)
+  } finally {
+    cancellingOrderId.value = null
+  }
 }
 
 async function handleCreatePortfolio() {
@@ -193,14 +227,6 @@ function targetDistanceLabel(pct) {
   return pct >= 0 ? `${pct}% to target` : `${Math.abs(pct)}% past target`
 }
 
-function statusBadge(status) {
-  return {
-    stop_breached: { text: 'Stop hit — consider selling', class: 'sell' },
-    target_reached: { text: 'Target hit — consider booking profit', class: 'buy' },
-    holding: { text: 'Monitoring', class: 'hold' },
-  }[status] || null
-}
-
 // Only reload on an actual portfolio switch (via the dropdown) — the
 // initial assignment from fetchPortfolios() is already handled by the
 // explicit loadActive() call in onMounted below, so skip that first
@@ -279,6 +305,54 @@ onMounted(async () => {
         />
       </div>
 
+      <div class="grid grid-cards" style="margin-top: 16px">
+        <Card title="Cash">
+          <template v-if="!editingCash">
+            <p class="cash">Rs. {{ formatPrice(store.detail.portfolio.cash_balance) }}</p>
+            <p class="muted small">
+              Available for new buys. Set it by hand — recording a transaction doesn't change it. Pending buy orders reserve part of it.
+            </p>
+            <button class="btn-secondary btn" @click="openCashEditor">Edit cash</button>
+          </template>
+          <div v-else class="form-stack">
+            <input v-model="cashInput" type="number" min="0" step="0.01" class="input" placeholder="Cash (Rs.)" />
+            <p v-if="cashError" class="error-text">{{ cashError }}</p>
+            <div class="picker-row">
+              <button class="btn" @click="saveCash">Save</button>
+              <button class="btn-secondary btn" @click="editingCash = false">Cancel</button>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Card v-if="store.buyOrders.length" title="Pending Buy Orders" style="margin-top: 16px">
+        <p class="muted small">
+          Planned buys that passed the risk, portfolio and cash checks. Record the purchase as a transaction (Add Transaction) and the
+          order is marked filled and its stop-loss / target are set on the holding. Unfilled orders lapse after 5 days.
+        </p>
+        <table v-align-numbers class="table">
+          <thead>
+            <tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Stop-Loss</th><th>Target</th><th>R:R</th><th>Cost</th><th>Max loss</th><th>Planned</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="o in store.buyOrders" :key="o.id">
+              <td><StockLink v-if="o.stock" :symbol="o.stock.symbol" /></td>
+              <td>{{ o.quantity }}</td>
+              <td>{{ formatPrice(o.entry_price) }}</td>
+              <td class="negative">{{ formatPrice(o.stop_loss) }}</td>
+              <td class="positive">{{ formatPrice(o.target_price) }}</td>
+              <td>1:{{ o.risk_reward }}</td>
+              <td>{{ formatPrice(Number(o.position_value) + Number(o.fees)) }}</td>
+              <td>{{ formatPrice(o.risk_amount) }}</td>
+              <td class="muted">{{ o.trade_date }}</td>
+              <td>
+                <button class="btn-secondary btn" :disabled="cancellingOrderId === o.id" @click="cancelOrder(o)">Cancel</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </Card>
+
       <Card title="Holdings" style="margin-top: 16px">
         <table v-align-numbers class="table" v-if="store.detail.holdings.length">
           <thead>
@@ -292,7 +366,7 @@ onMounted(async () => {
               <SortableTh :table="holdingsTable" column="unrealized_pnl">Unrealized P&L</SortableTh>
               <SortableTh :table="holdingsTable" column="signal">Signal</SortableTh>
               <th>Stop-Loss / Target</th>
-              <SortableTh :table="holdingsTable" column="position_status">Status</SortableTh>
+              <SortableTh :table="holdingsTable" column="sell_check">Sell check</SortableTh>
               <th></th>
             </tr>
           </thead>
@@ -320,11 +394,14 @@ onMounted(async () => {
                 <span v-else class="muted">No data</span>
               </td>
               <td>
-                <template v-if="h.stop_loss !== null || h.target_price !== null">
+                <template v-if="h.stop_loss !== null || h.target_price !== null || decisions[h.stock_id]?.trailing_stop">
                   <div class="muted small">
                     <span v-if="h.stop_loss !== null">SL: {{ formatPrice(h.stop_loss) }}</span>
                     <span v-if="h.stop_loss !== null && h.target_price !== null"> · </span>
                     <span v-if="h.target_price !== null">TGT: {{ formatPrice(h.target_price) }}</span>
+                  </div>
+                  <div v-if="decisions[h.stock_id]?.trailing_stop" class="muted small" title="Follows the highest close since you bought, never moves down">
+                    Trailing stop: {{ formatPrice(decisions[h.stock_id].trailing_stop) }}
                   </div>
                   <div class="muted small" v-if="h.pct_to_stop !== null || h.pct_to_target !== null">
                     <span v-if="h.pct_to_stop !== null">{{ stopDistanceLabel(h.pct_to_stop) }}</span>
@@ -335,10 +412,7 @@ onMounted(async () => {
                 <span v-else class="muted">Not set</span>
               </td>
               <td>
-                <span v-if="statusBadge(h.position_status)" class="badge" :class="statusBadge(h.position_status).class">
-                  {{ statusBadge(h.position_status).text }}
-                </span>
-                <span v-else class="muted">—</span>
+                <SellBadge :decision="decisions[h.stock_id]" />
               </td>
               <td>
                 <button class="btn-secondary btn" @click="openTargetEditor(h)">
@@ -436,5 +510,11 @@ onMounted(async () => {
 .picker-row {
   display: flex;
   gap: 10px;
+}
+
+.cash {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin: 0 0 6px;
 }
 </style>

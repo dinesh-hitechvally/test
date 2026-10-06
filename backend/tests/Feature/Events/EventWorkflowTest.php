@@ -7,7 +7,7 @@ use App\Events\StockPricesUpdated;
 use App\Events\TaskFailed;
 use App\Events\UserLoggedIn;
 use App\Listeners\AlertTaskFailure;
-use App\Listeners\RecalculateUpdatedStocks;
+use App\Listeners\FlagPriceQualityIssues;
 use App\Listeners\RecordLoginHistory;
 use App\Listeners\RecordScrapeLog;
 use App\Models\DailyPrice;
@@ -27,13 +27,13 @@ class EventWorkflowTest extends TestCase
     {
         Event::fake();
 
-        Event::assertListening(StockPricesUpdated::class, RecalculateUpdatedStocks::class);
+        Event::assertListening(StockPricesUpdated::class, FlagPriceQualityIssues::class);
         Event::assertListening(ScrapeFinished::class, RecordScrapeLog::class);
         Event::assertListening(TaskFailed::class, AlertTaskFailure::class);
         Event::assertListening(UserLoggedIn::class, RecordLoginHistory::class);
     }
 
-    public function test_a_price_update_recalculates_exactly_those_stocks(): void
+    public function test_a_price_update_alone_does_not_generate_indicators_the_cron_does(): void
     {
         $updated = Stock::create(['symbol' => 'UPD', 'company_name' => 'U', 'is_active' => true]);
         $untouched = Stock::create(['symbol' => 'OTH', 'company_name' => 'O', 'is_active' => true]);
@@ -46,8 +46,13 @@ class EventWorkflowTest extends TestCase
 
         StockPricesUpdated::dispatch([$updated->id], 'test');
 
+        $this->assertSame(0, $updated->technicalIndicators()->count());
+
+        config(['services.cron.secret' => 'test-secret']);
+        $this->get('/cron/generate/indicators?key=test-secret')->assertOk();
+
         $this->assertSame(1, $updated->technicalIndicators()->count());
-        $this->assertSame(0, $untouched->technicalIndicators()->count());
+        $this->assertSame(1, $untouched->technicalIndicators()->count());
     }
 
     public function test_recalculation_also_populates_support_resistance_52_week_and_volume_ratio(): void
@@ -66,7 +71,8 @@ class EventWorkflowTest extends TestCase
             ]);
         }
 
-        StockPricesUpdated::dispatch([$stock->id], 'test');
+        config(['services.cron.secret' => 'test-secret']);
+        $this->get('/cron/generate/indicators?key=test-secret')->assertOk();
 
         $latest = $stock->technicalIndicators()->orderByDesc('trade_date')->first();
 

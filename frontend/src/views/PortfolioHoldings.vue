@@ -17,9 +17,11 @@ const holdingsTable = useSortableTable(
 )
 const { sorted } = holdingsTable
 
+const decisions = computed(() => Object.fromEntries(store.sellChecks.map((d) => [d.stock_id, d])))
+
 onMounted(async () => {
   await store.fetchPortfolios()
-  if (store.activePortfolioId) await store.fetchDetail(store.activePortfolioId)
+  if (store.activePortfolioId) await Promise.all([store.fetchDetail(store.activePortfolioId), store.fetchSellChecks(store.activePortfolioId)])
 })
 </script>
 
@@ -45,6 +47,7 @@ onMounted(async () => {
             <SortableTh :table="holdingsTable" column="current_value">Current Value</SortableTh>
             <SortableTh :table="holdingsTable" column="unrealized_pnl">Unrealized P&L</SortableTh>
             <SortableTh :table="holdingsTable" column="signal">Signal</SortableTh>
+            <th>Sell check</th>
           </tr>
         </thead>
         <tbody>
@@ -68,6 +71,12 @@ onMounted(async () => {
             <td>
               <SignalBadge v-if="h.latest_signal" :signal="h.latest_signal.signal" />
               <span v-else class="muted">No data</span>
+            </td>
+            <td>
+              <SellBadge :decision="decisions[h.stock_id]" />
+              <div v-if="decisions[h.stock_id]?.effective_stop" class="muted small">
+                Stop {{ formatPrice(decisions[h.stock_id].effective_stop) }}<span v-if="decisions[h.stock_id].trailing_stop"> (trailing)</span>
+              </div>
             </td>
           </tr>
         </tbody>

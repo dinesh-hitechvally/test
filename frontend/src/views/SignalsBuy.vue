@@ -1,11 +1,15 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import * as marketApi from '../api/market'
+import BuyPlanPanel from '../components/stock/BuyPlanPanel.vue'
+import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
+const portfolio = usePortfolioStore()
 const rows = ref([])
 const loading = ref(true)
+const planFor = ref(null) // symbol whose buy plan is open
 
 const table = useSortableTable(rows, {
   defaultKey: 'score',
@@ -29,15 +33,28 @@ function biasMismatch(row) {
   return row.trade_setup && row.trade_setup.bias === 'bearish'
 }
 
-onMounted(load)
+onMounted(async () => {
+  await Promise.all([load(), portfolio.fetchPortfolios()])
+})
 </script>
 
 <template>
   <div>
     <PageHeader title="Buy Signals">
-      Every stock currently flagged Buy or Strong Buy, ranked by score — highest conviction first. Target and stop-loss
-      come from each stock's own support/resistance and ATR — not financial advice.
+      Every stock currently flagged Buy or Strong Buy, ranked by score — highest conviction first. A signal alone never
+      buys: use "Plan buy" to run it through the risk, portfolio and cash checks and get the entry, stop-loss, target and
+      position size for your portfolio. The Target / Stop-Loss columns here are an indicative read from ATR and support/resistance
+      — the plan's numbers are the ones that count. Not financial advice.
     </PageHeader>
+
+    <BuyPlanPanel
+      v-if="planFor && portfolio.activePortfolioId"
+      :key="planFor"
+      :portfolio-id="portfolio.activePortfolioId"
+      :symbol="planFor"
+      @close="planFor = null"
+    />
+    <p v-else-if="planFor" class="muted">Create a portfolio first (Portfolio page) to plan a buy.</p>
 
     <LoadingState v-if="loading" />
 
@@ -49,10 +66,11 @@ onMounted(load)
             <SortableTh :table="table" column="company_name">Company</SortableTh>
             <SortableTh :table="table" column="close">Price</SortableTh>
             <SortableTh :table="table" column="signal">Signal</SortableTh>
-            <SortableTh :table="table" column="target">Target</SortableTh>
-            <SortableTh :table="table" column="stop_loss">Stop-Loss</SortableTh>
+            <SortableTh :table="table" column="target">Indicative Target</SortableTh>
+            <SortableTh :table="table" column="stop_loss">Indicative Stop</SortableTh>
             <SortableTh :table="table" column="risk_reward_ratio">R:R</SortableTh>
             <th>Reasons</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -79,6 +97,7 @@ onMounted(load)
                 <li v-for="(r, i) in s.reasons" :key="i">{{ r }}</li>
               </ul>
             </td>
+            <td><button class="btn-secondary btn" @click="planFor = s.symbol">Plan buy</button></td>
           </tr>
         </tbody>
       </table>

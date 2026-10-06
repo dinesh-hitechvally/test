@@ -86,7 +86,7 @@ class SharesansarHistoryService implements PriceHistorySource
             );
 
             // Inside the try on purpose: listeners run synchronously, so a
-            // recalculation failure still surfaces as this fetch failing.
+            // listener failure still surfaces as this fetch failing.
             StockPricesUpdated::dispatch([$stock->id], self::SOURCE_NAME);
 
             return $result;

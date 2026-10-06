@@ -17,7 +17,10 @@ use RuntimeException;
  */
 class PortfolioService
 {
-    public function __construct(private readonly PortfolioValuationService $valuation) {}
+    public function __construct(
+        private readonly PortfolioValuationService $valuation,
+        private readonly BuyOrderService $buyOrders,
+    ) {}
 
     /**
      * Scoped to the user so one user can never touch another's portfolio,
@@ -80,6 +83,10 @@ class PortfolioService
         }
 
         $transaction = $portfolio->transactions()->create([...$data, 'fees' => $data['fees'] ?? 0]);
+
+        if ($data['type'] === 'buy') {
+            $this->buyOrders->markExecuted($portfolio, (int) $data['stock_id']);
+        }
 
         return $transaction->load('stock:id,symbol,company_name');
     }

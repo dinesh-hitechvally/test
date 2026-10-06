@@ -27,7 +27,7 @@ use RuntimeException;
  * real WASM, and the resulting token is accepted by the real API.
  *
  * If NEPSE ever changes this algorithm, NepalStockClient::verify() —
- * /cron/scrape/verify-token — (or any real API call) will start failing loudly —
+ * /cron/check/nepse-token — (or any real API call) will start failing loudly —
  * at that point the WASM module needs re-disassembling, not this file
  * patched blindly.
  */

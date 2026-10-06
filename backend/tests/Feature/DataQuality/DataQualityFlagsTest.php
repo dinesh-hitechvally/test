@@ -76,7 +76,7 @@ class DataQualityFlagsTest extends TestCase
     {
         config(['services.cron.secret' => 'test-secret']);
 
-        $this->get('/cron/reports/data-quality-scan?key=test-secret')
+        $this->get('/cron/check/data-quality?key=test-secret')
             ->assertOk()
             ->assertSeeText('$ scan-data-quality')
             ->assertSeeText('[ok]');

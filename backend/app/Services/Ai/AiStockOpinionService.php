@@ -18,7 +18,7 @@ use App\Services\Reports\TechnicalAnalysisReportService;
  * replacement for any of them.
  *
  * Generation only ever happens in a background task (GenerateAiOpinionsTask,
- * run by the /cron/scrape/ai-opinions endpoint) — never from a
+ * run by the /cron/generate/ai-opinions endpoint) — never from a
  * user-facing request — and is persisted to ai_stock_opinions. Reading an
  * opinion (getStoredOpinion()) is a plain DB lookup with no external call,
  * so it's safe to show on every page load with no button/latency/quota

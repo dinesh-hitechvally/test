@@ -25,25 +25,29 @@ class CronTasksTest extends TestCase
         config(['services.cron.secret' => 'test-secret']);
     }
 
-    public function test_recalculate_only_touches_stocks_priced_today_unless_all_is_passed(): void
+    public function test_recalculate_picks_up_only_stocks_with_new_or_changed_prices_unless_all_is_passed(): void
     {
-        $today = Stock::create(['symbol' => 'TODAY', 'company_name' => 'T', 'is_active' => true]);
-        $old = Stock::create(['symbol' => 'OLD', 'company_name' => 'O', 'is_active' => true]);
-        $this->price($today, now()->toDateString());
-        $this->price($old, '2024-01-01');
+        $a = Stock::create(['symbol' => 'AAA', 'company_name' => 'A', 'is_active' => true]);
+        $b = Stock::create(['symbol' => 'BBB', 'company_name' => 'B', 'is_active' => true]);
+        $this->price($a, now()->toDateString());
+        $this->price($b, '2024-01-01');
 
-        $this->get('/cron/reports/market-recalculate?key=test-secret')
+        $this->get('/cron/generate/indicators?key=test-secret')
             ->assertOk()
             ->assertSeeText('$ recalculate-market')
-            ->assertSeeText('Recalculated indicators/signals for 1 stock(s).')
+            ->assertSeeText('Recalculated indicators/signals for 2 stock(s).')
             ->assertSeeText('[ok]');
 
-        $this->get('/cron/reports/market-recalculate?key=test-secret&all=1')
+        $this->get('/cron/generate/indicators?key=test-secret')
+            ->assertOk()
+            ->assertSeeText('nothing to recalculate');
+
+        $this->get('/cron/generate/indicators?key=test-secret&all=1')
             ->assertOk()
             ->assertSeeText('$ recalculate-market (all stocks)')
             ->assertSeeText('Recalculated indicators/signals for 2 stock(s).');
 
-        $this->assertSame(1, $old->technicalIndicators()->count());
+        $this->assertSame(1, $b->technicalIndicators()->count());
     }
 
     public function test_every_cron_route_runs_a_task_and_needs_the_key(): void
@@ -70,13 +74,13 @@ class CronTasksTest extends TestCase
         });
         Stock::create(['symbol' => 'NABIL', 'company_name' => 'N', 'is_active' => true]);
 
-        $this->get('/cron/scrape/fetch-history/nabil?key=test-secret')
+        $this->get('/cron/fetch/history/nabil?key=test-secret')
             ->assertOk()
             ->assertSeeText('$ fetch-stock-history NABIL')
             ->assertSeeText('3 rows imported (2024-01-01 to 2024-01-03).')
             ->assertSeeText('[ok]');
 
-        $this->get('/cron/scrape/fetch-history/NOPE?key=test-secret')
+        $this->get('/cron/fetch/history/NOPE?key=test-secret')
             ->assertOk()
             ->assertSeeText('Failed: No stock found for symbol [NOPE].')
             ->assertSeeText('[failed]');
@@ -84,7 +88,7 @@ class CronTasksTest extends TestCase
 
     public function test_backtest_signals_runs_the_service_directly(): void
     {
-        $this->get('/cron/reports/backtest-signals?key=test-secret')
+        $this->get('/cron/generate/backtest-signals?key=test-secret')
             ->assertOk()
             ->assertSeeText('$ backtest-signals')
             ->assertSeeText('Backtested over a 30-trading-day horizon')
@@ -98,7 +102,7 @@ class CronTasksTest extends TestCase
         $this->mock(FailureAlertService::class)
             ->shouldReceive('notifyFailure')->once()->with('market-sync', 'nepalstock.com unreachable');
 
-        $this->get('/cron/scrape/market-sync-stock?key=test-secret')
+        $this->get('/cron/fetch/prices?key=test-secret')
             ->assertOk()
             ->assertSeeText('Failed: nepalstock.com unreachable')
             ->assertSeeText('[failed]');

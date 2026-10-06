@@ -25,7 +25,7 @@ class PerStockTasksTest extends TestCase
 
     public function test_cron_routes_reject_a_missing_key(): void
     {
-        $this->get('/cron/scrape/fetch-histories')->assertForbidden();
+        $this->get('/cron/fetch/histories')->assertForbidden();
     }
 
     public function test_fetch_histories_processes_every_pending_stock_in_one_run(): void
@@ -49,7 +49,7 @@ class PerStockTasksTest extends TestCase
         }
 
         // ?limit= is gone — it's ignored if a pinger still sends it.
-        $this->get('/cron/scrape/fetch-histories?key=test-secret&limit=1')
+        $this->get('/cron/fetch/histories?key=test-secret&limit=1')
             ->assertOk()
             ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
             ->assertSeeText('$ fetch-histories')
@@ -62,7 +62,7 @@ class PerStockTasksTest extends TestCase
 
     public function test_fetch_histories_says_so_when_nothing_is_pending(): void
     {
-        $this->get('/cron/scrape/fetch-histories?key=test-secret')
+        $this->get('/cron/fetch/histories?key=test-secret')
             ->assertOk()
             ->assertSeeText('No stocks are missing full history.');
     }
@@ -82,7 +82,7 @@ class PerStockTasksTest extends TestCase
             }
         });
 
-        $this->get('/cron/scrape/ai-opinions?key=test-secret')
+        $this->get('/cron/generate/ai-opinions?key=test-secret')
             ->assertOk()
             ->assertSeeText('AI opinion is not configured on this instance');
     }
@@ -112,7 +112,7 @@ class PerStockTasksTest extends TestCase
         $stock = Stock::create(['symbol' => 'AAA', 'company_name' => 'A', 'is_active' => true]);
         Signal::create(['stock_id' => $stock->id, 'trade_date' => '2024-01-01', 'signal' => 'hold', 'score' => 0, 'reasons' => [], 'rule_keys' => []]);
 
-        $this->get('/cron/scrape/ai-opinions?key=test-secret')
+        $this->get('/cron/generate/ai-opinions?key=test-secret')
             ->assertOk()
             ->assertSeeText('AAA: hold (low confidence)')
             ->assertSeeText('Done — 1 stock(s) processed, 0 failed.');

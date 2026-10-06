@@ -61,7 +61,7 @@ For a production build, set `VITE_API_URL` in `frontend/.env.production` and run
 Data is fetched by task URLs under `/cron/*` (they all need `?key=CRON_SECRET`). On a server, schedule them as cPanel cron jobs, e.g.:
 
 ```bash
-curl -s "https://your-api-host/cron/scrape/market-sync-stock?key=YOUR_CRON_SECRET" > /dev/null
+curl -s "https://your-api-host/cron/fetch/prices?key=YOUR_CRON_SECRET" > /dev/null
 ```
 
 The full list, and when each should run, is in [`backend/ARCHITECTURE.md`](backend/ARCHITECTURE.md#cron-no-server-cron--ssh).

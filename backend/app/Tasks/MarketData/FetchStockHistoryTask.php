@@ -11,7 +11,7 @@ use RuntimeException;
 /**
  * The one-stock counterpart to FetchHistoriesTask — same full-history fetch
  * as the "Fetch Full History" button on a stock's page, reachable by URL
- * (/cron/scrape/fetch-history/NABIL). Re-running re-fetches (it's an
+ * (/cron/fetch/history/NABIL). Re-running re-fetches (it's an
  * upsert), and it isn't limited to stocks that never had history — this is
  * also how a stock flagged with a history error gets retried by hand.
  */

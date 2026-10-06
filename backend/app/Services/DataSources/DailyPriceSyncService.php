@@ -22,7 +22,7 @@ use Throwable;
  * Always saved under NEPSE's own trading date (never the server's "today"),
  * and only rows that are new or different are written, so running it again
  * and again is cheap and safe. Only stocks whose prices changed are
- * announced (StockPricesUpdated) — and so recalculated.
+ * announced (StockPricesUpdated); indicators are generated separately by the generate/indicators cron.
  */
 class DailyPriceSyncService
 {
@@ -80,7 +80,7 @@ class DailyPriceSyncService
         }
 
         // Outside the try: the prices are saved, so a failure in a
-        // (synchronous) listener — the recalculation — isn't a sync failure.
+        // (synchronous) listener isn't a sync failure.
         if ($result['changed_stock_ids'] !== []) {
             StockPricesUpdated::dispatch($result['changed_stock_ids'], $source);
         }

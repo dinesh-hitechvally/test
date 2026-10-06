@@ -47,7 +47,7 @@ export const DIVIDEND_SUMMARY = `stock_id symbol company_name sector close lates
   history { ${DIVIDEND} } right_share_count latest_right_share_ratio latest_right_share_pct latest_right_share_year
   right_share_history { id year ratio pct issue_price opening_date closing_date listing_date status } pick_score reasons`
 
-export const PORTFOLIO = 'id user_id name created_at updated_at'
+export const PORTFOLIO = 'id user_id name cash_balance created_at updated_at'
 
 export const PORTFOLIO_SUMMARY = 'total_invested current_value unrealized_pnl unrealized_pnl_pct realized_pnl total_pnl holdings_count'
 

@@ -26,6 +26,6 @@ class MarketSyncTask extends Task
             ."{$r['inserted']} added, {$r['updated']} corrected, {$r['unchanged']} already up to date"
             .($r['skipped'] ? ", {$r['skipped']} unknown symbol(s) skipped" : '')
             .($r['created_stocks'] ? ", {$r['created_stocks']} new stock(s)" : '')
-            .'. Changed stocks recalculated.';
+            .'.';
     }
 }

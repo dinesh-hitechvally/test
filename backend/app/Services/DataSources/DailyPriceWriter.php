@@ -11,7 +11,7 @@ use App\Services\DataQuality\DataQualityService;
  * touches what actually needs it: a missing row is inserted, a row whose
  * numbers differ (e.g. captured mid-session, now final) is updated, and an
  * identical row is left alone. The caller gets back which stocks changed,
- * so only those get recalculated.
+ * so only those are announced as updated.
  */
 class DailyPriceWriter
 {

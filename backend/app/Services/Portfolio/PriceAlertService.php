@@ -2,18 +2,19 @@
 
 namespace App\Services\Portfolio;
 
+use App\Models\Stock;
 use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
  * The topbar alerts: a user's portfolio holdings whose price crossed the
- * stop-loss/target they set, plus watchlist stocks that crossed their alert
+ * stop-loss/target they set or fell to the trailing stop (SellSignalService), plus watchlist stocks that crossed their alert
  * price. Computed fresh each call — nothing is stored, consistent with how
  * holdings themselves are never persisted.
  */
 class PriceAlertService
 {
-    public function __construct(private readonly PortfolioValuationService $valuation) {}
+    public function __construct(private readonly SellSignalService $sells) {}
 
     public function forUser(User $user): Collection
     {
@@ -24,9 +25,17 @@ class PriceAlertService
     {
         $alerts = collect();
 
+        $companies = Stock::pluck('company_name', 'id');
+
         foreach ($user->portfolios()->get() as $portfolio) {
-            foreach ($this->valuation->holdings($portfolio) as $holding) {
-                if (! in_array($holding['position_status'], ['stop_breached', 'target_reached'], true)) {
+            foreach ($this->sells->forPortfolio($portfolio) as $decision) {
+                $rules = array_column($decision['reasons'], 'rule');
+                // The topbar only carries price alerts; breakdown / signal reversal show in the Sell check column instead.
+                $status = array_intersect(['stop_loss', 'trailing_stop'], $rules) !== []
+                    ? 'stop_breached'
+                    : (in_array('target', $rules, true) ? 'target_reached' : null);
+
+                if ($status === null) {
                     continue;
                 }
 
@@ -34,13 +43,14 @@ class PriceAlertService
                     'kind' => 'portfolio',
                     'portfolio_id' => $portfolio->id,
                     'portfolio_name' => $portfolio->name,
-                    'stock_id' => $holding['stock_id'],
-                    'symbol' => $holding['symbol'],
-                    'company_name' => $holding['company_name'],
-                    'current_price' => $holding['current_price'],
-                    'stop_loss' => $holding['stop_loss'],
-                    'target_price' => $holding['target_price'],
-                    'status' => $holding['position_status'],
+                    'stock_id' => $decision['stock_id'],
+                    'symbol' => $decision['symbol'],
+                    'company_name' => $companies[$decision['stock_id']] ?? null,
+                    'current_price' => $decision['current_price'],
+                    // The level that actually protects the position: the higher of the stop-loss and the trailing stop.
+                    'stop_loss' => $decision['effective_stop'],
+                    'target_price' => $decision['target_price'],
+                    'status' => $status,
                 ]);
             }
         }

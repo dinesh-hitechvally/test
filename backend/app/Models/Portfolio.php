@@ -7,9 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'name'])]
+#[Fillable(['user_id', 'name', 'cash_balance'])]
 class Portfolio extends Model
 {
+    protected function casts(): array
+    {
+        return ['cash_balance' => 'decimal:4'];
+    }
+
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
@@ -20,6 +25,12 @@ class Portfolio extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(PortfolioTransaction::class);
+    }
+
+    /** @return HasMany<BuyOrder, $this> */
+    public function buyOrders(): HasMany
+    {
+        return $this->hasMany(BuyOrder::class);
     }
 
     /**

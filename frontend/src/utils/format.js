@@ -21,3 +21,16 @@ export function changeTone(value, neutral = '') {
   if (value === null || value === undefined) return neutral
   return value > 0 ? 'positive' : value < 0 ? 'negative' : neutral
 }
+
+const SELL_REASON_LABELS = {
+  stop_loss: 'Stop loss hit',
+  trailing_stop: 'Trailing stop hit',
+  target: 'Target reached',
+  breakdown: 'Technical breakdown',
+  signal_reversal: 'Signal reversal',
+}
+
+/** "trailing_stop" → "Trailing stop hit". */
+export function formatSellReason(rule) {
+  return SELL_REASON_LABELS[rule] ?? rule
+}

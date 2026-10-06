@@ -31,7 +31,7 @@ The backend's structure and rules are written up in [`backend/ARCHITECTURE.md`](
 - **React to things with events.** Fire an event (e.g. `StockPricesUpdated`) and add a listener in `AppServiceProvider::LISTENERS`, instead of calling the follow-up directly.
 - **Read settings with `config()`, never `env()`,** outside the `config/` folder.
 - **New columns on a table that's already in production need a new migration.** Editing an old migration only affects fresh installs.
-- **A change to indicator or signal logic must be backtested** — re-run `/cron/reports/backtest-signals` and say in the pull request how the accuracy changed.
+- **A change to indicator or signal logic must be backtested** — re-run `/cron/generate/backtest-signals` and say in the pull request how the accuracy changed.
 
 **Frontend:**
 - Pages get their data from the functions in `src/api/<area>.js`, never by calling `gql()` or axios directly.

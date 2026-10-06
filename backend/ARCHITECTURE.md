@@ -112,7 +112,7 @@ waits for them.
 
 | Event | Fired by | Listener |
 |---|---|---|
-| `StockPricesUpdated` | market sync, history fetch (either source), CSV import | `RecalculateUpdatedStocks` → RecalculationPipeline for those stocks; `FlagPriceQualityIssues` → DataQualityService checks on each stock's newest row |
+| `StockPricesUpdated` | market sync, history fetch (either source), CSV import | `FlagPriceQualityIssues` → DataQualityService checks on each stock's newest row |
 | `ScrapeFinished` | every external fetch, success or failure | `RecordScrapeLog` → `scrape_logs` row |
 | `TaskFailed` | TaskRunner (any failed task) | `AlertTaskFailure` → FailureAlertService |
 | `UserLoggedIn` | the `login` mutation (AuthResolver) | `RecordLoginHistory` → LoginHistoryService (IP, device, location) |
@@ -125,25 +125,36 @@ transport exception is caught by the hook in `bootstrap/app.php`; code that catc
 itself must `report($e)` for the row to be marked failed. Bodies are never stored (reset links
 are secrets). Read it with the `emailLogs(status: "failed")` GraphQL query.
 
-So the daily chain is: **market sync → `StockPricesUpdated` → recalculation**,
-all in one request. Listeners are registered explicitly (discovery is off in
+So the daily chain is: **fetch/prices (prices only) → generate/indicators (indicators → signals → next-close)**.
+Listeners are registered explicitly (discovery is off in
 `bootstrap/app.php`) so a stale `event:cache` can never silently drop one.
 
 ## Cron (no server cron / SSH)
 
+> A browsable version of this section, the API reference and the buy/sell rules is served at **`/docs`** (single page, built from the live schema and routes; `DOCS_ENABLED=false` hides it).
+
 The task URLs are ordinary routes in `routes/web.php` (each one names the task it runs),
 all under `/cron/*` and all needing `?key=CRON_SECRET`. **Scheduling is done in cPanel cron,
 not in code** — add a cron job there that curls the URL at the time you want, e.g.
-`curl -s "https://api.bizrms.com/cron/scrape/market-sync-stock?key=..."`.
+`curl -s "https://api.bizrms.com/cron/fetch/prices?key=..."`.
 
+URL pattern: `/cron/<kind>/<what>`
+
+| Kind | Does | URL → task |
+|---|---|---|
+| `fetch/` | Pulls from an external source and saves raw data. Never computes anything. | `stock-list` · `prices` (live while open, final after close) · `index` · `histories` (all pending stocks) · `history/{symbol}` (one stock) · `sectors` · `dividends` · `fundamentals` |
+| `generate/` | Computes derived data from what is already in the database. | `indicators` (indicators → signals → next-close; `?all=1` = every stock) · `ai-opinions` (Groq) · `ml-model` · `backtest-signals` · `backtest-next-close` |
+| `check/` | Health checks. | `nepse-token` · `data-quality` |
+
+- **Order matters:** `fetch/prices` → `generate/indicators` → `generate/ai-opinions`. `generate/indicators`
+  is the only thing that creates indicator rows; it picks up stocks with new or changed prices, so it is
+  safe to run as often as you like.
 - **Suggested times (NPT, Asia/Kathmandu — check which timezone your cPanel cron uses):**
-  sync-stock-list 06:00 daily; market-sync-stock 15:30 and market-sync-index 15:32 Mon–Fri
-  (after NEPSE's ~15:00 close); train-ml 03:30, backtest-signals 04:00, backtest-next-close
-  04:15, data-quality-scan 04:30 on Mondays.
-- **On-demand:** fetch-history/{symbol}, market-recalculate (`?all=1` = every
-  stock), verify-token.
-- **Per-stock (no batches):** fetch-histories, sync-sectors, sync-dividends,
-  ai-opinions, fundamentals. Each run processes **every** pending stock; each
+  fetch/stock-list 06:00 daily; fetch/prices 15:30 and fetch/index 15:32 Mon–Fri (after NEPSE's
+  ~15:00 close); generate/indicators 15:40 Mon–Fri; generate/ml-model 03:30,
+  generate/backtest-signals 04:00, generate/backtest-next-close 04:15, check/data-quality 04:30 on Mondays.
+- **Per-stock (no batches):** fetch/histories, fetch/sectors, fetch/dividends, fetch/fundamentals,
+  generate/ai-opinions. Each run processes **every** pending stock; each
   stock is saved as it finishes, so if the host cuts a long request short,
   ping again and it resumes. First runs are long (ai-opinions ≈ pending ÷ 2
   minutes, because Groq's free tier fits ~2 stocks/minute and the task waits
@@ -157,7 +168,8 @@ The app has no console commands of its own — every task runs through these URL
 |---|---|
 | Call a new nepalstock.com endpoint | `$this->client->get('/api/...')` via `NepalStockClient` — never build the auth headers yourself |
 | Fetch from a new website | a service in `Services/DataSources/<Site>/`; fire `ScrapeFinished` (+ `StockPricesUpdated` if it writes prices) |
-| Add a signal rule | detect it in `SignalGeneratorService::detectRules()`, add its key + **weight** to `SignalRules::RULES`, then re-run backtest-signals and check it beats baseline |
+| Change when a BUY signal may become an order | the limits in `config/trading.php` (min risk/reward, stop buffer, risk per trade, position caps, fees); the check order lives in `BuyOrderService::evaluate()` |
+| Add a signal rule | detect it in `SignalGeneratorService::detectRules()`, add its key + **weight** to `SignalRules::RULES`, then re-run generate/backtest-signals and check it beats baseline |
 | Add an indicator | calculator in `TechnicalAnalysisService`, store it in `IndicatorRecalculationService` (+ migration) |
 | React to something that happened | a listener in `Listeners/`, registered in `AppServiceProvider::LISTENERS` |
 | A new background task | a `Task` (or `PerStockTask` for per-stock work) in `Tasks/<Domain>/`. To trigger it by URL, add a route in `routes/web.php` (`->defaults('task', MyTask::class)`); schedule it in cPanel cron; if it needs URL input, override `withRequest()`. To run it from code: `app(TaskRunner::class)->run(app(MyTask::class))`. |
@@ -186,5 +198,5 @@ php artisan optimize:clear       # clears cached config/routes/events
 php artisan lighthouse:clear-cache   # when a graphql/*.graphql file changed
 ```
 
-After changing indicator or signal logic: open `/cron/reports/market-recalculate?all=1&key=…`,
-then `/cron/reports/backtest-signals?key=…`.
+After changing indicator or signal logic: open `/cron/generate/indicators?all=1&key=…`,
+then `/cron/generate/backtest-signals?key=…`.

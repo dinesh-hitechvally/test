@@ -2,6 +2,7 @@ type Portfolio {
     id: Int!
     user_id: Int
     name: String!
+    cash_balance: String
     created_at: String
     updated_at: String
     "On the portfolio list."
@@ -117,7 +118,89 @@ type PortfolioPerformance {
     metrics: PerformanceMetrics
 }
 
+type BuyOrder {
+    id: Int!
+    portfolio_id: Int
+    stock_id: Int
+    "pending | executed | cancelled | expired"
+    status: String!
+    trade_date: String
+    signal_score: String
+    quantity: Int!
+    entry_price: String
+    stop_loss: String
+    target_price: String
+    risk_per_share: String
+    risk_amount: String
+    position_value: String
+    fees: String
+    risk_reward: String
+    stock: StockRef
+}
+
+"One step of the buy checks: signal, risk, portfolio, cash, sizing."
+type BuyCheck {
+    name: String!
+    passed: Boolean!
+    detail: String!
+}
+
+type BuyPlan {
+    stock_id: Int!
+    quantity: Int!
+    entry_price: Float!
+    stop_loss: Float!
+    target_price: Float!
+    risk_per_share: Float!
+    risk_amount: Float!
+    position_value: Float!
+    fees: Float!
+    risk_reward: Float!
+}
+
+"What a BUY signal would become, or why it would not. Nothing is stored."
+type BuyEvaluation {
+    approved: Boolean!
+    "The first failed check, null when approved."
+    reason: String
+    checks: [BuyCheck!]!
+    plan: BuyPlan
+}
+
+type SellReason {
+    "stop_loss | trailing_stop | target | breakdown | signal_reversal"
+    rule: String!
+    detail: String!
+}
+
+"Sell or hold for one holding, with every reason that fired (the first is the primary one)."
+type SellDecision {
+    stock_id: Int!
+    symbol: String!
+    quantity: Int!
+    avg_cost: Float
+    current_price: Float
+    "sell | hold"
+    action: String!
+    primary_reason: String
+    reasons: [SellReason!]!
+    note: String
+    stop_loss: Float
+    "Null until the stock has risen enough for the trailing stop to sit at or above cost."
+    trailing_stop: Float
+    "The higher of stop_loss and trailing_stop."
+    effective_stop: Float
+    target_price: Float
+    highest_close: Float
+}
+
 extend type Query @guard {
+    "Every holding judged against the sell rules: stop loss, trailing stop, target, breakdown, signal reversal. Recommends only; nothing is sold."
+    sellChecks(portfolio_id: Int!): [SellDecision!]! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@sellChecks")
+    "Run a stock's latest BUY signal through the risk, portfolio and cash checks without placing an order."
+    buyOrderPreview(portfolio_id: Int!, symbol: String!): BuyEvaluation! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@preview")
+    "Newest first."
+    buyOrders(portfolio_id: Int!, status: String): [BuyOrder!]! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@orders")
     "The user's portfolios, each with its summary."
     portfolios: [Portfolio!]! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@portfolios")
     portfolio(id: Int!): PortfolioDetails! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@portfolio")
@@ -127,6 +210,11 @@ extend type Query @guard {
 }
 
 extend type Mutation @guard {
+    "Create a pending buy order from the stock's BUY signal. Fails with the first failed check's reason (422)."
+    placeBuyOrder(portfolio_id: Int!, symbol: String!): BuyOrder! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@place")
+    cancelBuyOrder(portfolio_id: Int!, order_id: Int!): BuyOrder! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@cancel")
+    "Cash available for buying; pending orders reserve part of it."
+    setPortfolioCash(portfolio_id: Int!, cash_balance: Float): Portfolio! @field(resolver: "App\\GraphQL\\Resolvers\\BuyOrderResolver@setCash")
     createPortfolio(name: String): Portfolio! @field(resolver: "App\\GraphQL\\Resolvers\\PortfolioResolver@createPortfolio")
     addTransaction(
         portfolio_id: Int!
