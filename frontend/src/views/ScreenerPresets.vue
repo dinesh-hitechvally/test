@@ -65,10 +65,13 @@ const { sorted: sortedLongTerm } = longTermTable
 
 async function load() {
   loading.value = true
-  const [screenerData, weekData] = await Promise.all([marketApi.screener(), marketApi.fiftyTwoWeek()])
-  stocks.value = screenerData
-  fiftyTwoWeek.value = weekData
-  loading.value = false
+  try {
+    const [screenerData, weekData] = await Promise.all([marketApi.screener(), marketApi.fiftyTwoWeek()])
+    stocks.value = screenerData
+    fiftyTwoWeek.value = weekData
+  } finally {
+    loading.value = false
+  }
 }
 
 // This preset's score is a real backend computation (dividend/right-share/

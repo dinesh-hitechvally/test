@@ -11,8 +11,11 @@ const COLORS = ['#2563eb', '#dc2626', '#15803d', '#d97706']
 
 async function load() {
   loading.value = true
-  indices.value = await marketApi.indices()
-  loading.value = false
+  try {
+    indices.value = await marketApi.indices()
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)

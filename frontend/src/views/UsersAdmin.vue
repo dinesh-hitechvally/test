@@ -11,8 +11,11 @@ const { sorted } = usersTable
 
 async function load() {
   loading.value = true
-  users.value = await authApi.users()
-  loading.value = false
+  try {
+    users.value = await authApi.users()
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)

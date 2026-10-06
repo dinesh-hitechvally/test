@@ -20,10 +20,13 @@ const { sorted: sortedFlagged } = flaggedTable
 
 async function load() {
   loading.value = true
-  const [status] = await Promise.all([marketApi.dataSourceStatus(), store.fetchScrapeLogs()])
-  flaggedStocks.value = status.flagged_stocks
-  secretConfigured.value = status.secret_configured
-  loading.value = false
+  try {
+    const [status] = await Promise.all([marketApi.dataSourceStatus(), store.fetchScrapeLogs()])
+    flaggedStocks.value = status.flagged_stocks
+    secretConfigured.value = status.secret_configured
+  } finally {
+    loading.value = false
+  }
 }
 
 const sourceLabels = { history: 'Full History' }

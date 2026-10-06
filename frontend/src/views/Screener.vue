@@ -42,8 +42,11 @@ const pageSize = 50
 
 async function load() {
   loading.value = true
-  stocks.value = await marketApi.screener()
-  loading.value = false
+  try {
+    stocks.value = await marketApi.screener()
+  } finally {
+    loading.value = false
+  }
 }
 
 const sectors = computed(() => {

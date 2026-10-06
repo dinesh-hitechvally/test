@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { requestFinished, requestStarted } from '../utils/apiActivity'
 
 // Follow whatever hostname the page was actually opened with (localhost vs.
 // 127.0.0.1) rather than a hardcoded value, so the API URL always matches
@@ -14,11 +15,15 @@ const baseURL = isDefaultLocalUrl && typeof window !== 'undefined'
 const client = axios.create({
   baseURL: `${baseURL}/api`,
   headers: { Accept: 'application/json' },
+  // A request that gets no answer at all eventually fails instead of spinning forever; the page stays usable
+  // and a notice says it timed out. Generous, because some reports are slow.
+  timeout: 60000,
 })
 
 // Every request carries the Sanctum bearer token from localStorage (set by
 // the auth store on login, cleared on logout) — no session cookie, no CSRF.
 client.interceptors.request.use((config) => {
+  requestStarted() // counted for the top bar's loading spinner; every request finishes in the response interceptor
   const token = localStorage.getItem('auth_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
@@ -28,8 +33,14 @@ client.interceptors.request.use((config) => {
 // call needs auth") — tell the app so it can drop the stale session and send
 // the user to /login, instead of leaving the UI stuck showing "logged in".
 client.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    requestFinished()
+
+    return response
+  },
   (error) => {
+    requestFinished()
+
     if (error.response?.status === 401) window.dispatchEvent(new CustomEvent('auth:unauthenticated'))
     return Promise.reject(error)
   }

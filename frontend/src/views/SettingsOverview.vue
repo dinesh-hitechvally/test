@@ -52,14 +52,17 @@ const SECTIONS = [
 
 async function load() {
   loading.value = true
-  const [users, schedule] = await Promise.all([
-    authApi.users(),
-    marketApi.dataSourceStatus(),
-    stocksStore.fetchScrapeLogs(),
-  ])
-  userCount.value = users.length
-  scheduleCount.value = schedule.length
-  loading.value = false
+  try {
+    const [users, schedule] = await Promise.all([
+      authApi.users(),
+      marketApi.dataSourceStatus(),
+      stocksStore.fetchScrapeLogs(),
+    ])
+    userCount.value = users.length
+    scheduleCount.value = schedule.length
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)

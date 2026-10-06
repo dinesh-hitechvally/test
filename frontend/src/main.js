@@ -6,11 +6,27 @@ import router from './router'
 import alignNumbers from './directives/alignNumbers'
 import ui from './components/ui'
 import { useAuthStore } from './stores/auth'
+import { isApiOutage, reportApiError } from './utils/apiActivity'
 
 const app = createApp(App)
 const pinia = createPinia()
 
 app.use(ui)
+
+// A failed request must never break the app. Anything the page area did not already deal with (see
+// PageErrorBoundary) lands here: an API outage becomes a small notice, anything else is logged for developers.
+app.config.errorHandler = (error, _instance, info) => {
+  if (isApiOutage(error)) reportApiError(error)
+  else console.error(`[${info}]`, error)
+}
+
+// A request nobody awaited properly rejects here: same treatment, and no red console error for an outage.
+window.addEventListener('unhandledrejection', (event) => {
+  if (isApiOutage(event.reason)) {
+    reportApiError(event.reason)
+    event.preventDefault()
+  }
+})
 app.directive('align-numbers', alignNumbers)
 app.use(pinia)
 app.use(router)

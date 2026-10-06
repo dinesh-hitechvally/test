@@ -3,7 +3,9 @@ import { computed, watch } from 'vue'
 import { useAuthStore } from './stores/auth'
 import { useStocksStore } from './stores/stocks'
 import AppSidebar from './components/layout/AppSidebar.vue'
+import ApiNotices from './components/layout/ApiNotices.vue'
 import AppTopbar from './components/layout/AppTopbar.vue'
+import PageErrorBoundary from './components/layout/PageErrorBoundary.vue'
 
 const auth = useAuthStore()
 const stocksStore = useStocksStore()
@@ -26,7 +28,12 @@ watch(
     <div class="main-column">
       <AppTopbar />
       <main class="content">
-        <RouterView />
+        <ApiNotices />
+        <RouterView v-slot="{ Component, route }">
+          <PageErrorBoundary :key="route.fullPath">
+            <component :is="Component" />
+          </PageErrorBoundary>
+        </RouterView>
       </main>
     </div>
   </div>

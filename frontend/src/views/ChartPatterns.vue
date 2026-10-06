@@ -17,8 +17,11 @@ function biasClass(signal) {
 
 async function load() {
   loading.value = true
-  matches.value = await marketApi.candlestickPatterns()
-  loading.value = false
+  try {
+    matches.value = await marketApi.candlestickPatterns()
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)

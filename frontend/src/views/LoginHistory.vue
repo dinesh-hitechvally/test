@@ -36,8 +36,11 @@ function device(userAgent) {
 
 async function load() {
   loading.value = true
-  history.value = await authApi.loginHistory()
-  loading.value = false
+  try {
+    history.value = await authApi.loginHistory()
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)

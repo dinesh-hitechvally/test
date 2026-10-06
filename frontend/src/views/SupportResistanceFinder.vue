@@ -25,8 +25,11 @@ const { sorted } = table
 
 async function load() {
   loading.value = true
-  rows.value = await marketApi.fiftyTwoWeek()
-  loading.value = false
+  try {
+    rows.value = await marketApi.fiftyTwoWeek()
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)

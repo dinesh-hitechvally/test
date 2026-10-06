@@ -30,8 +30,11 @@ const turnoverSeries = computed(() => [
 
 async function load() {
   loading.value = true
-  report.value = await reportsApi.market()
-  loading.value = false
+  try {
+    report.value = await reportsApi.market()
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)

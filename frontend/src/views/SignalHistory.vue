@@ -21,8 +21,11 @@ const rows = computed(() => {
 
 async function load() {
   loading.value = true
-  data.value = await marketApi.signalAccuracy()
-  loading.value = false
+  try {
+    data.value = await marketApi.signalAccuracy()
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)

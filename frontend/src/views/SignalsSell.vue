@@ -21,8 +21,11 @@ const { sorted } = table
 
 async function load() {
   loading.value = true
-  rows.value = await marketApi.actionableSignals('sell')
-  loading.value = false
+  try {
+    rows.value = await marketApi.actionableSignals('sell')
+  } finally {
+    loading.value = false
+  }
 }
 
 function biasMismatch(row) {

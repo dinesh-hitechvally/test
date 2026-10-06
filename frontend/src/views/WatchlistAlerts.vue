@@ -32,8 +32,11 @@ const { sorted } = alertsTable
 
 async function load() {
   loading.value = true
-  watchlists.value = await watchlistsApi.list()
-  loading.value = false
+  try {
+    watchlists.value = await watchlistsApi.list()
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(load)

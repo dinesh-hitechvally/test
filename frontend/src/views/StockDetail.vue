@@ -49,39 +49,42 @@ const corporateActionsError = ref('')
 
 async function loadAll(symbol) {
   loading.value = true
-  signalsPage.value = 1
-  aiOpinion.value = null
-  aiOpinionMessage.value = ''
-  nextCloseForecast.value = null
-  nextCloseForecastMessage.value = ''
-  // One request for everything this page needs (stock, price/indicator/forecast series, ML,
-  // dividends, right shares, AI opinion, next-close forecast + its accuracy, and page 1 of signal
-  // history) — was ~10 separate round trips, each its own request hitting the server.
-  const data = await stocksApi.detail(symbol, 1000)
+  try {
+    signalsPage.value = 1
+    aiOpinion.value = null
+    aiOpinionMessage.value = ''
+    nextCloseForecast.value = null
+    nextCloseForecastMessage.value = ''
+    // One request for everything this page needs (stock, price/indicator/forecast series, ML,
+    // dividends, right shares, AI opinion, next-close forecast + its accuracy, and page 1 of signal
+    // history) — was ~10 separate round trips, each its own request hitting the server.
+    const data = await stocksApi.detail(symbol, 1000)
 
-  stock.value = data.stock
-  prices.value = data.stockPrices
-  indicators.value = data.stockIndicators
-  forecastHistory.value = data.stockForecasts
-  mlPrediction.value = data.stockMlPrediction.prediction
-  mlModel.value = data.stockMlPrediction.model
-  dividends.value = data.stockDividends
-  rightShares.value = data.stockRightShares
-  if (data.stockAiOpinion.available) {
-    aiOpinion.value = data.stockAiOpinion
-  } else {
-    aiOpinionMessage.value = data.stockAiOpinion.message
+    stock.value = data.stock
+    prices.value = data.stockPrices
+    indicators.value = data.stockIndicators
+    forecastHistory.value = data.stockForecasts
+    mlPrediction.value = data.stockMlPrediction.prediction
+    mlModel.value = data.stockMlPrediction.model
+    dividends.value = data.stockDividends
+    rightShares.value = data.stockRightShares
+    if (data.stockAiOpinion.available) {
+      aiOpinion.value = data.stockAiOpinion
+    } else {
+      aiOpinionMessage.value = data.stockAiOpinion.message
+    }
+    if (data.stockNextCloseForecast.available) {
+      nextCloseForecast.value = data.stockNextCloseForecast
+    } else {
+      nextCloseForecastMessage.value = data.stockNextCloseForecast.message
+    }
+    if (data.nextCloseAccuracy.available) nextCloseAccuracy.value = data.nextCloseAccuracy
+    signals.value = data.stockSignals.data.reverse()
+    signalsPage.value = data.stockSignals.page
+    signalsTotalPages.value = data.stockSignals.total_pages
+  } finally {
+    loading.value = false
   }
-  if (data.stockNextCloseForecast.available) {
-    nextCloseForecast.value = data.stockNextCloseForecast
-  } else {
-    nextCloseForecastMessage.value = data.stockNextCloseForecast.message
-  }
-  if (data.nextCloseAccuracy.available) nextCloseAccuracy.value = data.nextCloseAccuracy
-  signals.value = data.stockSignals.data.reverse()
-  signalsPage.value = data.stockSignals.page
-  signalsTotalPages.value = data.stockSignals.total_pages
-  loading.value = false
 }
 
 async function loadSignalsPage(page) {
@@ -149,7 +152,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 </script>
 
 <template>
-  <div v-if="loading" class="muted">Loading…</div>
+  <LoadingState v-if="loading" />
   <div v-else>
     <div class="page-header">
       <div>

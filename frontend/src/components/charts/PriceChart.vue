@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'chart.js'
 import zoomPlugin from 'chartjs-plugin-zoom'
+import { formatPrice } from '../../utils/format'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, zoomPlugin)
 
@@ -92,6 +93,28 @@ const options = {
   interaction: { mode: 'index', intersect: false },
   scales: { x: { ticks: { maxTicksLimit: 10 } } },
   plugins: {
+    tooltip: {
+      callbacks: {
+        // Under the Close / moving-average lines: the rest of that day's trading — open, high, low, volume and
+        // how far the close moved from the previous day's.
+        footer(items) {
+          const index = items[0]?.dataIndex
+          const day = props.prices[index]
+
+          if (!day) return []
+
+          const previous = index > 0 ? Number(props.prices[index - 1].close_price) : null
+          const change = previous ? ((Number(day.close_price) - previous) / previous) * 100 : null
+          const changeText = change === null ? '' : `   Change ${change > 0 ? '+' : ''}${change.toFixed(2)}%`
+
+          return [
+            `Open ${formatPrice(day.open_price)}   High ${formatPrice(day.high_price)}   Low ${formatPrice(day.low_price)}`,
+            `Volume ${day.volume === null || day.volume === undefined ? '—' : Number(day.volume).toLocaleString()}${changeText}`,
+          ]
+        },
+      },
+      footerMarginTop: 8,
+    },
     zoom: {
       pan: {
         enabled: true,

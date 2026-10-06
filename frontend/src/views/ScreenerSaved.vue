@@ -9,8 +9,11 @@ const deletingId = ref(null)
 
 async function load() {
   loading.value = true
-  screens.value = await watchlistsApi.savedScreens()
-  loading.value = false
+  try {
+    screens.value = await watchlistsApi.savedScreens()
+  } finally {
+    loading.value = false
+  }
 }
 
 async function remove(id) {

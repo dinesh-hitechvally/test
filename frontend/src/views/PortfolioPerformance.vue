@@ -66,13 +66,16 @@ const options = {
 
 async function load() {
   loading.value = true
-  if (store.portfolios.length === 0) await store.fetchPortfolios()
-  if (store.activePortfolioId) {
-    const data = await portfolioApi.performance(store.activePortfolioId)
-    history.value = data.history
-    metrics.value = data.metrics
+  try {
+    if (store.portfolios.length === 0) await store.fetchPortfolios()
+    if (store.activePortfolioId) {
+      const data = await portfolioApi.performance(store.activePortfolioId)
+      history.value = data.history
+      metrics.value = data.metrics
+    }
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 onMounted(load)

@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useStocksStore } from '../../stores/stocks'
 import { formatPrice } from '../../utils/format'
 import { pageTitleOverride } from '../../composables/usePageTitle'
+import { pending } from '../../utils/apiActivity'
 import { getNotificationPrefs } from '../../utils/notificationPrefs'
 
 const route = useRoute()
@@ -74,6 +75,11 @@ onUnmounted(() => {
     <h1 class="page-title">{{ title }}</h1>
 
     <div class="topbar-actions">
+      <span v-if="pending > 0" class="request-indicator" title="Waiting for the server…" role="status">
+        <span class="spinner" aria-hidden="true" />
+        <span class="muted">Loading…</span>
+      </span>
+
       <div class="alerts-wrap">
         <button class="bell-btn" @click="toggleAlerts" @blur="handleAlertsBlur">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -134,6 +140,13 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis; /* a long company name must not push the bell and user menu off the bar */
+}
+
+.request-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
 }
 
 .topbar-actions {
