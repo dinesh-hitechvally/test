@@ -36,7 +36,7 @@ const { sorted } = table
       <tr v-for="stock in sorted" :key="stock.id">
         <td><StockLink :symbol="stock.symbol" /></td>
         <td>{{ stock.company_name || '—' }}</td>
-        <td>{{ stock.sector || 'Other' }}</td>
+        <td>{{ stock.sector || 'No Sector' }}</td>
         <td>{{ formatPrice(stock.latest_price?.close_price) }}</td>
         <td :class="changeTone(stock.change_pct)">
           {{ stock.change_pct !== null && stock.change_pct !== undefined ? `${stock.change_pct > 0 ? '+' : ''}${stock.change_pct}%` : '—' }}

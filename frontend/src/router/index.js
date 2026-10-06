@@ -12,10 +12,11 @@ const routes = [
   { path: '/portfolio', name: 'portfolio', component: () => import('../views/Portfolio.vue'), meta: { requiresAuth: true, title: 'Portfolio' } },
   { path: '/portfolio/performance', name: 'portfolio-performance', component: () => import('../views/PortfolioPerformance.vue'), meta: { requiresAuth: true, title: 'Portfolio Performance' } },
   { path: '/portfolio/reports', name: 'portfolio-reports', component: () => import('../views/PortfolioReports.vue'), meta: { requiresAuth: true, title: 'Portfolio Reports' } },
-  // The Gainers / Losers / Turnover / Volume pages are gone — old bookmarks land on All Stocks, which sorts and filters the same data.
-  { path: '/market/:preset(gainers|losers|turnover|volume)', redirect: '/stocks' },
-  { path: '/market/52-week', name: 'market-52-week', component: () => import('../views/Market52Week.vue'), meta: { requiresAuth: true, title: '52 Week High/Low' } },
-  { path: '/market/sector-overview', name: 'market-sector-overview', component: () => import('../views/MarketSectorOverview.vue'), meta: { requiresAuth: true, title: 'Sector Overview' } },
+  // The Gainers / Losers / Turnover / Volume / 52 Week pages are gone — old bookmarks land on All Stocks, which sorts and filters the same data (with 52W High / Low columns).
+  { path: '/market/:preset(gainers|losers|turnover|volume|52-week)', redirect: '/stocks' },
+  { path: '/market/sector-overview', redirect: '/market/sector-list' }, // renamed: old bookmarks still work
+  { path: '/sectors/:id(\\d+)', name: 'sector-detail', component: () => import('../views/SectorDetail.vue'), meta: { requiresAuth: true, title: 'Sector' } },
+  { path: '/market/sector-list', name: 'market-sector-list', component: () => import('../views/MarketSectorList.vue'), meta: { requiresAuth: true, title: 'Sector List' } },
   { path: '/market/indices', name: 'market-indices', component: () => import('../views/Indices.vue'), meta: { requiresAuth: true, title: 'Indices' } },
 
   { path: '/watchlist/alerts', name: 'watchlist-alerts', component: () => import('../views/WatchlistAlerts.vue'), meta: { requiresAuth: true, title: 'Price Alerts' } },

@@ -76,19 +76,20 @@ class PriceStatisticsService
      * change %, and total turnover. Built on priceChanges() rather than a
      * fresh query, same aggregate-then-map style as the rest of this class.
      *
-     * @return Collection<int, array{sector: string, stock_count: int, advancing: int, declining: int, avg_change_pct: ?float, total_turnover: float}>
+     * @return Collection<int, array{sector_id: ?int, sector: string, stock_count: int, advancing: int, declining: int, avg_change_pct: ?float, total_turnover: float}>
      */
     public function sectorPerformance(): Collection
     {
         $changes = $this->priceChanges();
         $stocks = Stock::with('sector')->get(['id', 'sector_id']);
 
-        return $stocks->groupBy(fn ($s) => $s->sector?->name ?: 'Other')
+        return $stocks->groupBy(fn ($s) => $s->sector?->name ?: 'No Sector')
             ->map(function ($group, $sector) use ($changes) {
                 $sectorChanges = $group->map(fn ($s) => $changes->get($s->id))->filter()->values();
                 $withPct = $sectorChanges->filter(fn ($c) => $c['change_pct'] !== null);
 
                 return [
+                    'sector_id' => $group->first()->sector_id, // null for stocks with no sector ("No Sector")
                     'sector' => $sector,
                     'stock_count' => $group->count(),
                     'advancing' => $withPct->where('change_pct', '>', 0)->count(),
@@ -189,6 +190,37 @@ class PriceStatisticsService
     }
 
     /**
+     * Sets high_52w / low_52w (highest high and lowest low over the last 365 days) on each stock,
+     * for lists that show them as columns. One grouped query; none of the change % work.
+     *
+     * @param  iterable<\App\Models\Stock>  $stocks
+     * @return iterable<\App\Models\Stock>
+     */
+    public function withFiftyTwoWeek(iterable $stocks): iterable
+    {
+        $ranges = $this->highLowSince365Days();
+
+        foreach ($stocks as $stock) {
+            $range = $ranges->get($stock->id);
+            $stock->high_52w = $range ? (float) $range->high_52w : null;
+            $stock->low_52w = $range ? (float) $range->low_52w : null;
+        }
+
+        return $stocks;
+    }
+
+    /** @return Collection<int, object{stock_id: int, high_52w: string, low_52w: string}> keyed by stock_id */
+    private function highLowSince365Days(): Collection
+    {
+        return DB::table('daily_prices')
+            ->where('trade_date', '>=', now()->subDays(365)->toDateString())
+            ->groupBy('stock_id')
+            ->selectRaw('stock_id, MAX(high_price) as high_52w, MIN(low_price) as low_52w')
+            ->get()
+            ->keyBy('stock_id');
+    }
+
+    /**
      * 52-week high/low per stock, and how far the current close sits from
      * each — same aggregate-then-map style as priceChanges().
      *
@@ -196,14 +228,7 @@ class PriceStatisticsService
      */
     public function fiftyTwoWeekRange(): Collection
     {
-        $since = now()->subDays(365)->toDateString();
-
-        $ranges = DB::table('daily_prices')
-            ->where('trade_date', '>=', $since)
-            ->groupBy('stock_id')
-            ->selectRaw('stock_id, MAX(high_price) as high_52w, MIN(low_price) as low_52w')
-            ->get()
-            ->keyBy('stock_id');
+        $ranges = $this->highLowSince365Days();
 
         $currentCloses = $this->priceChanges();
 

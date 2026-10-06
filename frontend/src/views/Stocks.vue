@@ -13,6 +13,8 @@ const columns = useColumnOptions('stocks', [
   { key: 'last_close', label: 'Last Close' },
   { key: 'high', label: 'High' },
   { key: 'low', label: 'Low' },
+  { key: 'high_52w', label: '52W High' },
+  { key: 'low_52w', label: '52W Low' },
   { key: 'change_pct', label: '% Change' },
   { key: 'turnover', label: 'Turnover' },
   { key: 'volume', label: 'Volume' },

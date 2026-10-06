@@ -20,6 +20,8 @@ export function stockSelection(columns = null) {
     on('company_name') && 'company_name',
     on('sector') && 'sector',
     on('change_pct') && 'change_pct',
+    on('high_52w') && 'high_52w',
+    on('low_52w') && 'low_52w',
     priceFields.length > 0 && `latest_price { ${priceFields.join(' ')} }`,
     on('signal') && 'latest_signal { signal }',
     on('ai_opinion') && 'ai_opinion { verdict reasoning }',

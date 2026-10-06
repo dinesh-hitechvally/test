@@ -33,6 +33,8 @@ type Movers {
 }
 
 type SectorPerformance {
+    "The sector's id for /sectors/{id}; null for stocks that have no sector (\"No Sector\")."
+    sector_id: Int
     sector: String!
     stock_count: Int!
     advancing: Int!
@@ -78,6 +80,7 @@ type SectorTotals {
 }
 
 type SectorReport {
+    sector_id: Int
     sector: String!
     totals: SectorTotals!
     signal_counts: SignalCounts!
@@ -301,8 +304,12 @@ type RuleScanResult {
 extend type Query @guard {
     dashboardReport: DashboardReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@dashboard")
     marketReport: MarketOverview! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@market")
+    "Today's move per sector: just the sector rollup, without the rest of the market report. Most turnover first."
+    sectorPerformance: [SectorPerformance!]! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@sectorPerformance")
     sectors: [SectorSummary!]! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@sectors")
     sectorReport(name: String!): SectorReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@sector")
+    "One sector by its id (/sectors/{id}): totals, signal mix, movers, trend and its stocks. 404 if there is no such sector; a sector with no stocks yet returns zeros."
+    sectorDetail(id: Int!): SectorReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@sectorDetail")
     stockReport(symbol: String!): StockReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@stock")
     technicalReport(symbol: String!): TechnicalReportPage! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@technical")
     analystReport(symbol: String!): AnalystReport! @field(resolver: "App\\GraphQL\\Resolvers\\ReportResolver@analyst")

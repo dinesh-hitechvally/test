@@ -60,6 +60,31 @@ class StockListFieldsTest extends TestCase
         $this->assertSame([], $this->tablesRead('{ stocks { symbol } }'));
     }
 
+    public function test_the_52_week_high_and_low_come_from_the_price_history(): void
+    {
+        // Setup prices: highs 105 / 115 and lows 95 / 105 over two days.
+        $this->graphQL('{ stocks { symbol high_52w low_52w } }')
+            ->assertJsonPath('data.stocks.0.high_52w', 115)
+            ->assertJsonPath('data.stocks.0.low_52w', 95);
+    }
+
+    public function test_a_stock_with_no_price_history_has_null_52_week_values(): void
+    {
+        Stock::create(['symbol' => 'NEW', 'company_name' => 'New Co', 'is_active' => true]);
+
+        $this->graphQL('{ stocks(search: "NEW") { symbol high_52w low_52w } }')
+            ->assertJsonPath('data.stocks.0.high_52w', null)
+            ->assertJsonPath('data.stocks.0.low_52w', null);
+    }
+
+    public function test_the_instrument_type_is_available_on_the_stock_list(): void
+    {
+        Stock::where('symbol', 'NABIL')->update(['instrument_type' => 'Equity']);
+
+        $this->graphQL('{ stocks { symbol instrument_type } }')
+            ->assertJsonPath('data.stocks.0.instrument_type', 'Equity');
+    }
+
     public function test_the_full_query_returns_everything(): void
     {
         $this->graphQL('{ stocks { symbol company_name latest_price { close_price high_price low_price } latest_signal { signal } change_pct } }')

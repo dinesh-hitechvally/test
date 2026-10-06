@@ -28,13 +28,14 @@ class PerStockTasksTest extends TestCase
         $this->get('/cron/fetch/histories')->assertForbidden();
     }
 
-    public function test_fetch_histories_processes_every_pending_stock_in_one_run(): void
+    public function test_fetch_histories_fetches_one_stock_per_run(): void
     {
         $this->app->instance(PriceHistorySource::class, new class implements PriceHistorySource
         {
             public function fetchHistory(Stock $stock): array
             {
                 if ($stock->symbol === 'BAD') {
+                    $stock->ensureScrapeStatus()->flagHistoryError('source down'); // as the real service does
                     throw new RuntimeException('source down');
                 }
 
@@ -48,16 +49,48 @@ class PerStockTasksTest extends TestCase
             Stock::create(['symbol' => $symbol, 'company_name' => $symbol, 'is_active' => true]);
         }
 
-        // ?limit= is gone — it's ignored if a pinger still sends it.
-        $this->get('/cron/fetch/histories?key=test-secret&limit=1')
+        // Run 1: only the first pending stock, however many are waiting (and ?limit= can't raise it).
+        $this->get('/cron/fetch/histories?key=test-secret&limit=5')
             ->assertOk()
             ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
             ->assertSeeText('$ fetch-histories')
             ->assertSeeText('AAA: 10 rows imported (2020-01-01 to 2020-01-10).')
-            ->assertSeeText('GGG: 10 rows imported')
-            ->assertSeeText('BAD: failed — source down')
-            ->assertSeeText('Done — 6 stock(s) processed, 1 failed.')
+            ->assertDontSeeText('BAD')
+            ->assertDontSeeText('CCC')
+            ->assertSeeText('Done — 1 stock(s) processed, 0 failed.')
+            ->assertSeeText('6 stock(s) still pending — run it again for the next.')
             ->assertSeeText('[ok]');
+
+        // Run 2: the next one. It fails, is flagged, and is not retried by later runs.
+        $this->get('/cron/fetch/histories?key=test-secret')
+            ->assertSeeText('BAD: failed — source down')
+            ->assertSeeText('Done — 0 stock(s) processed, 1 failed.')
+            ->assertSeeText('5 stock(s) still pending');
+
+        $this->get('/cron/fetch/histories?key=test-secret')
+            ->assertSeeText('CCC: 10 rows imported')
+            ->assertDontSeeText('BAD')
+            ->assertSeeText('4 stock(s) still pending');
+
+        $this->assertSame(2, Stock::whereHas('scrapeStatus', fn ($q) => $q->whereNotNull('history_fetched_at'))->count());
+    }
+
+    public function test_the_last_pending_stock_reports_nothing_left(): void
+    {
+        $this->app->instance(PriceHistorySource::class, new class implements PriceHistorySource
+        {
+            public function fetchHistory(Stock $stock): array
+            {
+                $stock->ensureScrapeStatus()->markHistoryFetched();
+
+                return ['rows_imported' => 3, 'oldest_date' => '2020-01-01', 'newest_date' => '2020-01-03'];
+            }
+        });
+        Stock::create(['symbol' => 'ONLY', 'company_name' => 'Only', 'is_active' => true]);
+
+        $this->get('/cron/fetch/histories?key=test-secret')
+            ->assertSeeText('ONLY: 3 rows imported')
+            ->assertDontSeeText('still pending');
     }
 
     public function test_fetch_histories_says_so_when_nothing_is_pending(): void

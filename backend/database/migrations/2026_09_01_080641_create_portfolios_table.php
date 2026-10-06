@@ -12,6 +12,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('name', 100)->default('My Portfolio');
+            // Cash available to buy with. Set by the user; recording a transaction doesn't adjust it.
+            $table->decimal('cash_balance', 18, 4)->default(0);
             $table->timestamps();
         });
     }

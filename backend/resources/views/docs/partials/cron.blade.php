@@ -16,7 +16,7 @@ Recalculated indicators/signals for 42 stock(s).
 [ok]</code></pre>
             The last line is <code>[ok]</code> or <code>[failed]</code>. A failing task still answers 200 with <code>[failed]</code>, so set your scheduler to look for that word, not just the status code.</li>
         <li><strong>Safe to repeat:</strong> every job is idempotent. Running one twice does no harm, and unchanged data is skipped.</li>
-        <li><strong>Long runs:</strong> jobs ignore the caller disconnecting and have no time limit, so a scheduler that gives up after 30 seconds will not stop a job half-way. Per-stock jobs save each stock as it finishes, so pinging again resumes where it stopped.</li>
+        <li><strong>Long runs:</strong> jobs ignore the caller disconnecting and have no time limit, so a scheduler that gives up after 30 seconds will not stop a job half-way. Per-stock jobs save each stock as it finishes, so pinging again resumes where it stopped. <code>fetch/histories</code> and <code>fetch/dividends</code> are the exceptions: they handle <strong>one</strong> stock per ping and tells you how many are still pending.</li>
     </ul>
 </div>
 
@@ -78,7 +78,7 @@ Mon 04:30  check/data-quality</code></pre>
     <tr><td>Scrape history</td><td>Fetch jobs record each run (source, success, rows) in the scrape log, readable with the <code>scrapeLogs</code> and <code>dataSourceStatus</code> queries.</td></tr>
     <tr><td>cPanel</td><td>Add a cron job running <code>curl -s "{{ $baseUrl }}/cron/fetch/prices?key=…" &gt; /dev/null</code> at the time you want. For the weekday jobs use the day-of-week field <code>1-5</code>.</td></tr>
     <tr><td>cron-job.org / UptimeRobot</td><td>Create a GET monitor with the full URL. Add a keyword check for <code>[failed]</code> to be told when a job fails.</td></tr>
-    <tr><td>First install</td><td>Run in order by hand: <code>fetch/stock-list</code>, <code>fetch/sectors</code>, <code>fetch/histories</code> (long), <code>generate/indicators?all=1</code>, then <code>fetch/dividends</code> and <code>fetch/fundamentals</code>.</td></tr>
+    <tr><td>First install</td><td>Run in order by hand: <code>fetch/stock-list</code> (also sets sectors), <code>fetch/histories</code> (long), <code>generate/indicators?all=1</code>, then <code>fetch/dividends</code> and <code>fetch/fundamentals</code>.</td></tr>
     <tr><td>Everything failing at once</td><td>Run <code>check/nepse-token</code> first; an outdated nepalstock.com token breaks every NEPSE fetch.</td></tr>
     <tr><td>After changing indicator or signal logic</td><td>Run <code>generate/indicators?all=1</code>, then <code>generate/backtest-signals</code> and compare accuracy before keeping the change.</td></tr>
 </table>

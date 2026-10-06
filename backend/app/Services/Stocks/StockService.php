@@ -31,8 +31,9 @@ class StockService
      * reads it for every row.
      *
      * @param  list<string>  $with  any of latestPrice, latestSignal, aiOpinion
+     * @param  bool  $range  also set high_52w / low_52w on every stock
      */
-    public function list(?string $search = null, array $with = ['latestPrice', 'latestSignal', 'aiOpinion'], bool $changePct = true): Collection
+    public function list(?string $search = null, array $with = ['latestPrice', 'latestSignal', 'aiOpinion'], bool $changePct = true, bool $range = false): Collection
     {
         $query = Stock::query()->with(['sector', ...$with])->orderBy('symbol');
 
@@ -44,6 +45,10 @@ class StockService
         }
 
         $stocks = $query->get();
+
+        if ($range) {
+            $this->prices->withFiftyTwoWeek($stocks);
+        }
 
         return $changePct ? $this->prices->withChangePct($stocks) : $stocks;
     }

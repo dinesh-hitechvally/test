@@ -20,8 +20,39 @@ export async function market() {
   } }`)).marketReport
 }
 
+// Which API fields each Sector List table column needs (some columns are worked out from others).
+const SECTOR_COLUMN_FIELDS = {
+  stock_count: ['stock_count'],
+  advancing: ['advancing'],
+  declining: ['declining'],
+  unchanged: ['stock_count', 'advancing', 'declining'],
+  advance_pct: ['stock_count', 'advancing'],
+  avg_change_pct: ['avg_change_pct'],
+  total_turnover: ['total_turnover'],
+}
+
+/**
+ * Today's move per sector, asking the API only for the fields the visible table columns need.
+ * `columns` = visible column keys; null = every field.
+ */
+export async function sectorPerformance(columns = null) {
+  const fields = columns === null
+    ? SECTOR_PERFORMANCE
+    : ['sector_id', 'sector', ...new Set(columns.flatMap((c) => SECTOR_COLUMN_FIELDS[c] ?? []))].join(' ')
+
+  return (await gql(`{ sectorPerformance { ${fields} } }`)).sectorPerformance
+}
+
 export async function sectors() {
   return (await gql('{ sectors { sector stock_count } }')).sectors
+}
+
+/** One sector by its id (the /sectors/{id} page): totals, signal mix, movers, trend and its stocks. */
+export async function sectorDetail(id) {
+  return (await gql(`query ($id: Int!) { sectorDetail(id: $id) {
+    sector_id sector totals { stock_count advancing declining } signal_counts { ${SIGNAL_COUNTS} } avg_change_pct
+    stocks { ${STOCK_ROW} } top_gainers { ${STOCK_ROW} } top_losers { ${STOCK_ROW} } trend { ${TREND_POINT} }
+  } }`, { id })).sectorDetail
 }
 
 export async function sector(name) {

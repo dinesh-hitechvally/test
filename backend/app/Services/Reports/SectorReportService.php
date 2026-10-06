@@ -34,6 +34,30 @@ class SectorReportService
             return null;
         }
 
+        return $this->build($name, Sector::where('name', $name)->value('id'), $stocks);
+    }
+
+    /**
+     * The same report for one sector by its id (the /sectors/{id} page). Unlike sector(), a sector
+     * that exists but has no stocks yet still returns a (zeroed) report; null only if there is no
+     * such sector.
+     */
+    public function forId(int $id): ?array
+    {
+        $sector = Sector::find($id);
+
+        if (! $sector) {
+            return null;
+        }
+
+        $stocks = Stock::where('sector_id', $id)->with(['sector', 'latestPrice', 'latestSignal'])->orderBy('symbol')->get();
+
+        return $this->build($sector->name, $sector->id, $stocks);
+    }
+
+    /** @param  Collection<int, Stock>  $stocks */
+    private function build(string $name, ?int $sectorId, Collection $stocks): array
+    {
         $this->prices->withChangePct($stocks);
         $withPct = $stocks->filter(fn ($s) => $s->change_pct !== null);
 
@@ -47,6 +71,7 @@ class SectorReportService
         $ranked = $withPct->sortByDesc('change_pct')->values();
 
         return [
+            'sector_id' => $sectorId,
             'sector' => $name,
             'totals' => [
                 'stock_count' => $stocks->count(),

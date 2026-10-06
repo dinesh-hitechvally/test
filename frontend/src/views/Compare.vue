@@ -87,7 +87,7 @@ async function loadComparison() {
       return {
         symbol: r.symbol,
         company_name: stock?.company_name,
-        sector: stock?.sector || 'Other',
+        sector: stock?.sector || 'No Sector',
         price: lastPrice?.close_price ?? null,
         change_pct: changePct,
         rsi: lastIndicator?.rsi_14 ?? null,

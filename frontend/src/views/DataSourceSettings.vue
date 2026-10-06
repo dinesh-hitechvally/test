@@ -26,7 +26,7 @@ async function load() {
   loading.value = false
 }
 
-const sourceLabels = { history: 'Full History', sector: 'Sector' }
+const sourceLabels = { history: 'Full History' }
 
 onMounted(load)
 </script>
@@ -44,10 +44,9 @@ onMounted(load)
     <Card v-if="!loading" style="margin-top: 12px">
       <template #title>Stocks with Data Issues <span v-if="sortedFlagged.length" class="badge sell">{{ sortedFlagged.length }}</span></template>
       <p class="muted">
-        A stock lands here when its last full-history, sector, or dividend fetch failed — not a retry, just a flag so a
+        A stock lands here when its last full-history or dividend fetch failed — not a retry, just a flag so a
         failure doesn't sit silently in a log file. Cleared automatically the next time that same fetch succeeds (e.g.
-        re-run <code>scrape/fetch-history/&lt;symbol&gt;</code>, <code>scrape/sync-sectors</code>, or
-        <code>scrape/sync-dividends</code>).
+        re-run <code>fetch/history/&lt;symbol&gt;</code> or <code>fetch/dividends/&lt;symbol&gt;</code>).
       </p>
       <table v-align-numbers class="table" v-if="sortedFlagged.length">
         <thead>
@@ -69,7 +68,7 @@ onMounted(load)
           </tr>
         </tbody>
       </table>
-      <EmptyState v-else>No flagged stocks right now — every full-history and sector fetch that's been tried has succeeded.</EmptyState>
+      <EmptyState v-else>No flagged stocks right now — every full-history fetch that's been tried has succeeded.</EmptyState>
     </Card>
 
     <Card title="Recent Scrape Activity" style="margin-top: 16px">

@@ -32,7 +32,12 @@ class StockResolver extends Resolver
             'aiOpinion' => isset($selected['ai_opinion']),
         ]));
 
-        return $this->plain($this->stocks->list($args['search'] ?? null, $with, isset($selected['change_pct'])));
+        return $this->plain($this->stocks->list(
+            $args['search'] ?? null,
+            $with,
+            isset($selected['change_pct']),
+            isset($selected['high_52w']) || isset($selected['low_52w']),
+        ));
     }
 
     public function stock($root, array $args): array

@@ -8,11 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('portfolios', function (Blueprint $table) {
-            // Cash available to buy with. Set by the user; buys don't adjust it.
-            $table->decimal('cash_balance', 18, 4)->default(0)->after('name');
-        });
-
         Schema::create('buy_orders', function (Blueprint $table) {
             $table->id();
             $table->foreignId('portfolio_id')->constrained()->cascadeOnDelete();
@@ -39,6 +34,5 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('buy_orders');
-        Schema::table('portfolios', fn (Blueprint $table) => $table->dropColumn('cash_balance'));
     }
 };

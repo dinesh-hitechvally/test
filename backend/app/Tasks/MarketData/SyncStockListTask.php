@@ -28,7 +28,7 @@ class SyncStockListTask extends Task
             throw $e;
         }
 
-        $summary = "{$result['created']} new stock(s) created, {$result['existing']} already existed.";
+        $summary = "{$result['created']} new stock(s) created, {$result['existing']} already existed, {$result['sectors_filled']} given a sector ({$result['sectors_inferred']} of them promoter/preference shares, taken from their parent company), {$result['types_set']} had their instrument type set.";
 
         ScrapeFinished::dispatch(
             source: self::SOURCE,

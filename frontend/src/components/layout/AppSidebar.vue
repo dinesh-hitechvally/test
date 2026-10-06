@@ -20,8 +20,7 @@ const navItems = [
     base: '/market',
     children: [
       { to: '/stocks', label: 'All Stocks' },
-      { to: '/market/52-week', label: '52 Week High/Low' },
-      { to: '/market/sector-overview', label: 'Sector Overview' },
+      { to: '/market/sector-list', label: 'Sector List' },
       { to: '/market/indices', label: 'Indices' },
     ],
   },

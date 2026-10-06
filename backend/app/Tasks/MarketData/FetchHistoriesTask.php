@@ -8,8 +8,10 @@ use App\Tasks\PerStockTask;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Fetches full history for every stock missing it. fetchHistory() sets
- * history_fetched_at (on stock_scrape_statuses) as each stock finishes.
+ * Fetches the full history of ONE stock missing it per run (the next pending one, by id) and
+ * says how many are still waiting — a stock's history is dozens of paginated requests
+ * (about a minute for a long-listed one), so a run is kept short. Ping again for the next.
+ * fetchHistory() sets history_fetched_at (on stock_scrape_statuses) as the stock finishes.
  *
  * A stock whose last attempt failed (history_error set) is skipped on
  * purpose: a permanently-failing stock (bad symbol, delisted, source layout
@@ -19,7 +21,15 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class FetchHistoriesTask extends PerStockTask
 {
+    /** Stocks fetched per run. */
+    private const PER_RUN = 1;
+
     public function __construct(private readonly PriceHistorySource $history) {}
+
+    protected function perRunLimit(): ?int
+    {
+        return self::PER_RUN;
+    }
 
     protected function pending(): Builder
     {

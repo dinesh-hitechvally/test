@@ -47,14 +47,14 @@ async function load() {
 }
 
 const sectors = computed(() => {
-  const set = new Set(stocks.value.map((s) => s.sector || 'Other'))
+  const set = new Set(stocks.value.map((s) => s.sector || 'No Sector'))
   return Array.from(set).sort()
 })
 
 const sectorOptions = computed(() => [{ value: '', label: 'Any' }, ...sectors.value.map((s) => ({ value: s, label: s }))])
 
 function sectorOf(stock) {
-  return stock.sector || 'Other'
+  return stock.sector || 'No Sector'
 }
 
 const filtered = computed(() => {

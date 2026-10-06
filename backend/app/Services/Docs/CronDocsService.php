@@ -17,13 +17,14 @@ class CronDocsService
 {
     /** When to run each task, and what it needs. Keyed by task class basename. */
     private const HINTS = [
-        'SyncStockListTask' => ['when' => 'Daily, 06:00', 'note' => 'Run first on a new install — every other task works on this stock list.'],
+        'SyncStockListTask' => ['when' => 'Daily, 06:00', 'note' => 'Run first on a new install — every other task works on this stock list. It also fills in each stock sector and instrument type from the NEPSE company list (one extra request); promoter / preference shares such as ACLBSLP take the sector of their parent company (ACLBSL).'],
         'MarketSyncTask' => ['when' => 'Mon–Fri, 15:30 (after the ~15:00 close); optionally also during the session', 'note' => 'Safe to run repeatedly. While the market is open it stores live prices; once closed it stores the final ones.'],
         'MarketSyncIndexTask' => ['when' => 'Mon–Fri, 15:32', 'note' => 'Does nothing on days the market is closed.'],
-        'FetchHistoriesTask' => ['when' => 'Once after adding stocks, then only if some are missing history', 'note' => 'Processes every pending stock in one run; ping again to resume if the host cut it short.'],
+        'FetchHistoriesTask' => ['when' => 'Once after adding stocks, then only if some are missing history', 'note' => 'Fetches ONE pending stock per run (about a minute for a long-listed one) and reports how many are still waiting. Ping it again for the next; the stock list is worked through in id order.'],
+        'FetchStockDividendsTask' => ['when' => 'On demand', 'note' => 'Replace {symbol} with e.g. NABIL. Fetches that one stock even if it was fetched before, so it refreshes a newly declared dividend or retries a failed stock.'],
+        'FetchStockFundamentalsTask' => ['when' => 'On demand', 'note' => 'Replace {symbol} with e.g. NABIL. Refreshes that one stock EPS, P/E and book value now, even if its last fetch is still fresh.'],
         'FetchStockHistoryTask' => ['when' => 'On demand', 'note' => 'Replace {symbol} with e.g. NABIL. Also how to retry a stock whose history fetch failed.'],
-        'SyncSectorsTask' => ['when' => 'After the stock list changes', 'note' => 'Only touches stocks without a sector.'],
-        'SyncDividendsTask' => ['when' => 'Weekly', 'note' => 'Only stocks never fetched; use the stock page button to refresh one.'],
+        'SyncDividendsTask' => ['when' => 'Every minute or two until it says nothing is left, then only when new stocks appear', 'note' => 'Fetches ONE stock per run (only stocks never fetched) and reports how many are still waiting. A failed stock goes to the back of the queue. Use the stock page button to refresh one stock.'],
         'SyncFundamentalsTask' => ['when' => 'Weekly', 'note' => 'Refreshes rows older than about 7 days.'],
         'RecalculateMarketTask' => ['when' => 'Mon–Fri, 15:40 (after the price sync)', 'note' => 'The only cron that generates technical indicators, signals and next-close estimates. Add ?all=1 to force every stock after changing indicator or signal rules.'],
         'GenerateAiOpinionsTask' => ['when' => 'Daily, after generate/indicators', 'note' => 'Needs GROQ_API_KEY; without it the run just reports "not configured". Slow: about 2 stocks per minute on the free Groq tier.'],

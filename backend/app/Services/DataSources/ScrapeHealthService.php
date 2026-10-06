@@ -7,13 +7,13 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Which stocks are currently flagged with a failed per-stock fetch
- * (history, sector or dividend — see StockScrapeStatus). Not a retry
+ * (history or dividend — see StockScrapeStatus). Not a retry
  * mechanism, just visibility instead of a failure sitting silently in a log
  * file. A flag clears itself the next time that same kind of fetch succeeds.
  */
 class ScrapeHealthService
 {
-    private const SOURCES = ['history', 'sector', 'dividend'];
+    private const SOURCES = ['history', 'dividend'];
 
     /**
      * Each source has its own error column, so a stock failing on two

@@ -55,7 +55,7 @@ class CronTasksTest extends TestCase
         $cronRoutes = collect(app('router')->getRoutes()->getRoutes())
             ->filter(fn ($route) => str_starts_with($route->uri(), 'cron/'));
 
-        $this->assertCount(15, $cronRoutes);
+        $this->assertCount(16, $cronRoutes);
 
         foreach ($cronRoutes as $route) {
             $this->assertTrue(is_subclass_of($route->defaults['task'] ?? '', Task::class), $route->uri());

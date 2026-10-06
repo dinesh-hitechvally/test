@@ -15,6 +15,9 @@ return new class extends Migration
             $table->foreignId('sector_id')->nullable()->constrained()->nullOnDelete();
             $table->string('company_name')->nullable();
             $table->string('share_group', 10)->nullable();
+            // What kind of security it is on NEPSE ("Equity", "Mutual Funds", "Non-Convertible Debentures"…), from
+            // nepalstock.com's company list (instrumentType). Null until the stock list sync has seen it.
+            $table->string('instrument_type', 50)->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });

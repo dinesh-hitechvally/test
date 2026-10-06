@@ -133,7 +133,7 @@ onMounted(loadRules)
             <tr v-for="s in sortedResults" :key="s.stock_id">
               <td><StockLink :symbol="s.symbol" /></td>
               <td class="muted">{{ s.company_name }}</td>
-              <td>{{ s.sector || 'Other' }}</td>
+              <td>{{ s.sector || 'No Sector' }}</td>
               <td>{{ s.close !== null ? `Rs. ${formatPrice(s.close)}` : '—' }}</td>
               <td :class="changeTone(s.change_pct)">{{ s.change_pct !== null ? `${s.change_pct > 0 ? '+' : ''}${s.change_pct}%` : '—' }}</td>
               <td>

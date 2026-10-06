@@ -27,6 +27,16 @@ abstract class PerStockTask extends Task
 
     abstract protected function nothingPendingMessage(): string;
 
+    /**
+     * Most stocks one run may handle; null = every pending stock. A task whose per-stock work is
+     * slow (full price history: about a minute each) caps it so a single ping stays short and
+     * can't tie up the server for hours. Ping again for the next one.
+     */
+    protected function perRunLimit(): ?int
+    {
+        return null;
+    }
+
     /** Polite pause between stocks, in microseconds. */
     protected function pauseMicroseconds(): int
     {
@@ -51,7 +61,13 @@ abstract class PerStockTask extends Task
             return $reason;
         }
 
-        $stocks = $this->pending()->orderBy('id')->get();
+        $query = $this->pending()->orderBy('id');
+
+        if ($limit = $this->perRunLimit()) {
+            $query->limit($limit);
+        }
+
+        $stocks = $query->get();
 
         if ($stocks->isEmpty()) {
             return $this->nothingPendingMessage();
@@ -74,6 +90,10 @@ abstract class PerStockTask extends Task
         }
 
         $lines[] = sprintf('Done — %d stock(s) processed, %d failed.', $stocks->count() - $failures, $failures);
+
+        if ($this->perRunLimit() !== null && ($left = $this->pending()->reorder()->count()) > 0) {
+            $lines[] = sprintf('%d stock(s) still pending — run it again for the next.', $left);
+        }
 
         return implode("\n", $lines);
     }

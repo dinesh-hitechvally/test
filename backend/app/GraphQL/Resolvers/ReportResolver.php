@@ -10,6 +10,7 @@ use App\Services\Analysis\Signals\SignalRuleScanner;
 use App\Services\Reports\DividendReportService;
 use App\Services\Reports\InvestmentHorizonService;
 use App\Services\Reports\MarketReportService;
+use App\Services\Reports\PriceStatisticsService;
 use App\Services\Reports\SectorReportService;
 use App\Services\Reports\StockReportService;
 use App\Services\Stocks\StockService;
@@ -27,6 +28,17 @@ class ReportResolver extends Resolver
     public function market(): array
     {
         return $this->plain(app(MarketReportService::class)->marketOverview());
+    }
+
+    public function sectorDetail($root, array $args): array
+    {
+        return $this->plain(app(SectorReportService::class)->forId((int) $args['id']))
+            ?? throw new ApiError("No sector with id {$args['id']}.", 404);
+    }
+
+    public function sectorPerformance(): array
+    {
+        return $this->plain(app(PriceStatisticsService::class)->sectorPerformance());
     }
 
     public function sectors(): array

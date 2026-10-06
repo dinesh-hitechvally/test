@@ -87,7 +87,7 @@ onMounted(async () => {
           :value="report.change_pct !== null ? `${report.change_pct > 0 ? '+' : ''}${report.change_pct}%` : '—'"
           :tone="changeTone(report.change_pct, 'neutral')"
         />
-        <StatCard label="Sector" :value="report.stock.sector || 'Other'" />
+        <StatCard label="Sector" :value="report.stock.sector || 'No Sector'" />
         <StatCard label="Latest Signal" :value="report.latest_signal ? formatSignal(report.latest_signal.signal) : 'No data'" />
       </div>
 

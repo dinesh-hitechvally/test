@@ -36,7 +36,7 @@ export const SIGNAL_COUNTS = 'strong_buy buy hold sell strong_sell'
 
 export const MOVER = 'stock_id close previous_close change_pct turnover symbol company_name'
 
-export const SECTOR_PERFORMANCE = 'sector stock_count advancing declining avg_change_pct total_turnover'
+export const SECTOR_PERFORMANCE = 'sector_id sector stock_count advancing declining avg_change_pct total_turnover'
 
 export const TREND_POINT = 'trade_date advancing declining total_turnover'
 

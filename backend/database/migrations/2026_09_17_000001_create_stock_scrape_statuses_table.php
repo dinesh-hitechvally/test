@@ -21,12 +21,6 @@ return new class extends Migration
             $table->text('history_error')->nullable();
             $table->timestamp('history_error_at')->nullable();
 
-            // Sector fetch (NepalStockSecurityResolver::fetchSector) — success is
-            // stocks.sector itself being set, so there's no history_fetched_at
-            // equivalent needed here, only the error side.
-            $table->text('sector_error')->nullable();
-            $table->timestamp('sector_error_at')->nullable();
-
             // Dividend fetch (NepalStockCorporateActionsService::fetchDividends).
             // Its own fetched_at, deliberately distinct from "has any dividend
             // rows" — a stock can genuinely have zero dividends ever declared,

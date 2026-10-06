@@ -85,7 +85,8 @@ onMounted(load)
             <tbody>
               <tr v-for="s in sortedSectors" :key="s.sector">
                 <td>
-                  <RouterLink :to="{ name: 'reports-sector', query: { name: s.sector } }">{{ s.sector }}</RouterLink>
+                  <RouterLink v-if="s.sector_id" :to="{ name: 'sector-detail', params: { id: s.sector_id } }">{{ s.sector }}</RouterLink>
+                  <RouterLink v-else :to="{ name: 'reports-sector', query: { name: s.sector } }">{{ s.sector }}</RouterLink>
                 </td>
                 <td>{{ s.stock_count }}</td>
                 <td>{{ s.advancing }}/{{ s.declining }}</td>

@@ -11,7 +11,7 @@ function bySector(holdings) {
   const totals = {}
   holdings.forEach((h) => {
     if (h.current_value === null) return
-    const key = h.sector || 'Other'
+    const key = h.sector || 'No Sector'
     totals[key] = (totals[key] || 0) + h.current_value
   })
   return Object.entries(totals)

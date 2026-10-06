@@ -53,7 +53,7 @@ onMounted(async () => {
         <tbody>
           <tr v-for="h in sorted" :key="h.stock_id">
             <td><StockLink :symbol="h.symbol" /></td>
-            <td class="muted">{{ h.sector || 'Other' }}</td>
+            <td class="muted">{{ h.sector || 'No Sector' }}</td>
             <td>
               {{ h.quantity }}
               <span v-if="h.bonus_shares_received > 0" class="muted small" :title="`Includes ${h.bonus_shares_received} bonus share(s) credited over time`">

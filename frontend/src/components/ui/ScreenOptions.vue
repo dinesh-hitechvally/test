@@ -43,12 +43,12 @@ const open = ref(false)
 
 <style scoped>
 .screen-meta {
-  margin: -8px 0 12px;
+  position: relative;
 }
 
 .panel {
   border: 1px solid var(--border);
-  border-radius: 8px 8px 0 8px;
+  border-radius: 8px;
   background: var(--surface);
   padding: 12px 16px 10px;
 }
@@ -93,8 +93,10 @@ const open = ref(false)
 }
 
 .tab-row {
-  display: flex;
-  justify-content: flex-end;
+  position: absolute;
+  right: 25px;
+  top: 100%;
+  z-index: 5;
 }
 
 /* The tab hangs off the panel (or the page edge) like WordPress's. */

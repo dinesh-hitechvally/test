@@ -10,12 +10,13 @@ use App\Tasks\Analysis\RecalculateMarketTask;
 use App\Tasks\DataQuality\ScanDataQualityTask;
 use App\Tasks\MachineLearning\TrainMlTask;
 use App\Tasks\MarketData\FetchHistoriesTask;
+use App\Tasks\MarketData\FetchStockDividendsTask;
+use App\Tasks\MarketData\FetchStockFundamentalsTask;
 use App\Tasks\MarketData\FetchStockHistoryTask;
 use App\Tasks\MarketData\MarketSyncIndexTask;
 use App\Tasks\MarketData\MarketSyncTask;
 use App\Tasks\MarketData\SyncDividendsTask;
 use App\Tasks\MarketData\SyncFundamentalsTask;
-use App\Tasks\MarketData\SyncSectorsTask;
 use App\Tasks\MarketData\SyncStockListTask;
 use App\Tasks\MarketData\VerifyNepseTokenTask;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -47,9 +48,10 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
         Route::get('index', CronController::class)->defaults('task', MarketSyncIndexTask::class);
         Route::get('histories', CronController::class)->defaults('task', FetchHistoriesTask::class);
         Route::get('history/{symbol}', CronController::class)->defaults('task', FetchStockHistoryTask::class);
-        Route::get('sectors', CronController::class)->defaults('task', SyncSectorsTask::class);
         Route::get('dividends', CronController::class)->defaults('task', SyncDividendsTask::class);
+        Route::get('dividends/{symbol}', CronController::class)->defaults('task', FetchStockDividendsTask::class);
         Route::get('fundamentals', CronController::class)->defaults('task', SyncFundamentalsTask::class);
+        Route::get('fundamentals/{symbol}', CronController::class)->defaults('task', FetchStockFundamentalsTask::class);
     });
 
     // Derived from stored data. Run after the fetches above.

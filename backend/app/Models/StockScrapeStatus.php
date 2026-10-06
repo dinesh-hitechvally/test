@@ -18,7 +18,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'stock_id',
     'history_fetched_at', 'history_error', 'history_error_at',
-    'sector_error', 'sector_error_at',
     'dividend_fetched_at', 'dividend_error', 'dividend_error_at',
 ])]
 class StockScrapeStatus extends Model
@@ -28,7 +27,6 @@ class StockScrapeStatus extends Model
         return [
             'history_fetched_at' => 'datetime',
             'history_error_at' => 'datetime',
-            'sector_error_at' => 'datetime',
             'dividend_fetched_at' => 'datetime',
             'dividend_error_at' => 'datetime',
         ];
@@ -48,18 +46,6 @@ class StockScrapeStatus extends Model
     public function flagHistoryError(string $message): void
     {
         $this->update(['history_error' => $message, 'history_error_at' => now()]);
-    }
-
-    public function clearSectorError(): void
-    {
-        if ($this->sector_error !== null) {
-            $this->update(['sector_error' => null, 'sector_error_at' => null]);
-        }
-    }
-
-    public function flagSectorError(string $message): void
-    {
-        $this->update(['sector_error' => $message, 'sector_error_at' => now()]);
     }
 
     public function markDividendFetched(): void

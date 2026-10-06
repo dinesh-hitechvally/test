@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector_id', 'share_group', 'is_active'])]
+#[Fillable(['symbol', 'nepse_security_id', 'company_name', 'sector_id', 'share_group', 'instrument_type', 'is_active'])]
 class Stock extends Model
 {
     protected function casts(): array

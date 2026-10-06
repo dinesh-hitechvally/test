@@ -5,6 +5,8 @@ type Stock {
     sector_id: Int
     company_name: String
     share_group: String
+    "What kind of security it is on NEPSE: Equity, Mutual Fund, Debenture… (null until the stock list sync has seen it)."
+    instrument_type: String
     is_active: Boolean
     created_at: String
     updated_at: String
@@ -12,6 +14,9 @@ type Stock {
     sector: String
     "Today's % move (on lists that include it)."
     change_pct: Float
+    "Highest high / lowest low over the last 365 days (only filled in on the `stocks` list)."
+    high_52w: Float
+    low_52w: Float
     latest_price: DailyPrice
     latest_signal: Signal
     latest_indicator: TechnicalIndicator

@@ -26,7 +26,7 @@ const props = defineProps({
   defaultSort: { type: Object, default: () => ({ key: 'symbol', dir: 'asc' }) },
   showTurnoverVolume: { type: Boolean, default: false },
   showAiOpinion: { type: Boolean, default: false },
-  // Which columns to draw (keys: symbol, company_name, sector, last_close, high, low, change_pct, turnover,
+  // Which columns to draw (keys: symbol, company_name, sector, last_close, high, low, high_52w, low_52w, change_pct, turnover,
   // volume, signal, ai_opinion). null = all the page enabled. The page's Screen Options drive this.
   columns: { type: Array, default: null },
 })
@@ -38,7 +38,7 @@ const enabled = (key) => {
   return true
 }
 const show = (key) => enabled(key) && (props.columns === null || props.columns.includes(key))
-const ALL_KEYS = ['symbol', 'company_name', 'sector', 'last_close', 'high', 'low', 'change_pct', 'turnover', 'volume', 'signal', 'ai_opinion']
+const ALL_KEYS = ['symbol', 'company_name', 'sector', 'last_close', 'high', 'low', 'high_52w', 'low_52w', 'change_pct', 'turnover', 'volume', 'signal', 'ai_opinion']
 const visibleCount = computed(() => ALL_KEYS.filter(show).length)
 
 // A hidden column can't stay the sort column (the data for it may not even have been fetched).
@@ -86,20 +86,22 @@ watch(
 )
 
 const sectors = computed(() => {
-  const set = new Set(props.stocks.map((s) => s.sector || 'Other'))
+  const set = new Set(props.stocks.map((s) => s.sector || 'No Sector'))
   return Array.from(set).sort()
 })
 
 const sectorOptions = computed(() => [{ value: '', label: 'All sectors' }, ...sectors.value.map((s) => ({ value: s, label: s }))])
 
 function sectorOf(stock) {
-  return stock.sector || 'Other'
+  return stock.sector || 'No Sector'
 }
 
 function sortValue(stock, key) {
   if (key === 'last_close') return stock.latest_price?.close_price ?? -Infinity
   if (key === 'high') return Number(stock.latest_price?.high_price ?? -Infinity)
   if (key === 'low') return Number(stock.latest_price?.low_price ?? -Infinity)
+  if (key === 'high_52w') return stock.high_52w ?? -Infinity
+  if (key === 'low_52w') return stock.low_52w ?? -Infinity
   if (key === 'change_pct') return stock.change_pct ?? -Infinity
   if (key === 'turnover') return Number(stock.latest_price?.turnover ?? -Infinity)
   if (key === 'volume') return Number(stock.latest_price?.volume ?? -Infinity)
@@ -291,6 +293,8 @@ function formatInt(value) {
           <SortableTh v-if="show('last_close')" :table="table" column="last_close">Last Close</SortableTh>
           <SortableTh v-if="show('high')" :table="table" column="high">High</SortableTh>
           <SortableTh v-if="show('low')" :table="table" column="low">Low</SortableTh>
+          <SortableTh v-if="show('high_52w')" :table="table" column="high_52w">52W High</SortableTh>
+          <SortableTh v-if="show('low_52w')" :table="table" column="low_52w">52W Low</SortableTh>
           <SortableTh v-if="show('change_pct')" :table="table" column="change_pct">% Change</SortableTh>
           <SortableTh v-if="show('turnover')" :table="table" column="turnover">Turnover</SortableTh>
           <SortableTh v-if="show('volume')" :table="table" column="volume">Volume</SortableTh>
@@ -308,6 +312,8 @@ function formatInt(value) {
           <td v-if="show('last_close')">{{ formatPrice(stock.latest_price?.close_price) }}</td>
           <td v-if="show('high')">{{ formatPrice(stock.latest_price?.high_price) }}</td>
           <td v-if="show('low')">{{ formatPrice(stock.latest_price?.low_price) }}</td>
+          <td v-if="show('high_52w')">{{ formatPrice(stock.high_52w) }}</td>
+          <td v-if="show('low_52w')">{{ formatPrice(stock.low_52w) }}</td>
           <td v-if="show('change_pct')" :class="changeTone(stock.change_pct)">
             {{ stock.change_pct !== null && stock.change_pct !== undefined ? `${stock.change_pct > 0 ? '+' : ''}${stock.change_pct}%` : '—' }}
           </td>
