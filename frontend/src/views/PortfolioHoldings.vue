@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { usePortfolioStore } from '../stores/portfolio'
 import { changeTone, formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
+import { usePortfolioLoad } from '../composables/usePortfolioLoad'
 
 const store = usePortfolioStore()
 
@@ -19,7 +20,7 @@ const { sorted } = holdingsTable
 
 const decisions = computed(() => Object.fromEntries(store.sellChecks.map((d) => [d.stock_id, d])))
 
-onMounted(async () => {
+const { loading, failed, load } = usePortfolioLoad(async () => {
   await store.fetchPortfolios()
   if (store.activePortfolioId) await Promise.all([store.fetchDetail(store.activePortfolioId), store.fetchSellChecks(store.activePortfolioId)])
 })
@@ -27,7 +28,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <LoadingState v-if="!store.detail" />
+    <PortfolioStatus v-if="loading || failed || !store.detail" :loading="loading" :failed="failed" @retry="load" />
 
     <Card v-else>
       <table v-align-numbers class="table" v-if="store.detail.holdings.length">

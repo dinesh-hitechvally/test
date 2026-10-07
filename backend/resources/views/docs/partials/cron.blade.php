@@ -9,7 +9,7 @@
     <pre><code>curl -s "{{ $baseUrl }}/cron/fetch/prices?key=YOUR_CRON_SECRET"</code></pre>
     <ul>
         <li><strong>Method:</strong> <span class="tag get">GET</span>. No login or token; the <code>key</code> query parameter must equal <code>CRON_SECRET</code> in <code>.env</code>. A wrong or missing key returns <code>403</code>. (The key is not checked when <code>APP_ENV=local</code>.)</li>
-        <li><strong>URL pattern:</strong> <code>/cron/&lt;kind&gt;/&lt;what&gt;</code>, where kind is <code>fetch</code> (pull external data, compute nothing), <code>generate</code> (compute from stored data) or <code>check</code> (health checks).</li>
+        <li><strong>URL pattern:</strong> <code>/cron/&lt;kind&gt;/&lt;what&gt;</code>, where kind is <code>fetch</code> (pull external data, compute nothing), <code>generate</code> (compute from stored data), <code>backtest</code> (measure past accuracy) or <code>check</code> (health checks).</li>
         <li><strong>Response:</strong> <code>text/plain</code>, always HTTP 200 once the key is accepted:
 <pre><code>$ recalculate-market
 Recalculated indicators for 42 stock(s).
@@ -33,7 +33,7 @@ Recalculated indicators for 42 stock(s).
 15:40  generate/indicators                       needs the prices above
 15:45  generate/signals                          needs the indicators above
 15:50  generate/ai-opinions                      needs signals; slow
-03:30  generate/ml-model     04:00 generate/backtest-signals     04:15 generate/backtest-next-close
+03:30  generate/ml-model     04:00 backtest/signals     04:15 backtest/next-close
 Mon 04:30  check/data-quality</code></pre>
 <div class="note">
     <strong>Fetch jobs only store raw data.</strong> Indicators and next-close estimates exist only after
@@ -46,6 +46,7 @@ Mon 04:30  check/data-quality</code></pre>
     <p class="muted">
         @if ($kind === 'fetch') Pull data from an external source and save it as it is. They never compute anything.
         @elseif ($kind === 'generate') Compute derived data from what is already in the database.
+        @elseif ($kind === 'backtest') Replay the stored history and record how accurate the signals and next-close estimates were. They write accuracy stats only; nothing the app shows as a signal or price changes.
         @else Health checks. @endif
     </p>
 
@@ -82,5 +83,5 @@ Mon 04:30  check/data-quality</code></pre>
     <tr><td>cron-job.org / UptimeRobot</td><td>Create a GET monitor with the full URL. Add a keyword check for <code>[failed]</code> to be told when a job fails.</td></tr>
     <tr><td>First install</td><td>Run in order by hand: <code>fetch/stock-list</code> (also sets sectors), <code>fetch/histories</code> (long), <code>generate/indicators?all=1</code>, <code>generate/signals?all=1</code>, then <code>fetch/dividends</code> and <code>fetch/fundamentals</code>.</td></tr>
     <tr><td>Everything failing at once</td><td>Run <code>check/nepse-token</code> first; an outdated nepalstock.com token breaks every NEPSE fetch.</td></tr>
-    <tr><td>After changing indicator or signal logic</td><td>Indicator maths: run <code>generate/indicators?all=1</code> and then <code>generate/signals?all=1</code>. Signal rules only: just <code>generate/signals?all=1</code>. Then run <code>generate/backtest-signals</code> and compare accuracy before keeping the change.</td></tr>
+    <tr><td>After changing indicator or signal logic</td><td>Indicator maths: run <code>generate/indicators?all=1</code> and then <code>generate/signals?all=1</code>. Signal rules only: just <code>generate/signals?all=1</code>. Then run <code>backtest/signals</code> and compare accuracy before keeping the change.</td></tr>
 </table>

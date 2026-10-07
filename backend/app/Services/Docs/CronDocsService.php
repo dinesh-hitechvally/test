@@ -70,10 +70,10 @@ class CronDocsService
         return $jobs;
     }
 
-    /** @return array<string, list<array<string, mixed>>> keyed by fetch / generate / check, in that order */
+    /** @return array<string, list<array<string, mixed>>> keyed by fetch / generate / backtest / check, in that order */
     public function grouped(): array
     {
-        $groups = ['fetch' => [], 'generate' => [], 'check' => []];
+        $groups = ['fetch' => [], 'generate' => [], 'backtest' => [], 'check' => []];
 
         foreach ($this->jobs() as $job) {
             $groups[$job['group']][] = $job;

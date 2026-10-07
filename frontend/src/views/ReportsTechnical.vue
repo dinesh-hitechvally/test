@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as reportsApi from '../api/reports'
 import { useStocksStore } from '../stores/stocks'
-import { formatPrice } from '../utils/format'
+import { formatPrice, formatNumber } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -259,8 +259,8 @@ onMounted(async () => {
         <Card title="Volume &amp; Breakout">
           <table v-align-numbers class="kv">
             <tbody>
-              <tr><td>Today's volume</td><td>{{ report.volume_analysis.today_volume?.toLocaleString() }}</td></tr>
-              <tr><td>20-day avg volume</td><td>{{ report.volume_analysis.avg_volume_20d?.toLocaleString() }}</td></tr>
+              <tr><td>Today's volume</td><td>{{ formatNumber(report.volume_analysis.today_volume) }}</td></tr>
+              <tr><td>20-day avg volume</td><td>{{ formatNumber(report.volume_analysis.avg_volume_20d) }}</td></tr>
               <tr><td>Volume level</td><td>{{ report.volume_analysis.volume_level }}</td></tr>
               <tr><td>OBV trend</td><td>{{ report.volume_analysis.obv_trend }} <span class="badge" :class="biasClass(report.volume_analysis.classification)">{{ report.volume_analysis.classification }}</span></td></tr>
               <tr><td>20-day range</td><td>Rs. {{ formatPrice(report.breakout.period_low_20d) }} – {{ formatPrice(report.breakout.period_high_20d) }}</td></tr>

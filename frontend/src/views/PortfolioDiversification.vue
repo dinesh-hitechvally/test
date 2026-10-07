@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
 import DiversificationChart from '../components/charts/DiversificationChart.vue'
 import { useSortableTable } from '../composables/useSortableTable'
+import { usePortfolioLoad } from '../composables/usePortfolioLoad'
 
 const store = usePortfolioStore()
 
@@ -39,7 +40,7 @@ const sectorTable = useSortableTable(sectorSlices, {
 })
 const { sorted: sortedSectorSlices } = sectorTable
 
-onMounted(async () => {
+const { loading, failed, load } = usePortfolioLoad(async () => {
   await store.fetchPortfolios()
   if (store.activePortfolioId) await store.fetchDetail(store.activePortfolioId)
 })
@@ -47,7 +48,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <LoadingState v-if="!store.detail" />
+    <PortfolioStatus v-if="loading || failed || !store.detail" :loading="loading" :failed="failed" @retry="load" />
 
     <template v-else-if="sectorSlices.length">
       <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 16px">

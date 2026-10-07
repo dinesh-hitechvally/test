@@ -143,7 +143,8 @@ URL pattern: `/cron/<kind>/<what>`
 | Kind | Does | URL → task |
 |---|---|---|
 | `fetch/` | Pulls from an external source and saves raw data. Never computes anything. | `stock-list` (also sets sectors and instrument types) · `prices` (live while open, final after close) · `index` · `histories` (one pending stock per ping) · `history/{symbol}` (one named stock) · `dividends` (one pending stock per ping) · `dividends/{symbol}` · `fundamentals` (one due stock per ping) · `fundamentals/{symbol}` |
-| `generate/` | Computes derived data from what is already in the database. | `indicators` (indicators → next-close; `?all=1` = every stock) · `signals` (buy/sell/hold from the stored indicators; `?all=1` = every stock) · `ai-opinions` (Groq) · `ml-model` · `backtest-signals` · `backtest-next-close` |
+| `generate/` | Computes derived data from what is already in the database. | `indicators` (indicators → next-close; `?all=1` = every stock) · `signals` (buy/sell/hold from the stored indicators; `?all=1` = every stock) · `ai-opinions` (Groq) · `ml-model` |
+| `backtest/` | Measures how accurate past signals and next-close estimates were, from the stored history. Writes accuracy stats only. | `signals` · `next-close` |
 | `check/` | Health checks. | `nepse-token` · `data-quality` |
 
 - **Order matters:** `fetch/prices` → `generate/indicators` → `generate/signals` → `generate/ai-opinions`.
@@ -152,7 +153,7 @@ URL pattern: `/cron/<kind>/<what>`
 - **Suggested times (NPT, Asia/Kathmandu — check which timezone your cPanel cron uses):**
   fetch/stock-list 06:00 daily; fetch/prices 15:30 and fetch/index 15:32 Mon–Fri (after NEPSE's
   ~15:00 close); generate/indicators 15:40 and generate/signals 15:45 Mon–Fri; generate/ml-model 03:30,
-  generate/backtest-signals 04:00, generate/backtest-next-close 04:15, check/data-quality 04:30 on Mondays.
+  backtest/signals 04:00, backtest/next-close 04:15, check/data-quality 04:30 on Mondays.
 - **Per-stock:** fetch/histories, fetch/dividends, fetch/fundamentals,
   generate/ai-opinions. Each run processes **every** pending stock, except
   **fetch/histories, fetch/dividends and fetch/fundamentals, which handle ONE stock per run** (a full
@@ -172,7 +173,7 @@ The app has no console commands of its own — every task runs through these URL
 | Call a new nepalstock.com endpoint | `$this->client->get('/api/...')` via `NepalStockClient` — never build the auth headers yourself |
 | Fetch from a new website | a service in `Services/DataSources/<Site>/`; fire `ScrapeFinished` (+ `StockPricesUpdated` if it writes prices) |
 | Change when a BUY signal gets a trade plan | the limits in `config/trading.php` (min risk/reward, stop buffer, risk per trade, position caps, fees); the check order lives in `BuyOrderService::evaluate()` |
-| Add a signal rule | detect it in `SignalGeneratorService::detectRules()`, add its key + **weight** to `SignalRules::RULES`, then re-run generate/backtest-signals and check it beats baseline |
+| Add a signal rule | detect it in `SignalGeneratorService::detectRules()`, add its key + **weight** to `SignalRules::RULES`, then re-run backtest/signals and check it beats baseline |
 | Add an indicator | calculator in `TechnicalAnalysisService`, store it in `IndicatorRecalculationService` (+ migration) |
 | React to something that happened | a listener in `Listeners/`, registered in `AppServiceProvider::LISTENERS` |
 | A new background task | a `Task` (or `PerStockTask` for per-stock work) in `Tasks/<Domain>/`. To trigger it by URL, add a route in `routes/web.php` (`->defaults('task', MyTask::class)`); schedule it in cPanel cron; if it needs URL input, override `withRequest()`. To run it from code: `app(TaskRunner::class)->run(app(MyTask::class))`. |
@@ -203,4 +204,4 @@ php artisan lighthouse:clear-cache   # when a graphql/*.graphql file changed
 
 After changing indicator maths: open `/cron/generate/indicators?all=1&key=…` then `/cron/generate/signals?all=1&key=…`.
 After changing only the signal rules: just `/cron/generate/signals?all=1&key=…`.
-Then `/cron/generate/backtest-signals?key=…`.
+Then `/cron/backtest/signals?key=…`.

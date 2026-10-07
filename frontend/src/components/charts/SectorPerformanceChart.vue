@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js'
+import './chartSetup'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip)
 

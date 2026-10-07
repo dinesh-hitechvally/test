@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import * as reportsApi from '../api/reports'
 import { usePortfolioStore } from '../stores/portfolio'
 import { useStocksStore } from '../stores/stocks'
+import { isApiOutage, reportApiError } from '../utils/apiActivity'
 import { changeTone, formatPrice } from '../utils/format'
 import { useSortableTable } from '../composables/useSortableTable'
 
@@ -226,11 +227,37 @@ watch(
   }
 )
 
-onMounted(async () => {
-  if (stocksStore.stocks.length === 0) await stocksStore.fetchStocks()
-  await store.fetchPortfolios()
-  await loadActive()
-})
+// First load. The page keeps working whatever the API does: while it waits there is a loading line, and if it cannot
+// load, a message and a Try again button replace it — never a spinner that never ends. A user who simply has no
+// portfolio yet gets a prompt to create one.
+const initialLoading = ref(true)
+const loadFailed = ref(false)
+
+async function loadPage() {
+  initialLoading.value = true
+  loadFailed.value = false
+
+  try {
+    // Only for the Add Transaction stock picker; the portfolio itself can still load without it.
+    if (stocksStore.stocks.length === 0) await stocksStore.fetchStocks()
+  } catch (e) {
+    if (!isApiOutage(e)) throw e
+    reportApiError(e)
+  }
+
+  try {
+    await store.fetchPortfolios()
+    await loadActive()
+  } catch (e) {
+    loadFailed.value = true
+    if (!isApiOutage(e)) throw e
+    reportApiError(e)
+  } finally {
+    initialLoading.value = false
+  }
+}
+
+onMounted(loadPage)
 </script>
 
 <template>
@@ -248,7 +275,12 @@ onMounted(async () => {
       </div>
     </div>
 
-    <LoadingState v-if="!store.activePortfolioId">Loading your portfolio…</LoadingState>
+    <LoadingState v-if="initialLoading">Loading your portfolio…</LoadingState>
+    <Card v-else-if="loadFailed">
+      <EmptyState>Could not load your portfolio. The connection to the server may be down.</EmptyState>
+      <button class="btn" @click="loadPage">Try again</button>
+    </Card>
+    <EmptyState v-else-if="!store.activePortfolioId" class="card">No portfolio yet. Click <strong>New Portfolio</strong> to create your first one.</EmptyState>
 
     <div v-if="showNewPortfolioForm" class="card form-stack" style="margin-bottom: 20px; flex-direction: row; align-items: center; max-width: none">
       <input v-model="newPortfolioName" class="input" placeholder="Portfolio name" style="max-width: 260px" />

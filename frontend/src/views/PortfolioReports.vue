@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { usePortfolioStore } from '../stores/portfolio'
 import { changeTone, formatPrice } from '../utils/format'
 import { downloadFile } from '../api/client'
 import { useSortableTable } from '../composables/useSortableTable'
+import { usePortfolioLoad } from '../composables/usePortfolioLoad'
 
 const store = usePortfolioStore()
 
@@ -32,14 +33,12 @@ const realizedTable = useSortableTable(
 )
 const { sorted: sortedRealized } = realizedTable
 
-async function load() {
+const { loading, failed, load } = usePortfolioLoad(async () => {
   if (store.portfolios.length === 0) await store.fetchPortfolios()
   if (store.activePortfolioId) {
     await store.fetchDetail(store.activePortfolioId)
   }
-}
-
-onMounted(load)
+})
 </script>
 
 <template>
@@ -49,7 +48,7 @@ onMounted(load)
     </div>
     <p v-if="exportError" class="error-text">{{ exportError }}</p>
 
-    <LoadingState v-if="!store.detail" />
+    <PortfolioStatus v-if="loading || failed || !store.detail" :loading="loading" :failed="failed" @retry="load" />
     <template v-else>
       <div class="grid grid-cards">
         <StatCard label="Total Invested" :value="`Rs. ${formatPrice(store.detail.summary.total_invested)}`" />

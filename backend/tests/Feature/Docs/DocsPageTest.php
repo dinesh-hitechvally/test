@@ -48,6 +48,18 @@ class DocsPageTest extends TestCase
             ->assertSee('Trailing stop');
     }
 
+    public function test_the_backtests_have_their_own_cron_group(): void
+    {
+        $this->get('/docs')
+            ->assertOk()
+            ->assertSee('/cron/backtest/signals', false)
+            ->assertSee('/cron/backtest/next-close', false)
+            ->assertDontSee('/cron/generate/backtest-signals', false);
+
+        config(['services.cron.secret' => 'k']);
+        $this->get('/cron/generate/backtest-signals?key=k')->assertNotFound(); // the old address is gone
+    }
+
     public function test_the_docs_page_shows_the_current_trading_limits(): void
     {
         config(['trading.min_risk_reward' => 2.75]);

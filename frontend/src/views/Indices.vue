@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import * as marketApi from '../api/market'
-import { changeTone } from '../utils/format'
+import { changeTone, formatNumber } from '../utils/format'
 import TrendChart from '../components/charts/TrendChart.vue'
 
 const indices = ref([])
@@ -31,7 +31,7 @@ onMounted(load)
           v-for="idx in indices"
           :key="idx.index_name"
           :label="idx.index_name"
-          :value="Number(idx.latest.close).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"
+          :value="formatNumber(idx.latest.close, { decimals: 2 })"
           :tone="changeTone(Number(idx.latest.change_pct))"
           :sub="idx.latest.change_pct !== null ? `${Number(idx.latest.change_pct) > 0 ? '+' : ''}${idx.latest.change_pct}%` : ''"
         />

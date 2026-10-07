@@ -39,6 +39,7 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, Pr
 // URL pattern: /cron/<kind>/<what>
 //   fetch/    pull data from an external source and save it as-is. Never computes anything.
 //   generate/ compute derived data from what is already in the database.
+//   backtest/ measure how accurate the signals and estimates were on past data. Writes accuracy stats only.
 //   check/    verify health: the NEPSE token, data quality.
 Route::middleware('cron.secret')->prefix('cron')->group(function () {
 
@@ -61,8 +62,13 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
         Route::get('signals', CronController::class)->defaults('task', GenerateSignalsTask::class); // from the stored indicators; ?all=1 = every stock
         Route::get('ai-opinions', CronController::class)->defaults('task', GenerateAiOpinionsTask::class); // calls Groq
         Route::get('ml-model', CronController::class)->defaults('task', TrainMlTask::class);
-        Route::get('backtest-signals', CronController::class)->defaults('task', BacktestSignalsTask::class);
-        Route::get('backtest-next-close', CronController::class)->defaults('task', BacktestNextCloseTask::class);
+    });
+
+    // Accuracy checks: replay the stored history and record how well signals and next-close estimates did.
+    // Run after the generate/ jobs, and again after changing indicator or signal rules.
+    Route::prefix('backtest')->group(function () {
+        Route::get('signals', CronController::class)->defaults('task', BacktestSignalsTask::class);
+        Route::get('next-close', CronController::class)->defaults('task', BacktestNextCloseTask::class);
     });
 
     Route::prefix('check')->group(function () {

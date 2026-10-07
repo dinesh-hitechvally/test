@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { changeTone, formatPrice } from '../../utils/format'
+import { changeTone, formatPrice, formatNumber } from '../../utils/format'
 
 const SIGNAL_OPTIONS = [
   { value: '', label: 'All signals' },
@@ -229,7 +229,7 @@ const table = { toggleSort, sortIndicator }
 
 function formatInt(value) {
   if (value === null || value === undefined) return '—'
-  return Number(value).toLocaleString()
+  return formatNumber(value)
 }
 </script>
 

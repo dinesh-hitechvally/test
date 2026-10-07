@@ -4,7 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import * as reportsApi from '../api/reports'
 import * as stocksApi from '../api/stocks'
 import { useStocksStore } from '../stores/stocks'
-import { changeTone, formatPrice, formatSignal } from '../utils/format'
+import { changeTone, formatPrice, formatSignal, formatNumber } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -155,7 +155,7 @@ const summary = computed(() => {
     if (d.signal.accuracy) {
       const a = d.signal.accuracy
       const beats = a.win_rate > a.baseline_win_rate
-      line += `. Historically, this exact signal type has won ${a.win_rate}% of the time over a ${a.horizon_days}-day horizon (n=${a.sample_size.toLocaleString()}), ${beats ? 'beating' : 'trailing'} its ${a.baseline_win_rate}% baseline — ${beats ? 'a real edge' : 'not yet a proven edge'}.`
+      line += `. Historically, this exact signal type has won ${a.win_rate}% of the time over a ${a.horizon_days}-day horizon (n=${formatNumber(a.sample_size)}), ${beats ? 'beating' : 'trailing'} its ${a.baseline_win_rate}% baseline — ${beats ? 'a real edge' : 'not yet a proven edge'}.`
     } else {
       line += '.'
     }
@@ -281,7 +281,7 @@ const summary = computed(() => {
             </ul>
             <p v-if="data.signal.accuracy" class="muted">
               This signal type has historically won {{ data.signal.accuracy.win_rate }}% of the time
-              (baseline {{ data.signal.accuracy.baseline_win_rate }}%, n={{ data.signal.accuracy.sample_size.toLocaleString() }}).
+              (baseline {{ data.signal.accuracy.baseline_win_rate }}%, n={{ formatNumber(data.signal.accuracy.sample_size) }}).
             </p>
           </template>
           <EmptyState v-else>No signal computed yet.</EmptyState>

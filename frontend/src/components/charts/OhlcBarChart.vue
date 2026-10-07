@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Chart } from 'vue-chartjs'
 import { Chart as ChartJS, TimeScale, LinearScale, Tooltip, Legend } from 'chart.js'
+import './chartSetup'
 import { OhlcController, OhlcElement } from 'chartjs-chart-financial'
 import 'chartjs-adapter-date-fns'
 

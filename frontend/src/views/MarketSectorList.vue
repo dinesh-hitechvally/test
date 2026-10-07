@@ -4,7 +4,7 @@ import { RouterLink } from 'vue-router'
 import * as reportsApi from '../api/reports'
 import { useColumnOptions } from '../composables/useColumnOptions'
 import { useSortableTable } from '../composables/useSortableTable'
-import { changeTone } from '../utils/format'
+import { changeTone, formatNumber } from '../utils/format'
 
 // Screen Options: which columns to show. Saved in the browser, and the query asks the API only
 // for the fields those columns need.
@@ -79,7 +79,7 @@ function formatChange(pct) {
   return pct === null || pct === undefined ? '—' : `${pct > 0 ? '+' : ''}${pct}%`
 }
 function formatInt(value) {
-  return value === null || value === undefined ? '—' : Number(value).toLocaleString()
+  return formatNumber(value)
 }
 </script>
 

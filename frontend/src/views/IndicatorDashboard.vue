@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import * as marketApi from '../api/market'
-import { formatPrice } from '../utils/format'
+import { formatPrice, formatNumber } from '../utils/format'
 
 const stocks = ref([])
 const loading = ref(true)
@@ -93,7 +93,7 @@ onMounted(load)
             <td>{{ ind(s, 'macd') !== null ? ind(s, 'macd').toFixed(3) : '—' }}</td>
             <td>{{ ind(s, 'macd_signal') !== null ? ind(s, 'macd_signal').toFixed(3) : '—' }}</td>
             <td>{{ ind(s, 'macd_histogram') !== null ? ind(s, 'macd_histogram').toFixed(3) : '—' }}</td>
-            <td>{{ s.latest_price?.volume?.toLocaleString() ?? '—' }}</td>
+            <td>{{ formatNumber(s.latest_price?.volume) }}</td>
             <td>
               <SignalBadge v-if="s.latest_signal" :signal="s.latest_signal.signal" />
               <span v-else class="muted">No data</span>

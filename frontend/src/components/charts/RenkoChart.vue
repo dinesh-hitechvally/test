@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 import { Bar } from 'vue-chartjs'
 import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js'
+import './chartSetup'
 import { toRenko } from '../../utils/chartTransforms'
+import { formatPrice } from '../../utils/format'
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip)
 
@@ -34,7 +36,7 @@ const options = computed(() => ({
   },
   plugins: {
     legend: { display: false },
-    tooltip: { callbacks: { label: (ctx) => `Rs. ${ctx.raw[0].toFixed(2)} – ${ctx.raw[1].toFixed(2)}` } },
+    tooltip: { callbacks: { label: (ctx) => `Rs. ${formatPrice(ctx.raw[0])} – ${formatPrice(ctx.raw[1])}` } },
   },
 }))
 

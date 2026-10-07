@@ -4,6 +4,7 @@ import Card from './Card.vue'
 import EmptyState from './EmptyState.vue'
 import LoadingState from './LoadingState.vue'
 import Pagination from './Pagination.vue'
+import PortfolioStatus from './PortfolioStatus.vue'
 import ScreenOptions from './ScreenOptions.vue'
 import SearchableSelect from './SearchableSelect.vue'
 import SellBadge from './SellBadge.vue'
@@ -12,7 +13,7 @@ import SortableTh from './SortableTh.vue'
 import StatCard from './StatCard.vue'
 import StockLink from './StockLink.vue'
 
-const components = { Card, EmptyState, LoadingState, Pagination, ScreenOptions, SearchableSelect, SellBadge, SignalBadge, SortableTh, StatCard, StockLink }
+const components = { Card, EmptyState, LoadingState, Pagination, PortfolioStatus, ScreenOptions, SearchableSelect, SellBadge, SignalBadge, SortableTh, StatCard, StockLink }
 
 export default {
   install(app) {

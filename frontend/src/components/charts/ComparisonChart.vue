@@ -10,6 +10,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import './chartSetup'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend)
 

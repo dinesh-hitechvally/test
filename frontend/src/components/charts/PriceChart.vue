@@ -10,8 +10,9 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import './chartSetup'
 import zoomPlugin from 'chartjs-plugin-zoom'
-import { formatPrice } from '../../utils/format'
+import { formatPrice, formatNumber } from '../../utils/format'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, zoomPlugin)
 
@@ -109,7 +110,7 @@ const options = {
 
           return [
             `Open ${formatPrice(day.open_price)}   High ${formatPrice(day.high_price)}   Low ${formatPrice(day.low_price)}`,
-            `Volume ${day.volume === null || day.volume === undefined ? '—' : Number(day.volume).toLocaleString()}${changeText}`,
+            `Volume ${formatNumber(day.volume)}${changeText}`,
           ]
         },
       },

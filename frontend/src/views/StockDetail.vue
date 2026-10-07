@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import * as stocksApi from '../api/stocks'
 import PriceChart from '../components/charts/PriceChart.vue'
 import IndicatorChart from '../components/charts/IndicatorChart.vue'
-import { formatPrice, formatSignal } from '../utils/format'
+import { formatPrice, formatSignal, formatNumber } from '../utils/format'
 import { usePageTitle } from '../composables/usePageTitle'
 import { useSortableTable } from '../composables/useSortableTable'
 
@@ -49,6 +49,7 @@ const corporateActionsError = ref('')
 
 async function loadAll(symbol) {
   loading.value = true
+  stock.value = null // never show the previous stock under a new address if this load fails
   try {
     signalsPage.value = 1
     aiOpinion.value = null
@@ -153,7 +154,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 
 <template>
   <LoadingState v-if="loading" />
-  <div v-else>
+  <div v-else-if="stock">
     <div class="page-header">
       <div>
         <p v-if="stock.latest_signal">
@@ -192,7 +193,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         </div>
         <div class="fundamental-item">
           <span class="muted small">Shares Outstanding</span>
-          <span v-if="stock.fundamental.shares_outstanding !== null">{{ Number(stock.fundamental.shares_outstanding).toLocaleString() }}</span>
+          <span v-if="stock.fundamental.shares_outstanding !== null">{{ formatNumber(stock.fundamental.shares_outstanding) }}</span>
           <span v-else class="muted">—</span>
         </div>
         <div class="fundamental-item">
@@ -279,7 +280,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         <strong>{{ nextCloseAccuracy.beats_baseline ? 'Beats baseline' : "Doesn't beat baseline" }}:</strong>
         measured error {{ nextCloseAccuracy.mape.toFixed(2) }}% vs. simply assuming no price change (baseline
         {{ nextCloseAccuracy.naive_mape.toFixed(2) }}%), and {{ nextCloseAccuracy.direction_accuracy.toFixed(1) }}%
-        directional accuracy (a coin flip is 50%) — backtested across {{ nextCloseAccuracy.sample_size.toLocaleString() }}
+        directional accuracy (a coin flip is 50%) — backtested across {{ formatNumber(nextCloseAccuracy.sample_size) }}
         real historical day-ahead pairs on {{ nextCloseAccuracy.stocks_used }} stocks.
         <span v-if="!nextCloseAccuracy.beats_baseline">
           In its current form this estimate is not adding value over simply assuming no price change tomorrow — shown
@@ -372,7 +373,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
           <tbody>
             <tr v-for="r in sortedRightShares" :key="r.id">
               <td>{{ r.ratio || '—' }}</td>
-              <td>{{ r.total_units !== null ? Number(r.total_units).toLocaleString() : '—' }}</td>
+              <td>{{ formatNumber(r.total_units) }}</td>
               <td>{{ r.issue_price !== null ? `Rs. ${formatPrice(r.issue_price)}` : '—' }}</td>
               <td class="muted">{{ r.opening_date || '—' }}</td>
               <td class="muted">{{ r.closing_date || '—' }}</td>
@@ -443,6 +444,10 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
       <Pagination :model-value="signalsPage" :total-pages="signalsTotalPages" :disabled="signalsLoading" @update:model-value="loadSignalsPage" />
     </Card>
   </div>
+  <Card v-else>
+    <EmptyState>Could not load this stock. The connection to the server may be down.</EmptyState>
+    <button class="btn" @click="loadAll(route.params.symbol)">Try again</button>
+  </Card>
 </template>
 
 <style scoped>

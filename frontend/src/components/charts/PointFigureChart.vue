@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 import { Chart } from 'vue-chartjs'
 import { Chart as ChartJS, ScatterController, LinearScale, PointElement, Tooltip } from 'chart.js'
+import './chartSetup'
 import { toPointFigure } from '../../utils/chartTransforms'
+import { formatPrice } from '../../utils/format'
 
 ChartJS.register(ScatterController, LinearScale, PointElement, Tooltip)
 
@@ -46,7 +48,7 @@ const options = {
   },
   plugins: {
     legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
-    tooltip: { callbacks: { label: (ctx) => `Rs. ${ctx.parsed.y.toFixed(2)}` } },
+    tooltip: { callbacks: { label: (ctx) => `Rs. ${formatPrice(ctx.parsed.y)}` } },
   },
 }
 
@@ -55,7 +57,7 @@ const hasData = computed(() => xPoints.value.length + oPoints.value.length > 0)
 
 <template>
   <div>
-    <p class="muted note">Box size Rs. {{ pf.boxSize.toFixed(2) }}, 3-box reversal — columns are sequential, not aligned to real dates.</p>
+    <p class="muted note">Box size Rs. {{ formatPrice(pf.boxSize) }}, 3-box reversal — columns are sequential, not aligned to real dates.</p>
     <div style="height: 400px">
       <Chart v-if="hasData" type="scatter" :data="chartData" :options="options" />
       <p v-else class="muted" style="padding-top: 160px; text-align: center">Not enough price movement yet to form a column.</p>

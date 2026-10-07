@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { downloadFile } from '../api/client'
 import { usePortfolioStore } from '../stores/portfolio'
+import { usePortfolioLoad } from '../composables/usePortfolioLoad'
 
 const store = usePortfolioStore()
 const exportError = ref('')
@@ -18,14 +19,14 @@ async function exportAs(format) {
   }
 }
 
-onMounted(async () => {
+const { loading, failed, load } = usePortfolioLoad(async () => {
   if (store.portfolios.length === 0) await store.fetchPortfolios()
 })
 </script>
 
 <template>
   <div>
-    <LoadingState v-if="!store.activePortfolioId">Loading your portfolio…</LoadingState>
+    <PortfolioStatus v-if="loading || failed || !store.activePortfolioId" :loading="loading" :failed="failed" @retry="load" />
 
     <template v-else>
       <p v-if="exportError" class="error-text">{{ exportError }}</p>

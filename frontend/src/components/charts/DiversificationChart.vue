@@ -2,6 +2,8 @@
 import { computed } from 'vue'
 import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
+import './chartSetup'
+import { formatNumber } from '../../utils/format'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 
@@ -32,7 +34,7 @@ const options = {
         label: (ctx) => {
           const total = ctx.dataset.data.reduce((a, b) => a + b, 0)
           const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : '0'
-          return `${ctx.label}: Rs. ${ctx.parsed.toLocaleString()} (${pct}%)`
+          return `${ctx.label}: Rs. ${formatNumber(ctx.parsed)} (${pct}%)`
         },
       },
     },

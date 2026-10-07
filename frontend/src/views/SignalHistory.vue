@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import * as marketApi from '../api/market'
+import { formatNumber } from '../utils/format'
 
 const data = ref(null)
 const loading = ref(true)
@@ -49,7 +50,7 @@ onMounted(load)
             <tr v-for="r in rows" :key="r.signal_type">
               <td><span class="badge" :class="r.signal_type">{{ r.label }}</span></td>
               <td>
-                {{ r.sample_size.toLocaleString() }}
+                {{ formatNumber(r.sample_size) }}
                 <span v-if="r.lowSample" class="muted small" title="Fewer than 200 samples — not enough data to trust this win rate yet.">(low sample)</span>
               </td>
               <td :class="{ muted: r.lowSample }">{{ r.win_rate }}%</td>

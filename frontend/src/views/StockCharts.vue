@@ -6,7 +6,7 @@ import * as reportsApi from '../api/reports'
 import * as stocksApi from '../api/stocks'
 import { useStocksStore } from '../stores/stocks'
 import { toHeikinAshi } from '../utils/chartTransforms'
-import { changeTone } from '../utils/format'
+import { changeTone, formatNumber } from '../utils/format'
 import CandlestickChart from '../components/charts/CandlestickChart.vue'
 import OhlcBarChart from '../components/charts/OhlcBarChart.vue'
 import PriceLineChart from '../components/charts/PriceLineChart.vue'
@@ -244,7 +244,7 @@ onMounted(async () => {
             v-for="idx in indices"
             :key="idx.index_name"
             :label="idx.index_name"
-            :value="Number(idx.latest.close).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })"
+            :value="formatNumber(idx.latest.close, { decimals: 2 })"
             :tone="changeTone(Number(idx.latest.change_pct))"
             :sub="idx.latest.change_pct !== null ? `${Number(idx.latest.change_pct) > 0 ? '+' : ''}${idx.latest.change_pct}%` : ''"
           />

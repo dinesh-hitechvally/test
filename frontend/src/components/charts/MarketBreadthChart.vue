@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Doughnut } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
+import './chartSetup'
 
 ChartJS.register(ArcElement, Tooltip, Legend)
 

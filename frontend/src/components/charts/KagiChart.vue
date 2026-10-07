@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Line } from 'vue-chartjs'
 import { Chart as ChartJS, TimeScale, LinearScale, PointElement, LineElement, Tooltip } from 'chart.js'
+import './chartSetup'
 import 'chartjs-adapter-date-fns'
 import { toKagiPoints } from '../../utils/chartTransforms'
 

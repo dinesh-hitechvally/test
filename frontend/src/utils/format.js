@@ -1,10 +1,8 @@
 // Display helpers shared by every page — use these instead of per-page copies.
 
-/** 1234.5 → "1234.50"; null/''/NaN → "—". */
+/** 1234.5 → "1,234.50", 1234567.5 → "12,34,567.50" (Nepali grouping, always 2 decimals); null/''/NaN → "—". */
 export function formatPrice(value) {
-  if (value === null || value === undefined || value === '') return '—'
-  const num = Number(value)
-  return Number.isNaN(num) ? '—' : num.toFixed(2)
+  return formatNumber(value, { decimals: 2 })
 }
 
 /** "strong_buy" → "strong buy". */
@@ -33,4 +31,18 @@ const SELL_REASON_LABELS = {
 /** "trailing_stop" → "Trailing stop hit". */
 export function formatSellReason(rule) {
   return SELL_REASON_LABELS[rule] ?? rule
+}
+
+/**
+ * A number with thousands separators in the Nepali / Indian style: the last three digits, then pairs
+ * (1234567 -> "12,34,567", 519999.5 -> "5,19,999.5"). Missing or non-numeric values show "—".
+ * `decimals` fixes the number of decimal places; without it up to 3 are shown, as they come.
+ */
+export function formatNumber(value, { decimals } = {}) {
+  if (value === null || value === undefined || value === '') return '—'
+
+  const number = Number(value)
+  if (Number.isNaN(number)) return '—'
+
+  return number.toLocaleString('en-IN', decimals === undefined ? { maximumFractionDigits: 3 } : { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }

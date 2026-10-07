@@ -88,7 +88,7 @@ class CronTasksTest extends TestCase
 
     public function test_backtest_signals_runs_the_service_directly(): void
     {
-        $this->get('/cron/generate/backtest-signals?key=test-secret')
+        $this->get('/cron/backtest/signals?key=test-secret')
             ->assertOk()
             ->assertSeeText('$ backtest-signals')
             ->assertSeeText('Backtested over a 30-trading-day horizon')

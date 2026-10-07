@@ -8,6 +8,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js'
+import './chartSetup'
 import { CandlestickController, CandlestickElement } from 'chartjs-chart-financial'
 import 'chartjs-adapter-date-fns'
 

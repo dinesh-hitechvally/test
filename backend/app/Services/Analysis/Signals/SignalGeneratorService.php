@@ -410,7 +410,7 @@ class SignalGeneratorService
      *
      * Every tier beats baseline in both periods, and each strong tier beats
      * its normal tier in both — the previous scheme managed neither. Re-run
-     * the signal backtest (/cron/generate/backtest-signals) after any change
+     * the signal backtest (/cron/backtest/signals) after any change
      * to SignalRules weights or these thresholds and check the same thing
      * before trusting it.
      */

@@ -8,10 +8,21 @@ import client, { apiBaseUrl } from './client'
 // (Laravel's per-field validation messages) exactly as before.
 export async function gql(query, variables = {}) {
   const { data: body } = await client.post('/graphql', { query, variables }, { baseURL: apiBaseUrl })
-  if (body.errors?.length) {
+  if (body?.errors?.length) {
     throw toApiError(body.errors[0])
   }
+  // A 200 that is not a GraphQL answer at all (an HTML error page from a crashed server, say) is a failure, not
+  // data: handing `undefined` to a page would crash it while drawing.
+  if (body === null || typeof body !== 'object' || body.data === undefined || body.data === null) {
+    throw unexpectedAnswer()
+  }
   return body.data
+}
+
+function unexpectedAnswer() {
+  const err = new Error('The server sent an unexpected answer.')
+  err.response = { status: 502, data: { message: err.message } }
+  return err
 }
 
 function toApiError(error) {
