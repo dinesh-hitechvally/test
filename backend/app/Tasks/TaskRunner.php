@@ -3,6 +3,7 @@
 namespace App\Tasks;
 
 use App\Events\TaskFailed;
+use App\Services\DataSources\SourceBlockedException;
 use Throwable;
 
 /**
@@ -25,9 +26,16 @@ class TaskRunner
             $output = $task->handle();
             $status = 'ok';
         } catch (Throwable $e) {
-            $output = "Failed: {$e->getMessage()}";
-            $status = 'failed';
-            TaskFailed::dispatch($task->name(), $e->getMessage());
+            if (($blocked = SourceBlockedException::in($e)) !== null) {
+                // The website blocking us was not even asked (it is paused — see SourceBlockRegistry): nothing new
+                // went wrong, so this run is skipped, not failed, and nobody is alerted again.
+                $output = "Skipped: {$blocked->getMessage()}";
+                $status = 'skipped';
+            } else {
+                $output = "Failed: {$e->getMessage()}";
+                $status = 'failed';
+                TaskFailed::dispatch($task->name(), $e->getMessage());
+            }
         }
 
         file_put_contents(

@@ -48,6 +48,20 @@ type DailyPrice {
     updated_at: String
 }
 
+type SignalBreakdown {
+    buy_pct: Float!
+    sell_pct: Float!
+    hold_pct: Float!
+    "Why to hold (long_term, consolidation, wait_confirmation, profit_protection, temporary_weakness, overbought); only when the decision is hold."
+    hold_type: String
+    "{ category: { buy, sell, hold } | null }"
+    category_scores: JSON
+    "{ hold_type: 0-100 }"
+    hold_scores: JSON
+    "{ category: [{ key, label, result, buy, sell, hold }] }"
+    conditions: JSON
+}
+
 type Signal {
     id: Int
     stock_id: Int
@@ -56,6 +70,8 @@ type Signal {
     score: String
     reasons: [String!]
     rule_keys: [String!]
+    "How the decision was reached: final BUY / SELL / HOLD %, each category's %, and every condition."
+    breakdown: SignalBreakdown @field(resolver: "App\\GraphQL\\Resolvers\\SignalResolver@breakdown")
     price_at_signal: String
     created_at: String
     updated_at: String

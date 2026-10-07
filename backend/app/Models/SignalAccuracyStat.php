@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
 #[Fillable([
-    'signal_type', 'horizon_days', 'sample_size', 'win_rate',
+    'signal_type', 'confidence_band', 'horizon_days', 'sample_size', 'win_rate',
     'avg_forward_return_pct', 'baseline_win_rate', 'computed_at',
 ])]
 class SignalAccuracyStat extends Model

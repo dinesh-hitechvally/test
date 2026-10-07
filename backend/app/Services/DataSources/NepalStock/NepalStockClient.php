@@ -31,7 +31,7 @@ class NepalStockClient
             'User-Agent' => self::USER_AGENT,
             'Referer' => self::BASE_URL.'/',
             'Authorization' => 'Salter '.$this->tokens->getAccessToken(),
-        ])->timeout($timeout);
+        ])->withOptions(['verify' => (bool) config('services.nepse.verify_ssl', true)])->timeout($timeout);
 
         // Only pass a query array when there is one: an empty array would
         // REPLACE a query string already in $path (e.g. "?nonDelisted=true").

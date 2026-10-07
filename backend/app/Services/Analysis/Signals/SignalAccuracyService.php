@@ -4,6 +4,7 @@ namespace App\Services\Analysis\Signals;
 
 use App\Models\SignalAccuracyStat;
 use App\Models\Stock;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Honest backtest of the rule-based signal engine: for every historical
@@ -15,7 +16,14 @@ use App\Models\Stock;
  */
 class SignalAccuracyService
 {
-    private const DIRECTIONAL_SIGNALS = ['strong_buy', 'buy', 'sell', 'strong_sell'];
+    private const DIRECTIONAL_SIGNALS = ['buy', 'sell'];
+
+    /**
+     * BUY % (for buys) / SELL % (for sells) bands the confidence backtest groups days into. The bands below the
+     * 50% decision line are on purpose: they show what happens just under the threshold, so you can see whether
+     * 50 is the right place to draw it.
+     */
+    private const BANDS = ['30-40' => [30, 40], '40-50' => [40, 50], '50-60' => [50, 60], '60-70' => [60, 70], '70+' => [70, 101]];
 
     public function backtest(int $horizonDays = 30): array
     {
@@ -27,6 +35,12 @@ class SignalAccuracyService
         $bySignal = [];
         foreach (self::DIRECTIONAL_SIGNALS as $type) {
             $bySignal[$type] = ['wins' => 0, 'samples' => 0, 'returnSum' => 0.0];
+        }
+        $byBand = [];
+        foreach (['buy', 'sell'] as $side) {
+            foreach (array_keys(self::BANDS) as $band) {
+                $byBand[$side][$band] = ['wins' => 0, 'samples' => 0, 'returnSum' => 0.0];
+            }
         }
         $baselineUp = 0;
         $baselineTotal = 0;
@@ -73,13 +87,43 @@ class SignalAccuracyService
                 }
 
                 $forwardReturn = (($closes[$i + $horizonDays] - $closes[$i]) / $closes[$i]) * 100;
-                $isBullishCall = in_array($signal->signal, ['strong_buy', 'buy'], true);
+                $isBullishCall = $signal->signal === 'buy';
                 $won = $isBullishCall ? $forwardReturn > 0 : $forwardReturn < 0;
 
                 $bySignal[$signal->signal]['samples']++;
                 $bySignal[$signal->signal]['returnSum'] += $forwardReturn;
                 if ($won) {
                     $bySignal[$signal->signal]['wins']++;
+                }
+            }
+
+            // The same forward-return test, grouped by how confident the day was (its BUY % / SELL %), whatever
+            // the final decision turned out to be. Reads the stored percentages; no recomputation.
+            $percentages = DB::table('signal_breakdowns')
+                ->where('stock_id', $stock->id)
+                ->get(['trade_date', 'buy_pct', 'sell_pct']);
+
+            foreach ($percentages as $day) {
+                $i = $dateIndex[substr((string) $day->trade_date, 0, 10)] ?? null;
+
+                if ($i === null || $i + $horizonDays >= $n || $closes[$i] <= 0) {
+                    continue;
+                }
+
+                $forwardReturn = (($closes[$i + $horizonDays] - $closes[$i]) / $closes[$i]) * 100;
+
+                foreach (['buy' => (float) $day->buy_pct, 'sell' => (float) $day->sell_pct] as $side => $pct) {
+                    $band = $this->bandFor($pct);
+
+                    if ($band === null) {
+                        continue;
+                    }
+
+                    $byBand[$side][$band]['samples']++;
+                    $byBand[$side][$band]['returnSum'] += $forwardReturn;
+                    if ($side === 'buy' ? $forwardReturn > 0 : $forwardReturn < 0) {
+                        $byBand[$side][$band]['wins']++;
+                    }
                 }
             }
         }
@@ -93,10 +137,11 @@ class SignalAccuracyService
                 continue;
             }
 
-            $isBullish = in_array($type, ['strong_buy', 'buy'], true);
+            $isBullish = $type === 'buy';
 
             $rows[] = [
                 'signal_type' => $type,
+                'confidence_band' => null,
                 'horizon_days' => $horizonDays,
                 'sample_size' => $stat['samples'],
                 'win_rate' => round(($stat['wins'] / $stat['samples']) * 100, 2),
@@ -110,17 +155,57 @@ class SignalAccuracyService
             ];
         }
 
+        $signalTypes = count($rows);
+
+        foreach ($byBand as $side => $bands) {
+            foreach ($bands as $band => $stat) {
+                if ($stat['samples'] === 0) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'signal_type' => $side,
+                    'confidence_band' => $band,
+                    'horizon_days' => $horizonDays,
+                    'sample_size' => $stat['samples'],
+                    'win_rate' => round(($stat['wins'] / $stat['samples']) * 100, 2),
+                    'avg_forward_return_pct' => round($stat['returnSum'] / $stat['samples'], 4),
+                    'baseline_win_rate' => $baselineWinRate === null ? null : ($side === 'buy' ? $baselineWinRate : round(100 - $baselineWinRate, 2)),
+                    'computed_at' => $computedAt,
+                    'created_at' => $computedAt,
+                    'updated_at' => $computedAt,
+                ];
+            }
+        }
+
         if ($rows !== []) {
             SignalAccuracyStat::insert($rows);
         }
 
-        return ['horizon_days' => $horizonDays, 'signal_types_computed' => count($rows), 'baseline_win_rate' => $baselineWinRate];
+        return [
+            'horizon_days' => $horizonDays,
+            'signal_types_computed' => $signalTypes,
+            'bands_computed' => count($rows) - $signalTypes,
+            'baseline_win_rate' => $baselineWinRate,
+        ];
+    }
+
+    private function bandFor(float $pct): ?string
+    {
+        foreach (self::BANDS as $band => [$low, $high]) {
+            if ($pct >= $low && $pct < $high) {
+                return $band;
+            }
+        }
+
+        return null;
     }
 
     /** The latest backtest's stats for one signal type (e.g. "buy") — null before the first backtest. */
     public function latestFor(string $signalType): ?SignalAccuracyStat
     {
         return SignalAccuracyStat::where('signal_type', $signalType)
+            ->whereNull('confidence_band')
             ->where('computed_at', SignalAccuracyStat::max('computed_at'))
             ->first();
     }

@@ -18,6 +18,21 @@ return [
         'key' => env('POSTMARK_API_KEY'),
     ],
 
+    // Websites that can block us (a web filter, an HTTP 403 / 429 ...). While one is blocking, every request to it is
+    // skipped — see App\Services\DataSources\SourceBlockRegistry and the source_blocks table. Add a website here
+    // to track it too; others are never blocked or tracked.
+    'source_block' => [
+        'websites' => ['nepalstock.com', 'sharesansar.com', 'merolagani.com'],
+        'cooldown_minutes' => (int) env('SOURCE_BLOCK_COOLDOWN_MINUTES', 30), // pause after a block, then the next request retries
+        'transient_failures' => 3, // failures in a row (outage, not refusal) that also block a website
+    ],
+
+    'nepse' => [
+        // nepalstock.com does not send its intermediate certificate, so PHP builds without a full CA chain (e.g. local
+        // Laragon) fail with "cURL error 60". Set NEPSE_VERIFY_SSL=false to skip the check for NEPSE calls only.
+        'verify_ssl' => env('NEPSE_VERIFY_SSL', true),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],

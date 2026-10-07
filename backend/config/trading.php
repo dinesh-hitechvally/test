@@ -5,8 +5,8 @@
  * (App\Services\Portfolio\TradePlanService). Advice only: this system never trades.
  */
 return [
-    // Signal gate: only these signals, at or above this -1..1 score, on a signal no older than this many days.
-    'min_score' => 0.5,
+    // Signal gate: only a BUY, at or above this -1..1 weighted score (a BUY starts at signals.verdict_threshold), on a signal no older than this many days.
+    'min_score' => 0.25,
     'signal_max_age_days' => 3,
 
     // Risk gate.

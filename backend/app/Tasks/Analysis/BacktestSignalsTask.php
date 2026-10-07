@@ -16,6 +16,6 @@ class BacktestSignalsTask extends Task
     {
         $result = $this->accuracy->backtest(self::HORIZON_DAYS);
 
-        return "Backtested over a {$result['horizon_days']}-trading-day horizon — {$result['signal_types_computed']} signal type(s), baseline win rate {$result['baseline_win_rate']}%.";
+        return "Backtested over a {$result['horizon_days']}-trading-day horizon — {$result['signal_types_computed']} signal type(s) and {$result['bands_computed']} confidence band(s), baseline win rate {$result['baseline_win_rate']}%.";
     }
 }

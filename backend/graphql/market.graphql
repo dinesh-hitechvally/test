@@ -70,6 +70,8 @@ type IndexSeries {
 type SignalAccuracyStat {
     id: Int
     signal_type: String!
+    "null = all signals of this type; otherwise the BUY % (buy) / SELL % (sell) band the day fell in, e.g. 60-70."
+    confidence_band: String
     horizon_days: Int
     sample_size: Int
     win_rate: String

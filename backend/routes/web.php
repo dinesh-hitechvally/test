@@ -8,6 +8,7 @@ use App\Tasks\Analysis\BacktestNextCloseTask;
 use App\Tasks\Analysis\BacktestSignalsTask;
 use App\Tasks\Analysis\GenerateSignalsTask;
 use App\Tasks\Analysis\RecalculateMarketTask;
+use App\Tasks\DataQuality\CheckSourcesTask;
 use App\Tasks\DataQuality\ScanDataQualityTask;
 use App\Tasks\MachineLearning\TrainMlTask;
 use App\Tasks\MarketData\FetchHistoriesTask;
@@ -74,6 +75,7 @@ Route::middleware('cron.secret')->prefix('cron')->group(function () {
     Route::prefix('check')->group(function () {
         Route::get('nepse-token', CronController::class)->defaults('task', VerifyNepseTokenTask::class);
         Route::get('data-quality', CronController::class)->defaults('task', ScanDataQualityTask::class);
+        Route::get('sources', CronController::class)->defaults('task', CheckSourcesTask::class); // which websites are blocking us
     });
 });
 

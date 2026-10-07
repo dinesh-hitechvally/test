@@ -119,9 +119,9 @@ onMounted(async () => {
               <tr><th>Signal</th><th>Days Triggered</th></tr>
             </thead>
             <tbody>
-              <tr v-for="signal in ['strong_buy', 'buy', 'hold', 'sell', 'strong_sell']" :key="signal">
+              <tr v-for="signal in ['buy', 'hold', 'sell']" :key="signal">
                 <td><SignalBadge :signal="signal" /></td>
-                <td>{{ report.signal_counts_90d[signal] ?? 0 }}</td>
+                <td>{{ (report.signal_counts_90d[signal] ?? 0) + (report.signal_counts_90d['strong_' + signal] ?? 0) }}</td>
               </tr>
             </tbody>
           </table>

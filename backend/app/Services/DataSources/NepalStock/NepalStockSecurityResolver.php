@@ -2,8 +2,8 @@
 
 namespace App\Services\DataSources\NepalStock;
 
-use App\Models\Sector;
 use App\Models\Stock;
+use App\Services\DataSources\StockListingWriter;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -22,7 +22,12 @@ class NepalStockSecurityResolver
     /** Every listed company with its sector (`sectorName`) and `instrumentType`, in one call. Matches stocks by symbol. */
     private const COMPANIES_PATH = '/api/nots/company/list';
 
-    public function __construct(private readonly NepalStockClient $client) {}
+    private readonly StockListingWriter $writer;
+
+    public function __construct(private readonly NepalStockClient $client, ?StockListingWriter $writer = null)
+    {
+        $this->writer = $writer ?? new StockListingWriter;
+    }
 
     public function resolve(Stock $stock): int
     {
@@ -69,63 +74,13 @@ class NepalStockSecurityResolver
     {
         $securities = $this->fetchSecuritiesList();
         $companies = $this->fetchCompaniesBySymbol();
-        $sectorIds = [];
-        $created = 0;
-        $existing = 0;
-        $sectorsFilled = 0;
-        $sectorsInferred = 0;
-        $typesSet = 0;
 
-        foreach ($securities as $security) {
-            $symbol = strtoupper((string) ($security['symbol'] ?? ''));
-
-            if ($symbol === '') {
-                continue;
-            }
-
-            $stock = Stock::firstOrNew(['symbol' => $symbol]);
-            $isNew = ! $stock->exists;
-
-            if ($isNew) {
-                $stock->company_name = $security['securityName'] ?? null;
-                $stock->is_active = ($security['activeStatus'] ?? 'A') === 'A';
-            }
-
-            if (isset($security['id']) && $stock->nepse_security_id === null) {
-                $stock->nepse_security_id = (int) $security['id'];
-            }
-
-            $sectorName = $companies[$symbol]['sector'] ?? null;
-            $instrumentType = $companies[$symbol]['instrument_type'] ?? null;
-
-            $inferred = false;
-
-            // Not a company at all (so no sector of its own): a promoter / preference share takes its parent's.
-            if ($stock->sector_id === null && ! isset($companies[$symbol])) {
-                $sectorName = $this->parentSector($symbol, $companies);
-                $inferred = $sectorName !== null;
-            }
-
-            if ($stock->sector_id === null && $sectorName !== null) {
-                $stock->sector_id = $sectorIds[$sectorName] ??= Sector::firstOrCreate(['name' => $sectorName])->id;
-                $sectorsFilled++;
-
-                if ($inferred) {
-                    $sectorsInferred++;
-                }
-            }
-
-            if ($instrumentType !== null && $stock->instrument_type !== $instrumentType) {
-                $stock->instrument_type = $instrumentType;
-                $typesSet++;
-            }
-
-            if ($isNew || $stock->isDirty()) {
-                $stock->save();
-            }
-
-            $isNew ? $created++ : $existing++;
-        }
+        $result = $this->writer->write(array_map(fn (array $s) => [
+            'symbol' => (string) ($s['symbol'] ?? ''),
+            'name' => $s['securityName'] ?? null,
+            'active' => ($s['activeStatus'] ?? 'A') === 'A',
+            'nepse_security_id' => isset($s['id']) ? (int) $s['id'] : null,
+        ], $securities), $companies);
 
         // The cache resolve() reads is now stale the moment a new stock is
         // created above (it wouldn't have this symbol yet) — clear it so
@@ -133,36 +88,7 @@ class NepalStockSecurityResolver
         // for up to 6 hours.
         Cache::forget('nepse_securities_list');
 
-        return [
-            'total' => count($securities),
-            'created' => $created,
-            'existing' => $existing,
-            'sectors_filled' => $sectorsFilled,
-            'sectors_inferred' => $sectorsInferred,
-            'types_set' => $typesSet,
-        ];
-    }
-
-    /**
-     * The sector of the company a promoter / preference share belongs to: its symbol is the company's
-     * plus "P" or "PO" (ACLBSLP -> ACLBSL, BFCPO -> BFC). Null when no company matches, so it never
-     * guesses for anything that is not clearly such a share.
-     *
-     * @param  array<string, array{sector: ?string, instrument_type: ?string}>  $companies
-     */
-    private function parentSector(string $symbol, array $companies): ?string
-    {
-        foreach (['PO', 'P'] as $suffix) {
-            if (strlen($symbol) > strlen($suffix) + 1 && str_ends_with($symbol, $suffix)) {
-                $parent = substr($symbol, 0, -strlen($suffix));
-
-                if (isset($companies[$parent]) && $companies[$parent]['sector'] !== null) {
-                    return $companies[$parent]['sector'];
-                }
-            }
-        }
-
-        return null;
+        return $result;
     }
 
     /**

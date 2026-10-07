@@ -9,11 +9,9 @@ const route = useRoute()
 
 const SIGNAL_OPTIONS = [
   { value: '', label: 'Any' },
-  { value: 'strong_buy', label: 'Strong Buy' },
   { value: 'buy', label: 'Buy' },
   { value: 'hold', label: 'Hold' },
   { value: 'sell', label: 'Sell' },
-  { value: 'strong_sell', label: 'Strong Sell' },
 ]
 
 const SMA_OPTIONS = [

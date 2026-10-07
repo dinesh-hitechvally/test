@@ -4,16 +4,12 @@ import { changeTone, formatPrice, formatNumber } from '../../utils/format'
 
 const SIGNAL_OPTIONS = [
   { value: '', label: 'All signals' },
-  { value: 'strong_buy', label: 'Strong Buy' },
   { value: 'buy', label: 'Buy' },
   { value: 'hold', label: 'Hold' },
   { value: 'sell', label: 'Sell' },
-  { value: 'strong_sell', label: 'Strong Sell' },
 ]
 
-// AI opinions only ever come back as buy/hold/sell (see
-// AiStockOpinionService's responseSchema) — no strong_buy/strong_sell,
-// unlike the rule-based signal above.
+// AI opinions come back as buy/hold/sell too (see AiStockOpinionService's responseSchema).
 const AI_OPINION_OPTIONS = [
   { value: '', label: 'All AI opinions' },
   { value: 'buy', label: 'Buy' },

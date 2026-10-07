@@ -13,7 +13,8 @@ return new class extends Migration
     {
         Schema::create('signal_accuracy_stats', function (Blueprint $table) {
             $table->id();
-            $table->string('signal_type', 20); // strong_buy | buy | hold | sell | strong_sell
+            $table->string('signal_type', 20); // buy | sell (older runs may also hold strong_buy / strong_sell)
+            $table->string('confidence_band', 10)->nullable(); // null = every signal of this type; else the BUY % (for buy) or SELL % (for sell) band, e.g. '60-70'
             $table->unsignedSmallInteger('horizon_days');
             $table->unsignedInteger('sample_size');
             $table->decimal('win_rate', 6, 2)->nullable(); // % of occurrences where price moved the "right" way

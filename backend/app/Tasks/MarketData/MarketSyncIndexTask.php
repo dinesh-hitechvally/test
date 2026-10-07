@@ -3,6 +3,7 @@
 namespace App\Tasks\MarketData;
 
 use App\Services\DataSources\NepalStock\NepalStockIndexService;
+use App\Services\DataSources\SourceFailover;
 use App\Tasks\Task;
 
 class MarketSyncIndexTask extends Task
@@ -17,6 +18,6 @@ class MarketSyncIndexTask extends Task
             return 'Market is closed today — nothing synced.';
         }
 
-        return "{$result['indices_updated']} index snapshot(s) updated.";
+        return "{$result['indices_updated']} index snapshot(s) updated (from {$result['source']})".SourceFailover::note($result['failed_sources']).'.';
     }
 }

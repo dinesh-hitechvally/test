@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import * as stocksApi from '../api/stocks'
+import SignalBreakdownTable from '../components/stock/SignalBreakdownTable.vue'
 import PriceChart from '../components/charts/PriceChart.vue'
 import IndicatorChart from '../components/charts/IndicatorChart.vue'
 import { formatPrice, formatSignal, formatNumber } from '../utils/format'
@@ -23,7 +24,27 @@ const signalsTotalPages = ref(1)
 const signalsLoading = ref(false)
 const signalsFromFilter = ref('')
 const signalsToFilter = ref('')
-const SIGNAL_TYPES = ['strong_buy', 'buy', 'hold', 'sell', 'strong_sell']
+const SIGNAL_TYPES = ['buy', 'hold', 'sell']
+const pct = (v) => `${Number(v).toFixed(1)}%`
+// Signal History: click a row to open that day's full Buy / Sell / Hold breakdown (loaded on demand).
+const openDate = ref(null)
+const openDay = ref(null)
+const openDayLoading = ref(false)
+async function toggleDay(date) {
+  if (openDate.value === date) {
+    openDate.value = null
+    return
+  }
+  openDate.value = date
+  openDay.value = null
+  openDayLoading.value = true
+  try {
+    const day = await stocksApi.signalDay(route.params.symbol, date)
+    if (openDate.value === date) openDay.value = day
+  } finally {
+    openDayLoading.value = false
+  }
+}
 const signalsTypeFilter = ref([])
 const mlPrediction = ref(null)
 const mlModel = ref(null)
@@ -166,6 +187,10 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         <div class="price">Rs. {{ formatPrice(stock.latest_price?.close_price) }}</div>
       </div>
     </div>
+
+    <Card v-if="stock.latest_signal?.breakdown" title="Signal Breakdown" style="margin-top: 16px">
+      <SignalBreakdownTable :signal="stock.latest_signal" />
+    </Card>
 
     <Card title="Fundamentals" style="margin-top: 16px">
 
@@ -423,20 +448,34 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 
       <table v-align-numbers class="table">
         <thead>
-          <tr><th>Date</th><th>Price</th><th>Forecast Next Close</th><th>Signal</th><th>Score</th><th>Reasons</th></tr>
+          <tr><th>Date</th><th>Price</th><th>Forecast Next Close</th><th>Signal</th><th>Buy</th><th>Sell</th><th>Hold</th><th>Reasons</th></tr>
         </thead>
         <tbody>
-          <tr v-for="s in signals" :key="s.id">
-            <td>{{ s.trade_date }}</td>
-            <td>Rs. {{ formatPrice(s.price_at_signal) }}</td>
-            <td>
-              <span v-if="s.forecast_price !== null">Rs. {{ formatPrice(s.forecast_price) }}</span>
-              <span v-else class="muted">—</span>
-            </td>
-            <td><SignalBadge :signal="s.signal" /></td>
-            <td>{{ s.score }}</td>
-            <td class="muted">{{ s.reasons.join('; ') }}</td>
-          </tr>
+          <template v-for="s in signals" :key="s.id">
+            <tr class="signal-day-row" title="Click to see how this day's Buy / Sell / Hold was worked out" @click="toggleDay(s.trade_date)">
+              <td>{{ s.trade_date }}</td>
+              <td>Rs. {{ formatPrice(s.price_at_signal) }}</td>
+              <td>
+                <span v-if="s.forecast_price !== null">Rs. {{ formatPrice(s.forecast_price) }}</span>
+                <span v-else class="muted">—</span>
+              </td>
+              <td><SignalBadge :signal="s.signal" /></td>
+              <template v-if="s.breakdown">
+                <td class="positive">{{ pct(s.breakdown.buy_pct) }}</td>
+                <td class="negative">{{ pct(s.breakdown.sell_pct) }}</td>
+                <td class="muted">{{ pct(s.breakdown.hold_pct) }}</td>
+              </template>
+              <td v-else colspan="3" class="muted">—</td>
+              <td class="muted">{{ s.reasons.join('; ') }}</td>
+            </tr>
+            <tr v-if="openDate === s.trade_date">
+              <td colspan="8">
+                <LoadingState v-if="openDayLoading" />
+                <SignalBreakdownTable v-else-if="openDay" :signal="openDay" />
+                <p v-else class="muted small">No breakdown stored for this day.</p>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
       <EmptyState v-if="!signalsLoading && signals.length === 0">No signals yet.</EmptyState>
@@ -451,6 +490,10 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
 </template>
 
 <style scoped>
+.signal-day-row {
+  cursor: pointer;
+}
+
 .signal-filters {
   display: flex;
   align-items: flex-end;

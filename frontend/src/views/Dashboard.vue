@@ -42,11 +42,9 @@ const loadingReport = ref(true)
 
 const filters = [
   { value: '', label: 'All' },
-  { value: 'strong_buy', label: 'Strong Buy' },
   { value: 'buy', label: 'Buy' },
   { value: 'hold', label: 'Hold' },
   { value: 'sell', label: 'Sell' },
-  { value: 'strong_sell', label: 'Strong Sell' },
 ]
 
 async function loadSignals() {
@@ -80,16 +78,14 @@ onMounted(async () => {
       <div class="grid grid-cards">
         <StatCard label="Stocks Tracked" :value="report.totals.stocks" :sub="`${report.totals.with_signals} have a signal`" />
         <StatCard
-          label="Buy-leaning Signals"
+          label="Buy Signals"
           :value="report.signal_counts.strong_buy + report.signal_counts.buy"
           tone="positive"
-          :sub="`${report.signal_counts.strong_buy} strong buy`"
         />
         <StatCard
-          label="Sell-leaning Signals"
+          label="Sell Signals"
           :value="report.signal_counts.strong_sell + report.signal_counts.sell"
           tone="negative"
-          :sub="`${report.signal_counts.strong_sell} strong sell`"
         />
         <StatCard
           label="Last Scrape"

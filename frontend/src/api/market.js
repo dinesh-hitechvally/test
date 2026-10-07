@@ -18,7 +18,7 @@ export async function actionableSignals(bias = 'buy') {
 export async function signalAccuracy() {
   return (await gql(`{ signalAccuracy {
     available computed_at horizon_days disclaimer
-    stats { id signal_type horizon_days sample_size win_rate avg_forward_return_pct baseline_win_rate computed_at created_at updated_at }
+    stats { id signal_type confidence_band horizon_days sample_size win_rate avg_forward_return_pct baseline_win_rate computed_at created_at updated_at }
   } }`)).signalAccuracy
 }
 

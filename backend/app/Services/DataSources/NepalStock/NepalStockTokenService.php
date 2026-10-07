@@ -53,7 +53,7 @@ class NepalStockTokenService
             'User-Agent' => self::USER_AGENT,
             'Referer' => self::BASE_URL.'/',
             'Accept' => 'application/json',
-        ])->timeout(15)->get(self::BASE_URL.self::TOKEN_PATH);
+        ])->withOptions(['verify' => (bool) config('services.nepse.verify_ssl', true)])->timeout(15)->get(self::BASE_URL.self::TOKEN_PATH);
 
         $response->throw();
         $data = $response->json();

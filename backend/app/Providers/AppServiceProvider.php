@@ -17,11 +17,13 @@ use App\Listeners\RecordLoginHistory;
 use App\Listeners\RecordScrapeLog;
 use App\Services\Ai\GroqOpinionProvider;
 use App\Services\DataSources\ShareSansar\SharesansarHistoryService;
+use App\Services\DataSources\SourceBlockRegistry;
 use App\Services\Mail\EmailLogService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -72,7 +74,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(SourceBlockRegistry::class);
     }
 
     /**
@@ -80,6 +82,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Every outgoing request to a tracked website (nepalstock.com, sharesansar.com, merolagani.com) goes
+        // through the block registry: a website that blocks us is skipped, not hammered.
+        Http::globalMiddleware($this->app->make(SourceBlockRegistry::class)->httpMiddleware());
+
         foreach (self::LISTENERS as $event => $listeners) {
             foreach ($listeners as $listener) {
                 Event::listen($event, $listener);

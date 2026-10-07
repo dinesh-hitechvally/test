@@ -36,7 +36,8 @@ export async function list(search = null, columns = null) {
 
 export async function get(symbol) {
   return (await gql(`query ($symbol: String!) { stock(symbol: $symbol) {
-    ${STOCK_BASE} latest_price { ${PRICE} } latest_signal { ${SIGNAL} } fundamental { ${FUNDAMENTAL} }
+    ${STOCK_BASE} latest_price { ${PRICE} } fundamental { ${FUNDAMENTAL} }
+    latest_signal { ${SIGNAL} breakdown { buy_pct sell_pct hold_pct hold_type category_scores conditions } }
   } }`, { symbol })).stock
 }
 
@@ -66,9 +67,17 @@ export async function forecasts(symbol, days = 365) {
 export async function signals(symbol, { from = null, to = null, signal = null, page = 1, per_page = 30 } = {}) {
   return (await gql(`query ($symbol: String!, $from: String, $to: String, $signal: [String!], $page: Int, $per_page: Int) {
     stockSignals(symbol: $symbol, from: $from, to: $to, signal: $signal, page: $page, per_page: $per_page) {
-      data { ${SIGNAL} forecast_price } page per_page total total_pages
+      data { ${SIGNAL} forecast_price breakdown { buy_pct sell_pct hold_pct hold_type } } page per_page total total_pages
     }
   }`, { symbol, from, to, signal, page, per_page })).stockSignals
+}
+
+/** One day's full Buy / Sell / Hold breakdown (category % and every condition), or null when no signal exists for that date. */
+export async function signalDay(symbol, date) {
+  const page = (await gql(`query ($symbol: String!, $from: String, $to: String) {
+    stockSignals(symbol: $symbol, from: $from, to: $to, page: 1, per_page: 1) { data { ${SIGNAL} breakdown { buy_pct sell_pct hold_pct hold_type category_scores conditions } } }
+  }`, { symbol, from: date, to: date })).stockSignals
+  return page.data[0] || null
 }
 
 export async function mlPrediction(symbol) {
