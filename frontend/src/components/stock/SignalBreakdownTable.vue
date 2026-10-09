@@ -7,15 +7,15 @@ const props = defineProps({
   signal: { type: Object, required: true },
 })
 
-// Mirrors config/signals.php `weights` — how much each category counts towards the final Buy / Sell / Hold %.
-const CATEGORY_WEIGHTS = [
-  ['technical', 'Technical', 25],
-  ['fundamental', 'Fundamental', 25],
-  ['trend', 'Trend', 15],
-  ['momentum', 'Momentum', 10],
-  ['volume', 'Volume', 10],
-  ['risk', 'Risk', 10],
-  ['valuation', 'Valuation', 5],
+// The categories explain the result; the weights are per condition (each stored with its share of the final %).
+const CATEGORIES = [
+  ['technical', 'Technical'],
+  ['fundamental', 'Fundamental'],
+  ['trend', 'Trend'],
+  ['momentum', 'Momentum'],
+  ['volume', 'Volume'],
+  ['risk', 'Risk'],
+  ['valuation', 'Valuation'],
 ]
 
 const HOLD_TYPE_LABELS = {
@@ -32,16 +32,23 @@ const breakdown = computed(() => props.signal.breakdown || null)
 const rows = computed(() => {
   const scores = breakdown.value?.category_scores
   if (!scores) return []
-  return CATEGORY_WEIGHTS.map(([key, label, weight]) => ({
-    key,
-    label,
-    weight,
-    triple: scores[key] ?? null,
-    conditions: breakdown.value.conditions?.[key] ?? [],
-  }))
+  return CATEGORIES.map(([key, label]) => {
+    const conditions = breakdown.value.conditions?.[key] ?? []
+    // Days stored before indicator weights existed carry no per-condition weight.
+    const weighted = conditions.some((c) => c.weight !== undefined)
+
+    return {
+      key,
+      label,
+      weight: weighted ? conditions.reduce((sum, c) => sum + (c.weight || 0), 0) : null,
+      triple: scores[key] ?? null,
+      conditions,
+    }
+  })
 })
 
 const pct = (v) => `${Number(v).toFixed(1)}%`
+const share = (v) => (v === null || v === undefined ? '—' : `${Number(v).toFixed(1)}%`)
 </script>
 
 <template>
@@ -56,13 +63,13 @@ const pct = (v) => `${Number(v).toFixed(1)}%`
 
     <table v-if="rows.length" v-align-numbers class="table">
       <thead>
-        <tr><th>Category</th><th>Weight</th><th>Buy</th><th>Sell</th><th>Hold</th></tr>
+        <tr><th>Category / condition</th><th>Weight</th><th>Buy</th><th>Sell</th><th>Hold</th></tr>
       </thead>
       <tbody>
         <template v-for="row in rows" :key="row.key">
           <tr>
             <td>{{ row.label }}</td>
-            <td>{{ row.weight }}%</td>
+            <td>{{ share(row.weight) }}</td>
             <template v-if="row.triple">
               <td class="positive">{{ pct(row.triple.buy) }}</td>
               <td class="negative">{{ pct(row.triple.sell) }}</td>
@@ -72,7 +79,7 @@ const pct = (v) => `${Number(v).toFixed(1)}%`
           </tr>
           <tr v-for="c in row.conditions" :key="row.key + c.key">
             <td class="muted small" style="padding-left: 24px">{{ c.label }}: {{ c.result }}</td>
-            <td></td>
+            <td class="small">{{ share(c.weight) }}</td>
             <td class="small">{{ pct(c.buy) }}</td>
             <td class="small">{{ pct(c.sell) }}</td>
             <td class="small">{{ pct(c.hold) }}</td>
@@ -88,9 +95,11 @@ const pct = (v) => `${Number(v).toFixed(1)}%`
       </tbody>
     </table>
     <p class="muted small">
-      Every condition gets its own Buy / Sell / Hold %. A category is the average of its conditions; the final % is the
-      categories weighted as above (a category with no data is left out and the rest re-weighted). Buy or Sell needs at
-      least 50%, otherwise it is a Hold. Fundamental and Valuation only exist for the latest day.
+      Every condition gets its own Buy / Sell / Hold %. The final % is the conditions weighted by their share (an
+      indicator with no data is left out and the rest re-weighted; related indicators are capped so they do not dominate).
+      A category row is the total weight and the average of its conditions, shown to explain the result. Buy or Sell needs
+      at least 50% and a 10-point lead, otherwise it is a Hold; a Buy at an overbought price or a Sell at an oversold one
+      is held back unless the trend confirms it. Fundamental and Valuation only exist for the latest day.
     </p>
   </div>
   <p v-else class="muted small">No breakdown stored for this day.</p>

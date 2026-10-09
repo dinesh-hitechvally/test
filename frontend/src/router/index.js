@@ -65,7 +65,6 @@ const routes = [
   { path: '/settings/profile', name: 'settings-profile', component: () => import('../views/Profile.vue'), meta: { requiresAuth: true, title: 'Profile' } },
   // Alert preferences now live on the Profile page (Preferences tab); the old address still works.
   { path: '/settings/notifications', redirect: { path: '/settings/profile', query: { tab: 'preferences' } } },
-  { path: '/settings/signals', name: 'settings-signals', component: () => import('../views/SignalSettings.vue'), meta: { requiresAuth: true, title: 'Signal Settings' } },
   { path: '/settings/data-source', name: 'settings-data-source', component: () => import('../views/DataSourceSettings.vue'), meta: { requiresAuth: true, title: 'Data Source / Scrape Settings' } },
   { path: '/settings/data-quality', name: 'settings-data-quality', component: () => import('../views/DataQualityFlags.vue'), meta: { requiresAuth: true, title: 'Data Quality' } },
   { path: '/settings/login-history', name: 'settings-login-history', component: () => import('../views/LoginHistory.vue'), meta: { requiresAuth: true, title: 'Login History' } },

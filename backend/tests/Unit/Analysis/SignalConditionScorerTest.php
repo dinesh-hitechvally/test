@@ -44,13 +44,12 @@ class SignalConditionScorerTest extends TestCase
         return collect($result['conditions'][$category])->firstWhere('key', $key);
     }
 
-    public function test_the_weights_are_the_agreed_split_and_add_up_to_100(): void
+    public function test_the_indicator_weights_add_up_to_100_and_every_indicator_is_made_of_known_conditions(): void
     {
-        $this->assertSame(
-            ['technical' => 25, 'fundamental' => 25, 'trend' => 15, 'momentum' => 10, 'volume' => 10, 'risk' => 10, 'valuation' => 5],
-            config('signals.weights')
-        );
-        $this->assertSame(100, array_sum(config('signals.weights')));
+        $weights = array_column(config('signals.indicators'), 'weight');
+
+        $this->assertSame(100, array_sum($weights));
+        $this->assertEqualsCanonicalizing(array_keys(config('signals.indicators')), array_keys(SignalConditionScorer::INDICATORS));
     }
 
     public function test_every_condition_adds_up_to_100_percent(): void
@@ -82,49 +81,97 @@ class SignalConditionScorerTest extends TestCase
         $this->assertEqualsWithDelta(17.5, $result['categories']['trend']['hold'], 0.01);
     }
 
-    public function test_the_final_percentages_are_the_weighted_category_averages(): void
+    public function test_the_final_percentages_are_the_indicators_weighted(): void
     {
-        $final = $this->scorer->combine([
-            'technical' => ['buy' => 78.0, 'sell' => 8.0, 'hold' => 14.0],
-            'fundamental' => ['buy' => 85.0, 'sell' => 5.0, 'hold' => 10.0],
-            'trend' => ['buy' => 80.0, 'sell' => 10.0, 'hold' => 10.0],
-            'momentum' => ['buy' => 65.0, 'sell' => 15.0, 'hold' => 20.0],
-            'volume' => ['buy' => 70.0, 'sell' => 10.0, 'hold' => 20.0],
-            'risk' => ['buy' => 55.0, 'sell' => 20.0, 'hold' => 25.0],
-            'valuation' => ['buy' => 75.0, 'sell' => 10.0, 'hold' => 15.0],
-        ]);
+        // RSI 65 (bullish zone: 50 buy), MACD above its signal (65 buy): weights 11 and 11 -> (50*11 + 65*11) / 22
+        $result = $this->scorer->evaluate($this->ctx(['rsi_14' => 65, 'macd' => 1, 'macd_signal' => 0.5]));
 
-        // The worked example from the spec: 19.50 + 21.25 + 12.00 + 6.50 + 7.00 + 5.50 + 3.75 = 75.50
-        $this->assertEqualsWithDelta(75.5, $final['buy'], 0.001);
-        $this->assertEqualsWithDelta(100.0, $final['buy'] + $final['sell'] + $final['hold'], 0.05);
+        $this->assertEqualsWithDelta((50 * 11 + 65 * 11) / 22, $result['final']['buy'], 0.01);
+        $this->assertEqualsWithDelta(100.0, array_sum($result['final']), 0.05);
     }
 
-    public function test_categories_without_data_are_left_out_and_the_rest_renormalised(): void
+    public function test_every_condition_carries_its_share_of_the_final_result(): void
     {
-        $final = $this->scorer->combine([
-            'technical' => ['buy' => 80.0, 'sell' => 10.0, 'hold' => 10.0],
-            'fundamental' => null,
-            'trend' => ['buy' => 40.0, 'sell' => 30.0, 'hold' => 30.0],
-        ]);
+        $result = $this->scorer->evaluate($this->ctx(['rsi_14' => 65, 'macd' => 1, 'macd_signal' => 0.5]));
 
-        // (80 * 25 + 40 * 15) / 40 = 65
-        $this->assertEqualsWithDelta(65.0, $final['buy'], 0.001);
-        $this->assertSame(['buy' => 0.0, 'sell' => 0.0, 'hold' => 100.0], $this->scorer->combine([]));
+        $this->assertEqualsWithDelta(11 / 22 * 100, $this->find($result, 'technical', 'rsi')['weight'], 0.01);
+        $this->assertEqualsWithDelta(11 / 22 * 100, $this->find($result, 'technical', 'macd')['weight'], 0.01);
+        $this->assertEqualsWithDelta(100.0, collect($result['conditions'])->flatten(1)->sum('weight'), 0.05);
+    }
+
+    public function test_an_indicator_with_several_conditions_averages_them_and_splits_its_weight(): void
+    {
+        // MA50 = price vs MA50 (above: 80 buy) and its 10-session slope (falling: 10 buy) -> 45 buy.
+        $result = $this->scorer->evaluate($this->ctx(['sma_50' => 100], ['close' => 105, 'earlier' => (object) ['sma_50' => 110]]));
+
+        $this->assertEqualsWithDelta(45.0, $result['final']['buy'], 0.01);
+        $this->assertEqualsWithDelta(50.0, $this->find($result, 'trend', 'above_ma50')['weight'], 0.01);
+        $this->assertEqualsWithDelta(50.0, $this->find($result, 'trend', 'ma50_slope')['weight'], 0.01);
+    }
+
+    public function test_indicators_without_data_are_left_out_and_the_rest_renormalised(): void
+    {
+        $result = $this->scorer->evaluate($this->ctx(['rsi_14' => 65]));
+
+        // Only RSI has data, so it carries the whole result.
+        $this->assertEqualsWithDelta(50.0, $result['final']['buy'], 0.01);
+        $this->assertEqualsWithDelta(100.0, $this->find($result, 'technical', 'rsi')['weight'], 0.01);
+        $this->assertSame(['buy' => 0.0, 'sell' => 0.0, 'hold' => 100.0], $this->scorer->evaluate($this->ctx())['final']);
+    }
+
+    public function test_a_switched_off_indicator_is_left_out(): void
+    {
+        config(['signals.indicators.macd.enabled' => false]);
+
+        $result = $this->scorer->evaluate($this->ctx(['rsi_14' => 65, 'macd' => 1, 'macd_signal' => 0.5]));
+
+        $this->assertEqualsWithDelta(50.0, $result['final']['buy'], 0.01); // RSI alone
+        $this->assertSame(0.0, $this->find($result, 'technical', 'macd')['weight']);
+    }
+
+    public function test_related_indicators_cannot_add_up_to_more_than_twice_the_heaviest(): void
+    {
+        // The MA family (ma20 8, ma50 9, ma200 5, golden/death 2 = 24) is capped at 18; RSI keeps its 11.
+        $ctx = $this->ctx(['rsi_14' => 65, 'sma_20' => 100, 'sma_50' => 95, 'sma_200' => 90], ['close' => 105, 'earlier' => (object) ['sma_50' => 90]]);
+        $result = $this->scorer->evaluate($ctx);
+
+        $family = collect(['above_ma20', 'ma_cross', 'above_ma50', 'ma50_slope', 'above_ma200', 'ma50_ma200'])
+            ->sum(fn ($k) => collect($result['conditions'])->flatten(1)->firstWhere('key', $k)['weight']);
+
+        $this->assertEqualsWithDelta(18 / 29 * 100, $family, 0.05); // 18 of the 29 total weight present
+
+        config(['signals.correlation.enabled' => false]);
+        $uncapped = $this->scorer->evaluate($ctx);
+        $familyUncapped = collect(['above_ma20', 'ma_cross', 'above_ma50', 'ma50_slope', 'above_ma200', 'ma50_ma200'])
+            ->sum(fn ($k) => collect($uncapped['conditions'])->flatten(1)->firstWhere('key', $k)['weight']);
+        $this->assertGreaterThan($family, $familyUncapped);
     }
 
     public function test_the_decision_is_derived_from_the_final_percentages(): void
     {
-        $this->assertSame('buy', $this->scorer->decide(['buy' => 50.0, 'sell' => 10.0, 'hold' => 40.0]));
+        $this->assertSame('buy', $this->scorer->decide(['buy' => 60.0, 'sell' => 10.0, 'hold' => 30.0]));
         $this->assertSame('sell', $this->scorer->decide(['buy' => 10.0, 'sell' => 55.0, 'hold' => 35.0]));
         $this->assertSame('hold', $this->scorer->decide(['buy' => 49.9, 'sell' => 30.0, 'hold' => 20.1]));
     }
 
-    public function test_the_decision_threshold_comes_from_config(): void
+    public function test_the_winning_side_must_also_lead_by_the_margin(): void
     {
-        config(['signals.decision_min_pct' => 70]);
+        $this->assertSame('hold', $this->scorer->decide(['buy' => 52.0, 'sell' => 45.0, 'hold' => 3.0]));  // leads by 7, needs 10
+        $this->assertSame('buy', $this->scorer->decide(['buy' => 55.0, 'sell' => 45.0, 'hold' => 0.0]));   // exactly 10
+        $this->assertSame('sell', $this->scorer->decide(['buy' => 20.0, 'sell' => 62.0, 'hold' => 18.0]));
 
-        $this->assertSame('hold', $this->scorer->decide(['buy' => 60.0, 'sell' => 10.0, 'hold' => 30.0]));
+        config(['signals.decision.minimum_margin_pct' => 0]);
+        $this->assertSame('buy', $this->scorer->decide(['buy' => 52.0, 'sell' => 45.0, 'hold' => 3.0]));
+    }
+
+    public function test_the_minimum_percentages_come_from_config(): void
+    {
+        config(['signals.decision.minimum_buy_pct' => 70, 'signals.decision.minimum_sell_pct' => 60]);
+
+        $this->assertSame('hold', $this->scorer->decide(['buy' => 65.0, 'sell' => 10.0, 'hold' => 25.0]));
         $this->assertSame('buy', $this->scorer->decide(['buy' => 70.0, 'sell' => 10.0, 'hold' => 20.0]));
+        $this->assertSame('hold', $this->scorer->decide(['buy' => 10.0, 'sell' => 55.0, 'hold' => 35.0]));
+        $this->assertSame('sell', $this->scorer->decide(['buy' => 10.0, 'sell' => 60.0, 'hold' => 30.0]));
     }
 
     public function test_a_confirmed_dip_is_a_buy_condition_and_an_unconfirmed_one_is_not(): void
@@ -236,13 +283,20 @@ class SignalConditionScorerTest extends TestCase
         );
     }
 
+    /** The blocking tests turn the trend confirmation off, so they show the block itself; its own tests are below. */
+    private function noConfirmation(): void
+    {
+        config(['signals.guards.require_reversal_confirmation' => false]);
+    }
+
     public function test_a_sell_on_an_oversold_price_is_held_back_as_a_hold(): void
     {
-        config(['signals.guard_extremes' => false]);
+        $this->noConfirmation();
+        config(['signals.guards.enabled' => false]);
         $unguarded = $this->scorer->evaluate($this->bearishDay(rsi: 25));
         $this->assertSame('sell', $unguarded['decision']); // the trend, momentum and volume all say sell
 
-        config(['signals.guard_extremes' => true]);
+        config(['signals.guards.enabled' => true]);
         $guarded = $this->scorer->evaluate($this->bearishDay(rsi: 25));
 
         $this->assertSame('hold', $guarded['decision']);
@@ -252,19 +306,9 @@ class SignalConditionScorerTest extends TestCase
         $this->assertEquals($unguarded['final'], $guarded['final']);      // the percentages are untouched: only the action changes
     }
 
-    public function test_the_lower_bollinger_band_counts_as_oversold_too(): void
-    {
-        config(['signals.guard_extremes' => true]);
-
-        $result = $this->scorer->evaluate($this->bearishDay(rsi: 40, percentB: -0.1));
-
-        $this->assertSame('hold', $result['decision']);
-        $this->assertStringContainsString('lower Bollinger band', $result['guard']);
-    }
-
     public function test_a_sell_that_is_not_oversold_is_left_alone(): void
     {
-        config(['signals.guard_extremes' => true]);
+        $this->noConfirmation();
 
         $result = $this->scorer->evaluate($this->bearishDay(rsi: 40));
 
@@ -275,10 +319,11 @@ class SignalConditionScorerTest extends TestCase
 
     public function test_a_buy_on_an_overbought_price_is_held_back_as_a_hold(): void
     {
-        config(['signals.guard_extremes' => false]);
+        $this->noConfirmation();
+        config(['signals.guards.enabled' => false]);
         $this->assertSame('buy', $this->scorer->evaluate($this->bullishDay(rsi: 78))['decision']);
 
-        config(['signals.guard_extremes' => true]);
+        config(['signals.guards.enabled' => true]);
         $guarded = $this->scorer->evaluate($this->bullishDay(rsi: 78));
 
         $this->assertSame('hold', $guarded['decision']);
@@ -289,40 +334,44 @@ class SignalConditionScorerTest extends TestCase
         $this->assertSame('buy', $this->scorer->evaluate($this->bullishDay(rsi: 60))['decision']); // not overbought: still a buy
     }
 
-    public function test_the_guard_can_be_switched_off(): void
+    public function test_each_side_of_the_guard_can_be_switched_off_on_its_own(): void
     {
-        config(['signals.guard_extremes' => false]);
+        $this->noConfirmation();
+
+        config(['signals.guards.block_sell_when_oversold' => false]);
+        $this->assertSame('sell', $this->scorer->evaluate($this->bearishDay(rsi: 25))['decision']);
+        $this->assertSame('hold', $this->scorer->evaluate($this->bullishDay(rsi: 78))['decision']);
+
+        config(['signals.guards.block_sell_when_oversold' => true, 'signals.guards.block_buy_when_overbought' => false]);
+        $this->assertSame('hold', $this->scorer->evaluate($this->bearishDay(rsi: 25))['decision']);
+        $this->assertSame('buy', $this->scorer->evaluate($this->bullishDay(rsi: 78))['decision']);
+    }
+
+    public function test_the_rsi_limits_come_from_config(): void
+    {
+        $this->noConfirmation();
+        config(['signals.guards.oversold_rsi' => 20, 'signals.guards.overbought_rsi' => 80]);
 
         $this->assertSame('sell', $this->scorer->evaluate($this->bearishDay(rsi: 25))['decision']);
         $this->assertSame('buy', $this->scorer->evaluate($this->bullishDay(rsi: 78))['decision']);
     }
 
-    public function test_the_winning_side_must_also_lead_by_the_margin(): void
+    public function test_a_blocked_entry_is_let_through_when_the_trend_confirms_it(): void
     {
-        config(['signals.decision_margin' => 0]);
-        $this->assertSame('buy', $this->scorer->decide(['buy' => 52.0, 'sell' => 45.0, 'hold' => 3.0]));
+        config(['signals.guards.require_reversal_confirmation' => true]);
 
-        config(['signals.decision_margin' => 10]);
-        $this->assertSame('hold', $this->scorer->decide(['buy' => 52.0, 'sell' => 45.0, 'hold' => 3.0]));
-        $this->assertSame('buy', $this->scorer->decide(['buy' => 60.0, 'sell' => 30.0, 'hold' => 10.0]));
-        $this->assertSame('sell', $this->scorer->decide(['buy' => 20.0, 'sell' => 62.0, 'hold' => 18.0]));
+        // ADX 35, -DI above +DI and a falling MACD histogram back a sell; ADX 35, +DI above -DI and a rising one a buy.
+        $this->assertSame('sell', $this->scorer->evaluate($this->bearishDay(rsi: 25))['decision']);
+        $this->assertSame('buy', $this->scorer->evaluate($this->bullishDay(rsi: 78))['decision']);
     }
 
-    public function test_a_stretched_price_counts_in_the_risk_category_when_switched_on(): void
+    public function test_a_blocked_entry_stays_held_back_when_the_trend_is_weak(): void
     {
-        $above = $this->ctx(['sma_50' => 100], ['close' => 135]);
-        $below = $this->ctx(['sma_50' => 100], ['close' => 70]);
-        $normal = $this->ctx(['sma_50' => 100], ['close' => 105]);
+        config(['signals.guards.require_reversal_confirmation' => true]);
 
-        config(['signals.stretch_pct' => null]);
-        $this->assertNull(collect($this->scorer->evaluate($above)['conditions']['risk'])->firstWhere('key', 'stretch'));
+        $weak = $this->bearishDay(rsi: 25);
+        $weak['today']->adx_14 = 15; // no real trend behind the move
 
-        config(['signals.stretch_pct' => 25]);
-        $up = collect($this->scorer->evaluate($above)['conditions']['risk'])->firstWhere('key', 'stretch');
-        $down = collect($this->scorer->evaluate($below)['conditions']['risk'])->firstWhere('key', 'stretch');
-
-        $this->assertSame([10.0, 45.0], [$up['buy'], $up['sell']]);     // far above the average: against buying the high
-        $this->assertSame([40.0, 15.0], [$down['buy'], $down['sell']]); // far below: against selling the low
-        $this->assertNull(collect($this->scorer->evaluate($normal)['conditions']['risk'])->firstWhere('key', 'stretch'));
+        $this->assertSame('hold', $this->scorer->evaluate($weak)['decision']);
     }
 }

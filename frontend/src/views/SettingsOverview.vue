@@ -24,11 +24,6 @@ const SECTIONS = [
     description: 'Your details, address and photo, password and devices, and which alerts you see.',
   },
   {
-    to: 'settings-signals',
-    label: 'Signal Settings',
-    description: 'How BUY / SELL / HOLD is decided for you: category weights, minimum %, margin and the extreme-reading guard.',
-  },
-  {
     to: 'settings-data-source',
     label: 'Data Source / Scrape Settings',
     description: 'The real scraping schedule and recent scrape activity.',

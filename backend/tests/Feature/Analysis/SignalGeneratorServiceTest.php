@@ -350,10 +350,14 @@ class SignalGeneratorServiceTest extends TestCase
             $this->assertEqualsWithDelta(100.0, $b->buy_pct + $b->sell_pct + $b->hold_pct, 0.05);
             $this->assertEqualsWithDelta(($b->buy_pct - $b->sell_pct) / 100, (float) $signal->score, 0.0001);
             // The decision follows the percentages, never the other way round.
-            $this->assertSame(
-                $b->buy_pct >= 50 ? 'buy' : ($b->sell_pct >= 50 ? 'sell' : 'hold'),
-                $signal->signal
-            );
+            $expected = match (true) {
+                $b->buy_pct >= 50 && $b->buy_pct - $b->sell_pct >= 10 => 'buy',
+                $b->sell_pct >= 50 && $b->sell_pct - $b->buy_pct >= 10 => 'sell',
+                default => 'hold',
+            };
+            // ...unless the entry guard held a buy/sell back at an extreme, which is a hold with its reason.
+            $held = $expected !== 'hold' && $signal->signal === 'hold' && str_contains(implode(' ', $signal->reasons ?? []), 'held back');
+            $this->assertSame($held ? 'hold' : $expected, $signal->signal);
             $this->assertSame($signal->signal === 'hold', $b->hold_type !== null);
         }
 
