@@ -99,10 +99,50 @@ type EmailLogPage {
     total: Int!
 }
 
+"One category's share of the final BUY / SELL / HOLD percentages."
+type SignalWeight {
+    category: String!
+    weight: Float!
+}
+
+"The system's own signal settings (config/signals.php) — what Reset returns to."
+type SignalSettingsDefaults {
+    weights: [SignalWeight!]!
+    min_pct: Float!
+    margin: Float!
+    guard_extremes: Boolean!
+}
+
+"How the signed-in person wants BUY / SELL / HOLD decided; shown on the Signals page for them only."
+type SignalSettings {
+    weights: [SignalWeight!]!
+    "A side needs at least this final % to win; otherwise HOLD."
+    min_pct: Float!
+    "...and must lead the other side by this many points."
+    margin: Float!
+    "Hold instead of selling an oversold price or buying an overbought one."
+    guard_extremes: Boolean!
+    "False while the person has no settings of their own and the system defaults apply."
+    is_custom: Boolean!
+    defaults: SignalSettingsDefaults!
+}
+
+input SignalWeightsInput {
+    technical: Int!
+    fundamental: Int!
+    trend: Int!
+    momentum: Int!
+    volume: Int!
+    risk: Int!
+    valuation: Int!
+}
+
 extend type Query @guard {
     loginHistory: [LoginHistory!]! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@loginHistory")
     "Counts for the Profile page: portfolios, transactions, watchlists, saved screens, sessions and recent logins."
     accountSummary: AccountSummary! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@accountSummary")
+    "The person's own signal settings (or the system defaults while they have none)."
+    signalSettings: SignalSettings! @field(resolver: "App\\GraphQL\\Resolvers\\SignalSettingsResolver@show")
     users: [User!]! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@users")
     "Every email the app tried to send, newest first."
     emailLogs(status: String, per_page: Int = 50): EmailLogPage! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@emailLogs")
@@ -115,6 +155,11 @@ extend type Mutation @guard {
         date_of_birth: String, occupation: String, bio: String, timezone: String,
         country: String, province: String, city: String, street_address: String, postal_code: String
     ): User! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@updateProfile")
+    "Saves the person's signal settings. The weights must add up to 100."
+    updateSignalSettings(weights: SignalWeightsInput!, min_pct: Int!, margin: Int!, guard_extremes: Boolean!): SignalSettings!
+        @field(resolver: "App\\GraphQL\\Resolvers\\SignalSettingsResolver@update")
+    "Deletes the person's signal settings so the system defaults apply again."
+    resetSignalSettings: SignalSettings! @field(resolver: "App\\GraphQL\\Resolvers\\SignalSettingsResolver@reset")
     "Signs out every other device (revokes their login tokens); the current one stays. Returns how many were signed out."
     logoutOtherSessions: Int! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@logoutOtherSessions")
     updatePassword(current_password: String, password: String, password_confirmation: String): String!

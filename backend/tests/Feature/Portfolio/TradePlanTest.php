@@ -98,6 +98,19 @@ class TradePlanTest extends TestCase
         $this->plan('HLD')->assertJsonPath('data.tradePlan.approved', false);
     }
 
+    /** A regression: a "not a buy" test written as `! $signal->signal === 'buy'` was always false, so only the score stopped a hold. */
+    public function test_a_hold_or_sell_signal_is_refused_as_not_a_buy_even_with_a_high_score(): void
+    {
+        $this->makeStock('HLD', price: 820, support: 780, resistance: 900, signal: 'hold', score: 0.9);
+        $this->makeStock('SEL', price: 820, support: 780, resistance: 900, signal: 'sell', score: 0.9);
+
+        foreach (['HLD' => 'hold', 'SEL' => 'sell'] as $symbol => $signal) {
+            $r = $this->plan($symbol)->assertJsonPath('data.tradePlan.approved', false);
+
+            $this->assertStringContainsString("Latest signal is {$signal}, not a buy", $r->json('data.tradePlan.reason'));
+        }
+    }
+
     public function test_no_resistance_above_means_no_target_and_no_plan(): void
     {
         $this->makeStock('TOP', price: 820, support: 780, resistance: null);

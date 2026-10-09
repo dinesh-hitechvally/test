@@ -173,8 +173,7 @@ onMounted(async () => {
           </tbody>
         </table>
         <EmptyState v-else>
-          No dividend data recorded for any stock yet — visit a stock's detail page and click
-          "Refresh Dividend/Bonus Data" to pull its history.
+          No dividend data recorded for any stock yet.
         </EmptyState>
         <p class="muted small" style="margin-top: 10px">
           "Declared Total" is the raw % against face value as announced (Rs. 100 for most equities, but some

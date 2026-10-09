@@ -36,7 +36,7 @@ class MarketResolver extends Resolver
 
     public function signalBoard(): array
     {
-        return $this->plain(app(SignalFeedService::class)->board());
+        return $this->plain(app(SignalFeedService::class)->board($this->user()));
     }
 
     /** The latest trained direction model's out-of-sample record, or null before the first training. */

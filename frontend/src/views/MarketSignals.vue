@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import * as marketApi from '../api/market'
 import TradePlanPanel from '../components/stock/TradePlanPanel.vue'
 import { usePortfolioStore } from '../stores/portfolio'
@@ -177,7 +177,7 @@ const table = useSortableTable(filtered, {
 const { sorted } = table
 
 // The rule lines only: the "BUY: BUY 59.3% · SELL ..." summary repeats what the percentage columns already show.
-const readableReasons = (row) => (row.reasons || []).filter((x) => !/^(BUY|SELL|HOLD): BUY /.test(x)).slice(0, 3)
+const readableReasons = (row) => (row.reasons || []).filter((x) => !/^(BUY|SELL|HOLD): BUY |^Decision (BUY|SELL) — /.test(x)).slice(0, 3)
 
 const pct = (v) => (v === null || v === undefined ? '—' : `${Number(v).toFixed(1)}%`)
 // Visible columns, for the "no match" row to span.
@@ -243,7 +243,7 @@ const colCount = computed(
 
         <div class="filter-foot">
           <button v-if="activeFilters" type="button" class="clear" @click="clearFilters">Clear {{ activeFilters }} filter{{ activeFilters === 1 ? '' : 's' }}</button>
-          <span class="muted small">Confidence = the Buy % of a Buy, the Sell % of a Sell, the Hold % of a Hold. Click a stock to see how its decision was reached.</span>
+          <span class="muted small">Confidence = the Buy % of a Buy, the Sell % of a Sell, the Hold % of a Hold. Click a stock to see how its decision was reached. Weights, minimum % and margin are yours to set in <RouterLink to="/settings/signals">Signal Settings</RouterLink>.</span>
           <span class="muted result-count">{{ filtered.length }} of {{ board.length }} stocks</span>
         </div>
       </div>

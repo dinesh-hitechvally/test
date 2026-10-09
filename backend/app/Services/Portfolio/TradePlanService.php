@@ -53,7 +53,7 @@ class TradePlanService
         $indicator = $signal ? $stock->technicalIndicators()->whereDate('trade_date', $signal->trade_date)->first() : null;
         $minScore = (float) config('trading.min_score');
 
-        if (! $signal || ! $signal->signal === 'buy') {
+        if (! $signal || $signal->signal !== 'buy') {
             return $fail('signal', 'Latest signal is '.($signal->signal ?? 'missing').', not a buy.');
         }
         if ((float) $signal->score < $minScore) {

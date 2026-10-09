@@ -133,7 +133,7 @@ class SellSignalService
     {
         [$current, $previous] = Signal::where('stock_id', $stockId)->orderByDesc('trade_date')->limit(2)->get()->all() + [null, null];
 
-        if (! $current || ! $current->signal === 'sell') {
+        if (! $current || $current->signal !== 'sell') {
             return null;
         }
 

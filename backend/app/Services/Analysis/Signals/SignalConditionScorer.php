@@ -51,8 +51,10 @@ class SignalConditionScorer
      *     hold_type: ?string
      * }
      */
-    public function evaluate(array $ctx): array
+    public function evaluate(array $ctx, ?array $settings = null): array
     {
+        $settings ??= SignalSettingsService::defaults();
+
         $conditions = [
             'technical' => $this->technical($ctx),
             'fundamental' => $this->fundamental($ctx['fundamental'] ?? null),
@@ -64,28 +66,83 @@ class SignalConditionScorer
         ];
 
         $categories = array_map(fn (array $list) => $this->average($list), $conditions);
-        $final = $this->combine($categories);
-        $decision = $this->decide($final);
+        $final = $this->combine($categories, $settings['weights']);
+        $decision = $this->decide($final, $settings['min_pct'], $settings['margin']);
+        $rsi = $ctx['today']->rsi_14 !== null ? (float) $ctx['today']->rsi_14 : null;
+        [$decision, $guard] = $this->guardExtremes($decision, $rsi, $ctx['percent_b'] ?? null, $settings['guard']);
         $holdScores = $this->holdScores($ctx, $categories, $final);
+
+        // A decision held back at an extreme is a hold for that reason: "waiting" at a low, "overbought" at a high.
+        $holdType = $decision === 'hold' ? array_key_first($this->sortedDesc($holdScores)) : null;
+        if ($guard !== null && $decision === 'hold') {
+            $holdType = $guard['kind'] === 'oversold' ? 'wait_confirmation' : 'overbought';
+        }
 
         return [
             'conditions' => $conditions,
             'categories' => $categories,
             'final' => $final,
             'decision' => $decision,
+            'guard' => $guard['reason'] ?? null,
             'hold_scores' => $holdScores,
-            'hold_type' => $decision === 'hold' ? array_key_first($this->sortedDesc($holdScores)) : null,
+            'hold_type' => $holdType,
         ];
     }
 
-    /** The decision rule: a side wins only with at least decision_min_pct; anything else is HOLD. */
-    public function decide(array $final): string
+    /**
+     * Do not act against an extreme reading (the guard setting): a SELL on an oversold price sells the low, a BUY on
+     * an overbought price buys the high — either becomes a HOLD, with the reason. Public so a person's own settings
+     * can be re-applied to a stored day (SignalViewService).
+     *
+     * @return array{0: string, 1: ?array{kind: string, reason: string}}
+     */
+    public function guardExtremes(string $decision, ?float $rsi, ?float $pb, bool $on = true): array
     {
-        $min = (float) config('signals.decision_min_pct');
+        if (! $on || $decision === 'hold') {
+            return [$decision, null];
+        }
+
+        if ($decision === 'sell' && (($rsi !== null && $rsi < 30) || ($pb !== null && $pb <= 0))) {
+            return ['hold', ['kind' => 'oversold', 'reason' => sprintf(
+                'Sell held back: the price is oversold (%s) — selling here is selling the low. Waiting for a bounce to sell into, or for the price to recover.',
+                $rsi !== null && $rsi < 30 ? sprintf('RSI %.0f', $rsi) : 'on or below the lower Bollinger band'
+            )]];
+        }
+
+        if ($decision === 'buy' && (($rsi !== null && $rsi > 70) || ($pb !== null && $pb >= 1))) {
+            return ['hold', ['kind' => 'overbought', 'reason' => sprintf(
+                'Buy held back: the price is overbought (%s) — buying here is buying the high. Waiting for a pullback.',
+                $rsi !== null && $rsi > 70 ? sprintf('RSI %.0f', $rsi) : 'on or above the upper Bollinger band'
+            )]];
+        }
+
+        return [$decision, null];
+    }
+
+    /**
+     * Re-decide a stored day under a person's own settings: their weights over the stored category percentages, their
+     * minimum / margin, their guard. Nothing is re-scored — only the combining and the rule are repeated.
+     *
+     * @param  array<string, ?array{buy: float, sell: float, hold: float}>  $categories
+     * @return array{final: array{buy: float, sell: float, hold: float}, decision: string, guard: ?array{kind: string, reason: string}}
+     */
+    public function reapply(array $categories, ?float $rsi, ?float $percentB, array $settings): array
+    {
+        $final = $this->combine($categories, $settings['weights']);
+        [$decision, $guard] = $this->guardExtremes($this->decide($final, $settings['min_pct'], $settings['margin']), $rsi, $percentB, $settings['guard']);
+
+        return ['final' => $final, 'decision' => $decision, 'guard' => $guard];
+    }
+
+    /** The decision rule: a side wins only with at least the minimum % and the lead margin; anything else is HOLD. */
+    public function decide(array $final, ?float $min = null, ?float $margin = null): string
+    {
+        $min ??= (float) config('signals.decision_min_pct');
+        $margin ??= (float) config('signals.decision_margin');
 
         return match (true) {
-            $final['buy'] >= $min => 'buy',
-            $final['sell'] >= $min => 'sell',
+            $final['buy'] >= $min && $final['buy'] - $final['sell'] >= $margin => 'buy',
+            $final['sell'] >= $min && $final['sell'] - $final['buy'] >= $margin => 'sell',
             default => 'hold',
         };
     }
@@ -96,9 +153,9 @@ class SignalConditionScorer
      * @param  array<string, ?array{buy: float, sell: float, hold: float}>  $categories
      * @return array{buy: float, sell: float, hold: float}
      */
-    public function combine(array $categories): array
+    public function combine(array $categories, ?array $weights = null): array
     {
-        $weights = config('signals.weights');
+        $weights ??= config('signals.weights');
         $sum = ['buy' => 0.0, 'sell' => 0.0, 'hold' => 0.0];
         $used = 0.0;
 
@@ -125,20 +182,25 @@ class SignalConditionScorer
         $final = $result['final'];
         $parts = [];
 
+        $strength = [];
         foreach (self::CATEGORIES as $category) {
             if ($result['categories'][$category] !== null) {
-                $parts[] = sprintf('%s %.0f%%', ucfirst($category), $result['categories'][$category][$result['decision']] ?? 0);
+                $strength[$category] = $result['categories'][$category][$result['decision']] ?? 0;
             }
+        }
+        arsort($strength);
+        foreach ($strength as $category => $value) {
+            $parts[] = sprintf('%s %.0f%%', ucfirst($category), $value);
         }
 
         return sprintf(
-            '%s: BUY %.1f%% · SELL %.1f%% · HOLD %.1f%% (%s %% by category: %s)',
+            'Decision %s — Buy %.1f%% · Sell %.1f%% · Hold %.1f%%. Strongest %s categories: %s',
             strtoupper($result['decision']),
             $final['buy'],
             $final['sell'],
             $final['hold'],
-            strtoupper($result['decision']),
-            implode(', ', $parts)
+            $result['decision'],
+            implode(', ', array_slice($parts, 0, 3))
         );
     }
 
@@ -357,6 +419,19 @@ class SignalConditionScorer
                 $ratio >= 0.5 => $this->cond('reward_risk', 'Reward / risk', $label, 25, 40),
                 default => $this->cond('reward_risk', 'Reward / risk', $label, 10, 65),
             };
+        }
+
+        // A price far from its 50-day average is stretched and tends to snap back — against buying the high or selling the low.
+        $stretch = config('signals.stretch_pct');
+        if ($stretch !== null && $close !== null && $t->sma_50 !== null && (float) $t->sma_50 > 0) {
+            $ext = ($close / (float) $t->sma_50 - 1) * 100;
+            $limit = (float) $stretch;
+
+            if ($ext >= $limit) {
+                $out[] = $this->cond('stretch', 'Stretch from MA50', sprintf('%.0f%% above its 50-day average — stretched, pullback risk', $ext), 10, 45);
+            } elseif ($ext <= -$limit) {
+                $out[] = $this->cond('stretch', 'Stretch from MA50', sprintf('%.0f%% below its 50-day average — stretched, bounce likelier', abs($ext)), 40, 15);
+            }
         }
 
         return $out;

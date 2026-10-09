@@ -9,6 +9,9 @@
  *   3. categories are combined with the weights below into the final BUY / SELL / HOLD %
  *   4. the decision rule turns the final percentages into BUY, SELL or HOLD
  */
+// These are the SYSTEM defaults: what the cron-generated signals, the dashboard, reports and backtests use, and what a
+// user sees until they save their own in Settings → Signal Settings (weights, minimum %, margin and guard are per user,
+// stored in signal_settings; stretch_pct stays global because it changes how the stored percentages are produced).
 return [
     // Weights should add up to 100. A category with no data that day is left out and the rest are re-weighted.
     'weights' => [
@@ -23,4 +26,16 @@ return [
 
     // Decision rule: final BUY % at or above this is BUY, final SELL % at or above it is SELL, otherwise HOLD.
     'decision_min_pct' => 50,
+
+    // ...and the winning side must also lead the other side by at least this many points (0 = no extra margin).
+    'decision_margin' => 0,
+
+    // Never act against an extreme reading: a SELL while the price is oversold (RSI under 30, or on/below the lower
+    // Bollinger band) is selling the low, and a BUY while it is overbought (RSI over 70, or on/above the upper band)
+    // is buying the high. Such a day is a HOLD instead, with the reason shown.
+    'guard_extremes' => true,
+
+    // A price this many % above (or below) its 50-day average is stretched and tends to snap back; it then counts
+    // in the Risk category against buying the stretch (or against selling it). null = off.
+    'stretch_pct' => null,
 ];

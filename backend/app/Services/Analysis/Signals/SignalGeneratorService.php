@@ -164,6 +164,10 @@ class SignalGeneratorService
             $lastCtx = $ctx;
             $result = $this->scorer->evaluate($ctx);
 
+            if ($result['guard'] !== null) {
+                $reasons[] = $result['guard'];
+            }
+
             if ($result['decision'] !== 'hold') {
                 $reasons[] = $this->scorer->explain($result);
             }
@@ -201,13 +205,17 @@ class SignalGeneratorService
 
         $reasons = array_values(array_filter(
             json_decode($rows[$lastIndex]['reasons'], true),
-            fn ($r) => $r !== 'No strong signals — indicators are neutral' && ! preg_match('/^(BUY|SELL|HOLD): BUY /', $r)
+            fn ($r) => $r !== 'No strong signals — indicators are neutral' && ! preg_match('/^(BUY|SELL|HOLD): BUY |^Decision (BUY|SELL) — /', $r) && $r !== ($result['guard'] ?? null)
         ));
         $ruleKeys = json_decode($rows[$lastIndex]['rule_keys'], true);
 
         // Rule keys are kept for the rule scanner (valuationTilt only supplies the readable lines + keys now).
         [, $valuationReasons, $valuationKeys] = $this->valuationTilt($fundamental);
         array_push($reasons, ...$valuationReasons);
+
+        if ($result['guard'] !== null) {
+            $reasons[] = $result['guard'];
+        }
 
         if ($result['decision'] !== 'hold') {
             $reasons[] = $this->scorer->explain($result);

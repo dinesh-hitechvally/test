@@ -110,6 +110,7 @@ const navItems = [
     children: [
       { to: '/settings', label: 'Overview' },
       { to: '/settings/profile', label: 'Profile' },
+      { to: '/settings/signals', label: 'Signal Settings' },
       { to: '/settings/data-source', label: 'Data Source / Scrape Settings' },
       { to: '/settings/login-history', label: 'Login History' },
       { to: '/settings/admin', label: 'Users / Admin' },

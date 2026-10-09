@@ -80,3 +80,22 @@ export async function loginHistory() {
 export async function users() {
   return (await gql('{ users { id name email created_at } }')).users
 }
+
+const SIGNAL_SETTINGS = `weights { category weight } min_pct margin guard_extremes is_custom
+  defaults { weights { category weight } min_pct margin guard_extremes }`
+
+/** The person's own signal settings (or the system defaults while they have none). */
+export async function signalSettings() {
+  return (await gql(`{ signalSettings { ${SIGNAL_SETTINGS} } }`)).signalSettings
+}
+
+/** @param {{ weights: Record<string, number>, min_pct: number, margin: number, guard_extremes: boolean }} form */
+export async function updateSignalSettings(form) {
+  return (await gql(`mutation ($weights: SignalWeightsInput!, $min_pct: Int!, $margin: Int!, $guard_extremes: Boolean!) {
+    updateSignalSettings(weights: $weights, min_pct: $min_pct, margin: $margin, guard_extremes: $guard_extremes) { ${SIGNAL_SETTINGS} }
+  }`, form)).updateSignalSettings
+}
+
+export async function resetSignalSettings() {
+  return (await gql(`mutation { resetSignalSettings { ${SIGNAL_SETTINGS} } }`)).resetSignalSettings
+}

@@ -208,8 +208,121 @@ class SignalConditionScorerTest extends TestCase
         $result = $this->scorer->evaluate($this->ctx(['sma_20' => 100, 'sma_50' => 90], ['close' => 105]));
         $line = $this->scorer->explain(['decision' => 'buy'] + $result);
 
-        $this->assertStringStartsWith('BUY: BUY ', $line);
-        $this->assertStringContainsString('SELL', $line);
-        $this->assertStringContainsString('HOLD', $line);
+        $this->assertStringStartsWith('Decision BUY — Buy ', $line);
+        $this->assertStringContainsString('Sell ', $line);
+        $this->assertStringContainsString('Hold ', $line);
+    }
+
+    // ------------------------------------------------------------ guards against acting at an extreme
+
+    /** A day where everything reads bearish: below every average, MACD falling, heavy selling. Only the RSI / %B are varied. */
+    private function bearishDay(float $rsi, ?float $percentB = 0.3): array
+    {
+        return $this->ctx(
+            ['rsi_14' => $rsi, 'sma_20' => 100, 'sma_50' => 110, 'sma_200' => 130, 'macd' => -2, 'macd_signal' => -1, 'macd_histogram' => -1.5, 'stoch_k' => 10, 'stoch_d' => 20,
+                'adx_14' => 35, 'plus_di_14' => 10, 'minus_di_14' => 30, 'atr_percent' => 7, 'volume_ratio' => 2.0],
+            ['close' => 85, 'prev_close' => 90, 'close_10d_ago' => 100, 'percent_b' => $percentB,
+                'yesterday' => (object) ['rsi_14' => $rsi + 2, 'macd_histogram' => -1.0], 'earlier' => (object) ['sma_50' => 118]]
+        );
+    }
+
+    private function bullishDay(float $rsi, ?float $percentB = 0.7): array
+    {
+        return $this->ctx(
+            ['rsi_14' => $rsi, 'sma_20' => 100, 'sma_50' => 95, 'sma_200' => 80, 'macd' => 2, 'macd_signal' => 1, 'macd_histogram' => 1.5, 'stoch_k' => 70, 'stoch_d' => 60,
+                'adx_14' => 35, 'plus_di_14' => 30, 'minus_di_14' => 10, 'atr_percent' => 1.5, 'volume_ratio' => 2.0],
+            ['close' => 110, 'prev_close' => 105, 'close_10d_ago' => 98, 'percent_b' => $percentB,
+                'yesterday' => (object) ['rsi_14' => $rsi - 2, 'macd_histogram' => 1.0], 'earlier' => (object) ['sma_50' => 90]]
+        );
+    }
+
+    public function test_a_sell_on_an_oversold_price_is_held_back_as_a_hold(): void
+    {
+        config(['signals.guard_extremes' => false]);
+        $unguarded = $this->scorer->evaluate($this->bearishDay(rsi: 25));
+        $this->assertSame('sell', $unguarded['decision']); // the trend, momentum and volume all say sell
+
+        config(['signals.guard_extremes' => true]);
+        $guarded = $this->scorer->evaluate($this->bearishDay(rsi: 25));
+
+        $this->assertSame('hold', $guarded['decision']);
+        $this->assertStringContainsString('Sell held back', $guarded['guard']);
+        $this->assertStringContainsString('selling the low', $guarded['guard']);
+        $this->assertSame('wait_confirmation', $guarded['hold_type']); // waiting for the bounce
+        $this->assertEquals($unguarded['final'], $guarded['final']);      // the percentages are untouched: only the action changes
+    }
+
+    public function test_the_lower_bollinger_band_counts_as_oversold_too(): void
+    {
+        config(['signals.guard_extremes' => true]);
+
+        $result = $this->scorer->evaluate($this->bearishDay(rsi: 40, percentB: -0.1));
+
+        $this->assertSame('hold', $result['decision']);
+        $this->assertStringContainsString('lower Bollinger band', $result['guard']);
+    }
+
+    public function test_a_sell_that_is_not_oversold_is_left_alone(): void
+    {
+        config(['signals.guard_extremes' => true]);
+
+        $result = $this->scorer->evaluate($this->bearishDay(rsi: 40));
+
+        $this->assertSame('sell', $result['decision']);
+        $this->assertNull($result['guard']);
+        $this->assertNull($result['hold_type']);
+    }
+
+    public function test_a_buy_on_an_overbought_price_is_held_back_as_a_hold(): void
+    {
+        config(['signals.guard_extremes' => false]);
+        $this->assertSame('buy', $this->scorer->evaluate($this->bullishDay(rsi: 78))['decision']);
+
+        config(['signals.guard_extremes' => true]);
+        $guarded = $this->scorer->evaluate($this->bullishDay(rsi: 78));
+
+        $this->assertSame('hold', $guarded['decision']);
+        $this->assertStringContainsString('Buy held back', $guarded['guard']);
+        $this->assertStringContainsString('buying the high', $guarded['guard']);
+        $this->assertSame('overbought', $guarded['hold_type']);
+
+        $this->assertSame('buy', $this->scorer->evaluate($this->bullishDay(rsi: 60))['decision']); // not overbought: still a buy
+    }
+
+    public function test_the_guard_can_be_switched_off(): void
+    {
+        config(['signals.guard_extremes' => false]);
+
+        $this->assertSame('sell', $this->scorer->evaluate($this->bearishDay(rsi: 25))['decision']);
+        $this->assertSame('buy', $this->scorer->evaluate($this->bullishDay(rsi: 78))['decision']);
+    }
+
+    public function test_the_winning_side_must_also_lead_by_the_margin(): void
+    {
+        config(['signals.decision_margin' => 0]);
+        $this->assertSame('buy', $this->scorer->decide(['buy' => 52.0, 'sell' => 45.0, 'hold' => 3.0]));
+
+        config(['signals.decision_margin' => 10]);
+        $this->assertSame('hold', $this->scorer->decide(['buy' => 52.0, 'sell' => 45.0, 'hold' => 3.0]));
+        $this->assertSame('buy', $this->scorer->decide(['buy' => 60.0, 'sell' => 30.0, 'hold' => 10.0]));
+        $this->assertSame('sell', $this->scorer->decide(['buy' => 20.0, 'sell' => 62.0, 'hold' => 18.0]));
+    }
+
+    public function test_a_stretched_price_counts_in_the_risk_category_when_switched_on(): void
+    {
+        $above = $this->ctx(['sma_50' => 100], ['close' => 135]);
+        $below = $this->ctx(['sma_50' => 100], ['close' => 70]);
+        $normal = $this->ctx(['sma_50' => 100], ['close' => 105]);
+
+        config(['signals.stretch_pct' => null]);
+        $this->assertNull(collect($this->scorer->evaluate($above)['conditions']['risk'])->firstWhere('key', 'stretch'));
+
+        config(['signals.stretch_pct' => 25]);
+        $up = collect($this->scorer->evaluate($above)['conditions']['risk'])->firstWhere('key', 'stretch');
+        $down = collect($this->scorer->evaluate($below)['conditions']['risk'])->firstWhere('key', 'stretch');
+
+        $this->assertSame([10.0, 45.0], [$up['buy'], $up['sell']]);     // far above the average: against buying the high
+        $this->assertSame([40.0, 15.0], [$down['buy'], $down['sell']]); // far below: against selling the low
+        $this->assertNull(collect($this->scorer->evaluate($normal)['conditions']['risk'])->firstWhere('key', 'stretch'));
     }
 }

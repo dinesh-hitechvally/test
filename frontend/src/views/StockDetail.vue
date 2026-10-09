@@ -64,9 +64,6 @@ const { sorted: sortedDividends } = dividendTable
 const rightShareTable = useSortableTable(rightShares, { defaultKey: 'opening_date', defaultDir: 'desc' })
 const { sorted: sortedRightShares } = rightShareTable
 const loading = ref(true)
-const fetchingCorporateActions = ref(false)
-const corporateActionsResult = ref('')
-const corporateActionsError = ref('')
 
 async function loadAll(symbol) {
   loading.value = true
@@ -146,27 +143,6 @@ function toggleSignalTypeFilter(type) {
     signalsTypeFilter.value.splice(idx, 1)
   }
   loadSignalsPage(1)
-}
-
-async function handleFetchCorporateActions() {
-  fetchingCorporateActions.value = true
-  corporateActionsResult.value = ''
-  corporateActionsError.value = ''
-  try {
-    const data = await stocksApi.refreshCorporateActions(route.params.symbol)
-    const sourceLabel = data.sources?.join(' + ') || 'source'
-    corporateActionsResult.value = `${data.dividends} dividend row(s), ${data.right_shares} right-share row(s) refreshed (via ${sourceLabel}).`
-    const [dividendsData, rightSharesData] = await Promise.all([
-      stocksApi.dividends(route.params.symbol),
-      stocksApi.rightShares(route.params.symbol),
-    ])
-    dividends.value = dividendsData
-    rightShares.value = rightSharesData
-  } catch (e) {
-    corporateActionsError.value = e.response?.data?.message || 'Fetch failed.'
-  } finally {
-    fetchingCorporateActions.value = false
-  }
 }
 
 onMounted(() => loadAll(route.params.symbol))
@@ -347,12 +323,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
     <Card style="margin-top: 16px">
       <div class="card-head">
         <h3 style="margin: 0">Dividend &amp; Bonus History</h3>
-        <button class="btn-secondary btn" :disabled="fetchingCorporateActions" @click="handleFetchCorporateActions">
-          {{ fetchingCorporateActions ? 'Fetching…' : 'Refresh Dividend/Bonus Data' }}
-        </button>
       </div>
-      <p v-if="corporateActionsResult" class="muted">{{ corporateActionsResult }}</p>
-      <p v-if="corporateActionsError" class="error-text">{{ corporateActionsError }}</p>
 
       <table v-align-numbers class="table" v-if="dividends.length">
         <thead>
@@ -377,9 +348,7 @@ watch(() => route.params.symbol, (symbol) => loadAll(symbol))
         </tbody>
       </table>
       <EmptyState v-else>
-        No dividend/bonus history recorded yet for {{ stock.symbol }} — click "Refresh Dividend/Bonus Data" to fetch it.
-        (Pulled from ShareSansar first, falling back to the official nepalstock.com feed if that comes back empty —
-        cash dividend and bonus share % are covered either way; full right-share detail needs ShareSansar.)
+        No dividend/bonus history recorded yet for {{ stock.symbol }}.
       </EmptyState>
 
       <template v-if="rightShares.length">

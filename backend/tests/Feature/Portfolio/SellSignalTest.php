@@ -65,6 +65,23 @@ class SellSignalTest extends TestCase
         $this->assertNull($d['trailing_stop']); // not risen far enough yet
     }
 
+    /** A regression: the reversal test `! $current->signal === 'sell'` was always false, so ANY latest signal counted as a reversal. */
+    public function test_a_hold_or_buy_signal_is_not_a_reversal(): void
+    {
+        $this->levels();
+        $this->close('2026-09-10', 840);
+
+        foreach (['hold', 'buy'] as $i => $signal) {
+            Signal::create(['stock_id' => $this->stock->id, 'trade_date' => "2026-09-0".(8 + $i), 'signal' => $signal, 'score' => 0.1, 'reasons' => [], 'rule_keys' => []]);
+        }
+
+        $d = $this->decision();
+
+        $this->assertSame('hold', $d['action']);
+        $this->assertNull($d['primary_reason']);
+        $this->assertNotContains('signal_reversal', array_column($d['reasons'], 'rule'));
+    }
+
     public function test_a_stop_loss_hit_sells(): void
     {
         $this->levels();

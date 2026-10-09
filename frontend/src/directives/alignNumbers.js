@@ -1,5 +1,5 @@
 // v-align-numbers — right-aligns every table column whose values are all
-// numbers (prices, percentages, counts), header included. Runs after each
+// numbers (prices, percentages, counts), header and footer (totals row) included. Runs after each
 // render, so it keeps up with sorting, filtering and data loads.
 //
 // A column counts as numeric when every non-empty body cell looks like:
@@ -30,6 +30,7 @@ function cellsByColumn(row) {
 function align(table) {
   const bodyRows = [...table.tBodies].flatMap((body) => [...body.rows])
   const headRows = table.tHead ? [...table.tHead.rows] : []
+  const footRows = table.tFoot ? [...table.tFoot.rows] : [] // a totals row follows its column, not its own text
   const columns = new Map() // index -> body cells
 
   for (const row of bodyRows) {
@@ -44,7 +45,7 @@ function align(table) {
     const numeric = values.length > 0 && values.every((text) => NUMERIC.test(text))
 
     for (const cell of cells) cell.classList.toggle('num', numeric)
-    for (const row of headRows) cellsByColumn(row).get(col)?.classList.toggle('num', numeric)
+    for (const row of [...headRows, ...footRows]) cellsByColumn(row).get(col)?.classList.toggle('num', numeric)
   }
 }
 
