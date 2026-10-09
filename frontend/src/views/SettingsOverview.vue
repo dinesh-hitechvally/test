@@ -21,12 +21,7 @@ const SECTIONS = [
   {
     to: 'settings-profile',
     label: 'Profile',
-    description: 'Your name, email, and password.',
-  },
-  {
-    to: 'settings-notifications',
-    label: 'Notification Preferences',
-    description: 'Which topbar alerts you see, and how often they refresh.',
+    description: 'Your details, address and photo, password and devices, and which alerts you see.',
   },
   {
     to: 'settings-data-source',

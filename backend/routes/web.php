@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApiConsoleController;
+use App\Http\Controllers\AvatarImageController;
 use App\Http\Controllers\CronController;
 use App\Http\Controllers\DocsController;
 use App\Tasks\Ai\GenerateAiOpinionsTask;
@@ -31,6 +32,8 @@ Route::withoutMiddleware([StartSession::class, ShareErrorsFromSession::class, Pr
     Route::get('docs', DocsController::class);
     // Try every API operation and cron URL straight from the browser.
     Route::get('console', ApiConsoleController::class);
+    // Profile pictures (random file names, see AvatarImageController).
+    Route::get('avatars/{file}', AvatarImageController::class)->where('file', '[a-f0-9]{40}\.jpg');
 });
 
 // Task URLs, scheduled in cPanel cron (e.g. `curl -s "https://api.bizrms.com/cron/fetch/prices?key=..."`).

@@ -9,7 +9,42 @@ type TradeSetup {
     attractive: Boolean
 }
 
-"A buy/sell signal with a price target/stop-loss attached."
+"One stock's fundamentals (from MeroLagani) with return on equity worked out and the latest price."
+type FundamentalRow {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    close: String
+    eps: Float
+    eps_fiscal_year: String
+    pe_ratio: Float
+    book_value: Float
+    pbv: Float
+    "EPS as a % of book value per share (return on equity); null when either is missing or book value is not positive."
+    roe_pct: Float
+    market_cap: Float
+    one_year_yield_pct: Float
+    fetched_at: String
+}
+
+"One dividend / bonus declaration: a stock's payout for one fiscal year (Nepali B.S., e.g. 2081/2082), in % of face value."
+type MarketDividend {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    fiscal_year: String!
+    bonus_share_pct: Float
+    cash_dividend_pct: Float
+    total_dividend_pct: Float
+    announcement_date: String
+    "Free text: the source appends a status such as \"[Closed]\"."
+    book_closure_date: String
+    distribution_date: String
+    bonus_listing_date: String
+}
+
 "One row of the Signals page: a stock's latest signal and the percentages behind it."
 type SignalBoardRow {
     stock_id: Int!
@@ -44,6 +79,7 @@ type MlModelSummary {
     stocks_used: Int
 }
 
+"A buy/sell signal with a price target/stop-loss attached."
 type ActionableSignal {
     stock_id: Int!
     symbol: String!
@@ -186,6 +222,10 @@ type DataQualityFlag {
 extend type Query @guard {
     "Every stock's most recent signal (optionally one signal type), highest score first."
     todaySignals(signal: String): [Stock!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@todaySignals")
+    "Every stock that has fundamentals, with return on equity — the Fundamental Analysis page."
+    fundamentalsBoard: [FundamentalRow!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@fundamentalsBoard")
+    "Every dividend / bonus declaration on record, newest fiscal year first — the Market > Dividends page."
+    marketDividends: [MarketDividend!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@marketDividends")
     "Every stock's latest signal with its Buy / Sell / Hold % — the Signals page."
     signalBoard: [SignalBoardRow!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@signalBoard")
     "The latest trained direction model's record; null before the first training."

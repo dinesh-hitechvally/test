@@ -6,38 +6,36 @@ import NavIcon from './NavIcon.vue'
 const route = useRoute()
 
 // Ordered for a retail investor's mental model first: casual browsing
-// (Market) and the app's core value prop (Signals), then their own money
+// (Market, which holds the Signals page) and how far the signals can be trusted (Backtesting), then their own money
 // (Portfolio, Watchlist) — all visible with no extra click. The deeper/expert
 // tooling (Screener, Technical Analysis, Compare, the full Reports suite)
-// still has every route it always did, just grouped under one
-// clearly-labeled "Analyst Tools" section instead of competing for
-// top-billing with 10 other equally-weighted menus.
+// has every route it always did, grouped under one clearly-labeled "Analyst Tools"
+// section by the kind of analysis: Technical, Fundamental, Compare, Reports, Charts.
 const navItems = [
   { to: '/', label: 'Dashboard', icon: 'home' },
   {
     label: 'Market',
     icon: 'chart',
-    base: '/market',
     children: [
       { to: '/stocks', label: 'All Stocks' },
       { to: '/market/sector-list', label: 'Sector List' },
       { to: '/market/indices', label: 'Indices' },
+      { to: '/market/signals', label: 'Signals' },
+      { to: '/market/dividends', label: 'Dividends' },
     ],
   },
   {
-    label: 'Signals',
+    label: 'Backtesting',
     icon: 'target',
-    base: '/signals',
     children: [
-      { to: '/signals/buy', label: 'Buy Signals' },
-      { to: '/signals/sell', label: 'Sell Signals' },
-      { to: '/signals/history', label: 'Signal History / Accuracy' },
+      { to: '/backtesting/signals', label: 'Signal Accuracy' },
+      { to: '/backtesting/next-close', label: 'Next-Close Accuracy' },
+      { to: '/backtesting/ml-model', label: 'ML Direction Model' },
     ],
   },
   {
     label: 'My Portfolio',
     icon: 'wallet',
-    base: '/portfolio',
     children: [
       { to: '/portfolio', label: 'Overview' },
       { to: '/portfolio/holdings', label: 'Holdings' },
@@ -51,7 +49,6 @@ const navItems = [
   {
     label: 'Watchlist',
     icon: 'star',
-    base: '/watchlist',
     children: [
       { to: '/watchlist', label: 'My Watchlist(s)' },
       { to: '/watchlist/alerts', label: 'Price Alerts' },
@@ -59,30 +56,29 @@ const navItems = [
   },
   { section: 'Analyst Tools' },
   {
-    label: 'Screener',
-    icon: 'filter',
-    base: '/screener',
+    label: 'Technical Analysis',
+    icon: 'pulse',
     children: [
+      { to: '/reports/technical', label: 'Technical Report' },
+      { to: '/technical/support-resistance', label: 'Support & Resistance' },
+      { to: '/technical/patterns', label: 'Chart Patterns' },
+      { to: '/reports/rule-scanner', label: 'Rule Scanner' },
       { to: '/screener', label: 'Custom Screener' },
       { to: '/screener/presets', label: 'Preset Screens' },
       { to: '/screener/saved', label: 'Saved Screens' },
     ],
   },
   {
-    label: 'Technical Analysis',
-    icon: 'pulse',
-    base: '/technical',
+    label: 'Fundamental Analysis',
+    icon: 'book',
     children: [
-      { to: '/technical/charts', label: 'Stock Charts' },
-      { to: '/technical/dashboard', label: 'Indicator Dashboard' },
-      { to: '/technical/support-resistance', label: 'Support & Resistance Finder' },
-      { to: '/technical/patterns', label: 'Chart Patterns' },
+      { to: '/fundamental/overview', label: 'Fundamentals' },
+      { to: '/reports/dividends', label: 'Dividend Report' },
     ],
   },
   {
     label: 'Compare',
     icon: 'compare',
-    base: '/compare',
     children: [
       { to: '/compare', label: 'Stock vs Stock' },
       { to: '/compare/index', label: 'Stock vs Index' },
@@ -91,27 +87,29 @@ const navItems = [
   {
     label: 'Reports',
     icon: 'report',
-    base: '/reports',
     children: [
       { to: '/reports/market', label: 'Market' },
       { to: '/reports/sector', label: 'By Sector' },
       { to: '/reports/stock', label: 'By Stock' },
       { to: '/reports/horizon', label: 'Investment Horizon' },
       { to: '/reports/analyst', label: 'Analyst Report' },
-      { to: '/reports/rule-scanner', label: 'Rule Scanner' },
-      { to: '/reports/technical', label: 'Technical Analysis' },
-      { to: '/reports/dividends', label: 'Dividend Report' },
+    ],
+  },
+  {
+    label: 'Charts',
+    icon: 'candles',
+    children: [
+      { to: '/technical/charts', label: 'Stock Charts' },
+      { to: '/technical/dashboard', label: 'Indicator Dashboard' },
     ],
   },
   { section: 'Account' },
   {
     label: 'Settings',
     icon: 'gear',
-    base: '/settings',
     children: [
       { to: '/settings', label: 'Overview' },
       { to: '/settings/profile', label: 'Profile' },
-      { to: '/settings/notifications', label: 'Notification Preferences' },
       { to: '/settings/data-source', label: 'Data Source / Scrape Settings' },
       { to: '/settings/login-history', label: 'Login History' },
       { to: '/settings/admin', label: 'Users / Admin' },
@@ -119,9 +117,11 @@ const navItems = [
   },
 ]
 
+// A group is open on any page that one of its own links leads to (or sits under, e.g. /stocks/NABIL under /stocks) —
+// by link, not by URL prefix, because a menu can now hold pages from several areas (Reports pages under Technical Analysis).
 function inGroup(item) {
   if (item.to) return false
-  return route.path === item.base || route.path.startsWith(item.base + '/') || item.children.some((c) => route.path === c.to)
+  return item.children.some((c) => route.path === c.to || route.path.startsWith(c.to + '/'))
 }
 
 function isActive(to) {

@@ -2,37 +2,13 @@
 import { onMounted, ref } from 'vue'
 import * as authApi from '../api/auth'
 import { useSortableTable } from '../composables/useSortableTable'
+import { deviceLabel as device, locationLabel as location } from '../utils/device'
 
 const history = ref([])
 const loading = ref(true)
 
 const historyTable = useSortableTable(history, { defaultKey: 'logged_in_at', defaultDir: 'desc' })
 const { sorted } = historyTable
-
-function location(row) {
-  return [row.city, row.region, row.country].filter(Boolean).join(', ') || '—'
-}
-
-// A user agent string is long and mostly noise ("Mozilla/5.0 (...) AppleWebKit/537.36 ...") —
-// this pulls out just the browser/OS pair most people actually recognize.
-function device(userAgent) {
-  if (!userAgent) return 'Unknown'
-
-  const os = /Windows/.test(userAgent) ? 'Windows'
-    : /Mac OS X/.test(userAgent) ? 'macOS'
-    : /Android/.test(userAgent) ? 'Android'
-    : /iPhone|iPad/.test(userAgent) ? 'iOS'
-    : /Linux/.test(userAgent) ? 'Linux'
-    : 'Unknown OS'
-
-  const browser = /Edg\//.test(userAgent) ? 'Edge'
-    : /Chrome\//.test(userAgent) ? 'Chrome'
-    : /Firefox\//.test(userAgent) ? 'Firefox'
-    : /Safari\//.test(userAgent) ? 'Safari'
-    : 'Unknown browser'
-
-  return `${browser} on ${os}`
-}
 
 async function load() {
   loading.value = true

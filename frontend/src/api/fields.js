@@ -2,7 +2,8 @@
 // the same fields the API used to return. Plain strings (not GraphQL
 // fragments) so they can be nested freely without duplicate definitions.
 
-export const USER = 'id name email email_verified_at created_at updated_at'
+export const USER = `id name email username user_code email_verified_at password_changed_at last_login_at created_at updated_at
+  profile { first_name last_name phone gender date_of_birth occupation bio timezone avatar_url country province city street_address postal_code }`
 
 export const PRICE = 'id stock_id trade_date open_price high_price low_price close_price volume turnover created_at updated_at'
 

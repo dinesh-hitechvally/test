@@ -39,6 +39,32 @@ class PriceStatisticsService
      *
      * @return Collection<int, array{stock_id: int, close: float, previous_close: ?float, change_pct: ?float}>
      */
+    /**
+     * The same figures as one entry of priceChanges(), for a single stock, from its two newest closes — without
+     * ranking every stock's whole price history (which priceChanges() does) just to read one row.
+     *
+     * @return array{stock_id: int, close: float, previous_close: ?float, change_pct: ?float, turnover: float}|null
+     */
+    public function changeFor(Stock $stock): ?array
+    {
+        $rows = $stock->dailyPrices()->orderByDesc('trade_date')->limit(2)->get(['close_price', 'turnover']);
+
+        if ($rows->isEmpty()) {
+            return null;
+        }
+
+        $close = (float) $rows[0]->close_price;
+        $previous = isset($rows[1]) ? (float) $rows[1]->close_price : null;
+
+        return [
+            'stock_id' => $stock->id,
+            'close' => $close,
+            'previous_close' => $previous,
+            'change_pct' => $previous && $previous != 0.0 ? round((($close - $previous) / $previous) * 100, 2) : null,
+            'turnover' => (float) $rows[0]->turnover,
+        ];
+    }
+
     public function priceChanges(): Collection
     {
         $ranked = DB::table('daily_prices')

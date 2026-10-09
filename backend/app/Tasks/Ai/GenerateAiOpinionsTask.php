@@ -7,6 +7,7 @@ use App\Models\Stock;
 use App\Services\Ai\AiStockOpinionService;
 use App\Tasks\PerStockTask;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Throwable;
 
@@ -25,18 +26,13 @@ use Throwable;
  * against an 8,000-tokens/minute cap), so working through every pending stock in one request took far longer than
  * a web request may last and the cron URL timed out. Ping it every minute until it says nothing is pending.
  *
- * A 429 means "wait", not "this stock is broken": the run waits a short, capped time and retries once; if Groq is
- * still limiting, the stock is simply left pending for the next ping (no failure recorded) — see
- * generateWithinRateLimit().
+ * A 429 (rate limit) or a Groq that does not answer in time means "not now", not "this stock is broken": the run
+ * returns at once, the stock stays pending (no failure recorded, no 6-hour cooldown) and the next ping tries it
+ * again. It never sleeps or retries inside the request — the cron URL has to finish well inside the host's
+ * connection timeout — and Groq's own calls are capped at 25 seconds (see GroqOpinionProvider).
  */
 class GenerateAiOpinionsTask extends PerStockTask
 {
-    /** Longest one run waits for Groq's rate limit to clear (a web request must stay short); Groq's Retry-After is capped to this. */
-    private const RATE_LIMIT_MAX_WAIT_SECONDS = 20;
-
-    /** Fallback wait when Groq doesn't send a Retry-After header. */
-    private const RATE_LIMIT_WAIT_SECONDS = 15;
-
     public function __construct(private readonly AiStockOpinionService $ai) {}
 
     protected function unavailableReason(): ?string
@@ -65,11 +61,21 @@ class GenerateAiOpinionsTask extends PerStockTask
 
     protected function process(Stock $stock): string
     {
-        $opinion = $this->generateWithinRateLimit($stock);
+        $started = microtime(true);
 
-        if ($opinion === null) {
-            // Still rate limited after the short wait: not a failure — the stock stays pending for the next ping.
-            return "{$stock->symbol}: Groq's rate limit is still in effect — left pending, the next run tries it again.";
+        try {
+            $opinion = $this->ai->generate($stock);
+        } catch (RequestException $e) {
+            // 429 = Groq's free-tier rate limit. Waiting here would hold the web request open, so the stock is simply
+            // left pending and the next ping (a minute on) tries it again.
+            if ($e->response->status() === 429) {
+                return "{$stock->symbol}: Groq's rate limit is in effect — left pending, the next run tries it again.";
+            }
+
+            throw $e;
+        } catch (ConnectionException $e) {
+            // Groq did not answer in time (or could not be reached): nothing is wrong with the stock either.
+            return "{$stock->symbol}: Groq did not answer in time — left pending, the next run tries it again.";
         }
 
         AiStockOpinion::updateOrCreate(
@@ -77,10 +83,10 @@ class GenerateAiOpinionsTask extends PerStockTask
             [...$opinion, 'generated_at' => now(), 'error' => null, 'error_at' => null]
         );
 
-        return "{$stock->symbol}: {$opinion['verdict']} ({$opinion['confidence']} confidence)";
+        return sprintf('%s: %s (%s confidence) in %.1fs', $stock->symbol, $opinion['verdict'], $opinion['confidence'], microtime(true) - $started);
     }
 
-    /** Only reached for real failures — rate limits are waited out in generateWithinRateLimit(). */
+    /** Only reached for real failures — rate limits and timeouts are left pending in process(). */
     protected function failed(Stock $stock, Throwable $e): string
     {
         // Gets the 6h cooldown (only touches error/error_at — never
@@ -96,29 +102,5 @@ class GenerateAiOpinionsTask extends PerStockTask
     protected function nothingPendingMessage(): string
     {
         return 'No stocks are due for an AI opinion refresh.';
-    }
-
-    /**
-     * Null when Groq is still rate limiting after one short wait.
-     *
-     * @return array{verdict: string, confidence: string, reasoning: string}|null
-     */
-    private function generateWithinRateLimit(Stock $stock): ?array
-    {
-        for ($attempt = 0; $attempt < 2; $attempt++) {
-            try {
-                return $this->ai->generate($stock);
-            } catch (RequestException $e) {
-                if ($e->response->status() !== 429) {
-                    throw $e;
-                }
-
-                if ($attempt === 0) {
-                    sleep(min(self::RATE_LIMIT_MAX_WAIT_SECONDS, max(1, (int) ($e->response->header('Retry-After') ?: self::RATE_LIMIT_WAIT_SECONDS))));
-                }
-            }
-        }
-
-        return null;
     }
 }

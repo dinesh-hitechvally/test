@@ -15,6 +15,35 @@ export async function actionableSignals(bias = 'buy') {
   } }`, { bias })).actionableSignals
 }
 
+/** Every stock's fundamentals with return on equity worked out — the Fundamental Analysis page. */
+export async function fundamentalsBoard() {
+  return (await gql(`{ fundamentalsBoard {
+    stock_id symbol company_name sector close eps eps_fiscal_year pe_ratio book_value pbv roe_pct market_cap one_year_yield_pct fetched_at
+  } }`)).fundamentalsBoard
+}
+
+/** Every dividend / bonus declaration on record, newest fiscal year first — the Market > Dividends page. */
+export async function marketDividends() {
+  return (await gql(`{ marketDividends {
+    stock_id symbol company_name sector fiscal_year bonus_share_pct cash_dividend_pct total_dividend_pct
+    announcement_date book_closure_date distribution_date bonus_listing_date
+  } }`)).marketDividends
+}
+
+/** Every stock's latest signal with its Buy / Sell / Hold % — the Signals page. */
+export async function signalBoard() {
+  return (await gql(`{ signalBoard {
+    stock_id symbol company_name sector close trade_date signal score buy_pct sell_pct hold_pct hold_type reasons
+  } }`)).signalBoard
+}
+
+/** The trained direction model's out-of-sample record, or null before the first training. */
+export async function mlModel() {
+  return (await gql(`{ mlModel {
+    trained_at horizon_days train_samples test_samples accuracy baseline_accuracy beats_baseline precision recall f1 stocks_used
+  } }`)).mlModel
+}
+
 export async function signalAccuracy() {
   return (await gql(`{ signalAccuracy {
     available computed_at horizon_days disclaimer

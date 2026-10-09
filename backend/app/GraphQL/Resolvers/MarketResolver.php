@@ -11,6 +11,8 @@ use App\Services\Analysis\Signals\SignalFeedService;
 use App\Services\DataSources\ScrapeHealthService;
 use App\Services\MachineLearning\MlDirectionPredictorService;
 use App\Services\Portfolio\PriceAlertService;
+use App\Services\Reports\DividendListService;
+use App\Services\Reports\FundamentalsBoardService;
 use App\Services\Reports\IndexReportService;
 use App\Services\Reports\ScreenerService;
 
@@ -20,6 +22,16 @@ class MarketResolver extends Resolver
     public function todaySignals($root, array $args): array
     {
         return $this->plain(app(SignalFeedService::class)->today($args['signal'] ?? null));
+    }
+
+    public function fundamentalsBoard(): array
+    {
+        return $this->plain(app(FundamentalsBoardService::class)->all());
+    }
+
+    public function marketDividends(): array
+    {
+        return $this->plain(app(DividendListService::class)->all());
     }
 
     public function signalBoard(): array

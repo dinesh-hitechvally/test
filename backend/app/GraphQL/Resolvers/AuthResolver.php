@@ -10,9 +10,12 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\UpdatePasswordRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
+use App\Models\PortfolioTransaction;
 use App\Models\User;
+use App\Services\Auth\AccountService;
 use App\Services\Auth\LoginHistoryService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -25,7 +28,7 @@ use Laravel\Sanctum\PersonalAccessToken;
  */
 class AuthResolver extends Resolver
 {
-    public function __construct(private readonly LoginHistoryService $history) {}
+    public function __construct(private readonly LoginHistoryService $history, private readonly AccountService $account) {}
 
     /** Recording the login (IP, device, location) follows via UserLoggedIn → RecordLoginHistory. */
     public function login($root, array $args): array
@@ -47,7 +50,7 @@ class AuthResolver extends Resolver
         return [
             'token' => $user->createToken('spa')->plainTextToken,
             'token_type' => 'Bearer',
-            'user' => $this->plain($user),
+            'user' => $this->account->present($user),
         ];
     }
 
@@ -66,20 +69,22 @@ class AuthResolver extends Resolver
 
     public function me(): ?array
     {
-        return $this->plain(auth()->user());
+        return auth()->user() ? $this->account->present(auth()->user()) : null;
     }
 
     public function updateProfile($root, array $args): array
     {
-        $user = $this->user();
-        $user->update($this->validated(UpdateProfileRequest::class, $args));
+        $user = $this->account->save($this->user(), $this->validated(UpdateProfileRequest::class, $args));
 
-        return $this->plain($user->fresh());
+        return $this->account->present($user);
     }
 
     public function updatePassword($root, array $args): string
     {
-        $this->user()->update(['password' => Hash::make($this->validated(UpdatePasswordRequest::class, $args)['password'])]);
+        $this->user()->update([
+            'password' => Hash::make($this->validated(UpdatePasswordRequest::class, $args)['password']),
+            'password_changed_at' => now(),
+        ]);
 
         return 'Password updated.';
     }
@@ -95,7 +100,7 @@ class AuthResolver extends Resolver
     public function resetPassword($root, array $args): string
     {
         $status = PasswordBroker::reset($this->validated(ResetPasswordRequest::class, $args), function ($user, $password) {
-            $user->update(['password' => Hash::make($password)]);
+            $user->update(['password' => Hash::make($password), 'password_changed_at' => now()]);
         });
 
         return $status === PasswordBroker::PASSWORD_RESET ? __($status) : throw new ApiError(__($status), 422);
@@ -104,6 +109,39 @@ class AuthResolver extends Resolver
     public function loginHistory(): array
     {
         return $this->plain($this->history->recent($this->user()));
+    }
+
+    /** The Profile page: what the account holds, and where it has signed in. */
+    public function accountSummary(): array
+    {
+        $user = $this->user();
+        $portfolioIds = $user->portfolios()->select('id');
+        $watchlistIds = $user->watchlists()->select('id');
+
+        return [
+            'portfolios' => $user->portfolios()->count(),
+            'transactions' => PortfolioTransaction::whereIn('portfolio_id', $portfolioIds)->count(),
+            'watchlists' => $user->watchlists()->count(),
+            'watchlist_stocks' => DB::table('watchlist_items')->whereIn('watchlist_id', $watchlistIds)->count(),
+            'saved_screens' => $user->savedScreens()->count(),
+            'active_sessions' => $user->tokens()->count(),
+            'total_logins' => $user->loginHistories()->count(),
+            'recent_logins' => $this->plain($this->history->recent($user)->take(5)->values()),
+        ];
+    }
+
+    /** Signs the account out everywhere except the device making this request; returns how many sessions ended. */
+    public function logoutOtherSessions(): int
+    {
+        $user = $this->user();
+        $current = $user->currentAccessToken();
+        $others = $user->tokens();
+
+        if ($current instanceof PersonalAccessToken) {
+            $others->whereKeyNot($current->getKey());
+        }
+
+        return $others->delete();
     }
 
     public function users(): array

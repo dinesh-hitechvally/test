@@ -29,11 +29,11 @@ class GroqOpinionProvider implements AiOpinionProvider
      */
     public function requestOpinion(string $prompt): array
     {
-        $response = Http::timeout(40)
+        // Kept short and never retried here: this runs inside a web request (the cron URL) that must finish well inside
+        // the host's connection timeout. A slow or rate-limited answer just leaves the stock for the next ping.
+        $response = Http::connectTimeout(8)
+            ->timeout(25)
             ->withToken(config('services.groq.api_key'))
-            // Transient overload/rate-limit responses are retried a
-            // couple of times with a short delay before giving up.
-            ->retry(2, 1500, throw: false)
             ->post(self::ENDPOINT, [
                 'model' => config('services.groq.model'),
                 'messages' => [['role' => 'user', 'content' => $prompt]],

@@ -30,6 +30,9 @@ defineProps({
   <svg v-else-if="name === 'target'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
     <circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" />
   </svg>
+  <svg v-else-if="name === 'candles'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M7 3v3M7 14v4M17 6v2M17 17v3" /><rect x="5" y="6" width="4" height="8" rx="1" /><rect x="15" y="8" width="4" height="9" rx="1" />
+  </svg>
   <svg v-else-if="name === 'pulse'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
     <path d="M2 12h4l2-7 4 14 3-9 2 5h5" />
   </svg>

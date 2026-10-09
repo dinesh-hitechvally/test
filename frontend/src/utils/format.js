@@ -5,6 +5,19 @@ export function formatPrice(value) {
   return formatNumber(value, { decimals: 2 })
 }
 
+/** A date and time as the person reads it, in their time zone (an IANA name such as Asia/Kathmandu; blank = this browser's). */
+export function formatDateTime(value, timeZone = '') {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  try {
+    return date.toLocaleString(undefined, timeZone ? { timeZone } : undefined)
+  } catch {
+    return date.toLocaleString() // an unknown zone name: fall back to the browser's
+  }
+}
+
 /** "wait_confirmation" → "wait confirmation". */
 export function formatSignal(signal) {
   return signal.replace('_', ' ')

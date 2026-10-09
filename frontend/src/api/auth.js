@@ -1,4 +1,5 @@
 import { gql } from './graphql'
+import client from './client'
 import { USER } from './fields'
 
 export async function me() {
@@ -28,9 +29,41 @@ export async function resetPassword({ token, email, password, password_confirmat
   }`, { token, email, password, password_confirmation })).resetPassword
 }
 
-export async function updateProfile({ name, email }) {
-  return (await gql(`mutation ($name: String, $email: String) { updateProfile(name: $name, email: $email) { ${USER} } }`,
-    { name, email })).updateProfile
+/** The Profile page: counts of what the account holds, active sessions and the last five logins. */
+export async function accountSummary() {
+  return (await gql(`{ accountSummary {
+    portfolios transactions watchlists watchlist_stocks saved_screens active_sessions total_logins
+    recent_logins { id ip_address user_agent city region country logged_in_at }
+  } }`)).accountSummary
+}
+
+/** Signs out every other device; resolves to how many were signed out. */
+export async function logoutOtherSessions() {
+  return (await gql('mutation { logoutOtherSessions }')).logoutOtherSessions
+}
+
+const PROFILE_FIELDS = ['first_name', 'last_name', 'email', 'username', 'phone', 'gender', 'date_of_birth', 'occupation', 'bio', 'timezone', 'country', 'province', 'city', 'street_address', 'postal_code']
+
+/** Saves the profile form (every field of it); an empty value clears an optional field. Resolves to the updated user. */
+export async function updateProfile(form) {
+  const variables = Object.fromEntries(PROFILE_FIELDS.map((key) => [key, form[key] === '' ? null : form[key]]))
+  const declared = PROFILE_FIELDS.map((key) => `$${key}: String`).join(', ')
+  const passed = PROFILE_FIELDS.map((key) => `${key}: $${key}`).join(', ')
+
+  return (await gql(`mutation (${declared}) { updateProfile(${passed}) { ${USER} } }`, variables)).updateProfile
+}
+
+/** Uploads a profile picture (cropped to a square by the server); resolves to its address. */
+export async function uploadAvatar(file) {
+  const body = new FormData()
+  body.append('avatar', file)
+
+  const { data } = await client.post('/profile/avatar', body)
+  return data.avatar_url
+}
+
+export async function removeAvatar() {
+  await client.delete('/profile/avatar')
 }
 
 /** @returns the confirmation message */

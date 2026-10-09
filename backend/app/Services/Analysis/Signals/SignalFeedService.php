@@ -36,6 +36,11 @@ class SignalFeedService
      */
     public function board(): Collection
     {
+        // No signals yet (nothing generated): an empty page, and nothing else is touched.
+        if (! DB::table('signals')->exists()) {
+            return collect();
+        }
+
         // The breakdown row of each stock's latest signal day, in one query.
         $latestDay = DB::table('signals')->select('stock_id', DB::raw('max(trade_date) as trade_date'))->groupBy('stock_id');
         $breakdowns = DB::table('signal_breakdowns as b')

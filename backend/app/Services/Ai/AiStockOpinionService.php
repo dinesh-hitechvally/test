@@ -86,7 +86,7 @@ class AiStockOpinionService
      */
     private function buildContext(Stock $stock): array
     {
-        $change = $this->prices->priceChanges()->get($stock->id);
+        $change = $this->prices->changeFor($stock);
         $signal = $stock->latestSignal;
 
         $signalAccuracy = $signal ? $this->accuracy->latestFor($signal->signal) : null;

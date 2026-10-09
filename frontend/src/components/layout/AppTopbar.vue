@@ -113,7 +113,11 @@ onUnmounted(() => {
       </div>
 
       <div class="user-area">
-        <span>{{ auth.user?.name }}</span>
+        <RouterLink to="/settings/profile" class="user-link" title="Your profile">
+          <img v-if="auth.user?.profile?.avatar_url" :src="auth.user.profile.avatar_url" alt="" class="user-avatar" />
+          <span v-else class="user-avatar initial" aria-hidden="true">{{ (auth.user?.name || '?').trim()[0]?.toUpperCase() }}</span>
+          <span>{{ auth.user?.name }}</span>
+        </RouterLink>
         <button class="link-btn" @click="handleLogout">Log out</button>
       </div>
     </div>
@@ -121,6 +125,30 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.user-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.user-avatar.initial {
+  display: grid;
+  place-items: center;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .topbar {
   display: flex;
   align-items: center;

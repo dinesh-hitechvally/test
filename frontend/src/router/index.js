@@ -17,6 +17,9 @@ const routes = [
   { path: '/market/sector-overview', redirect: '/market/sector-list' }, // renamed: old bookmarks still work
   { path: '/sectors/:id(\\d+)', name: 'sector-detail', component: () => import('../views/SectorDetail.vue'), meta: { requiresAuth: true, title: 'Sector' } },
   { path: '/market/sector-list', name: 'market-sector-list', component: () => import('../views/MarketSectorList.vue'), meta: { requiresAuth: true, title: 'Sector List' } },
+  { path: '/fundamental/overview', name: 'fundamental-overview', component: () => import('../views/Fundamentals.vue'), meta: { requiresAuth: true, title: 'Fundamentals' } },
+  { path: '/fundamental', redirect: '/fundamental/overview' },
+  { path: '/market/dividends', name: 'market-dividends', component: () => import('../views/MarketDividends.vue'), meta: { requiresAuth: true, title: 'Dividends' } },
   { path: '/market/indices', name: 'market-indices', component: () => import('../views/Indices.vue'), meta: { requiresAuth: true, title: 'Indices' } },
 
   { path: '/watchlist/alerts', name: 'watchlist-alerts', component: () => import('../views/WatchlistAlerts.vue'), meta: { requiresAuth: true, title: 'Price Alerts' } },
@@ -26,9 +29,16 @@ const routes = [
   { path: '/portfolio/diversification', name: 'portfolio-diversification', component: () => import('../views/PortfolioDiversification.vue'), meta: { requiresAuth: true, title: 'Diversification' } },
   { path: '/portfolio/statements', name: 'portfolio-statements', component: () => import('../views/Statements.vue'), meta: { requiresAuth: true, title: 'Statements' } },
 
-  { path: '/signals/buy', name: 'signals-buy', component: () => import('../views/SignalsBuy.vue'), meta: { requiresAuth: true, title: 'Buy Signals' } },
-  { path: '/signals/sell', name: 'signals-sell', component: () => import('../views/SignalsSell.vue'), meta: { requiresAuth: true, title: 'Sell Signals' } },
-  { path: '/signals/history', name: 'signals-history', component: () => import('../views/SignalHistory.vue'), meta: { requiresAuth: true, title: 'Signal History / Accuracy' } },
+  // Signals live under Market (one page with filters); their accuracy is under Backtesting. Old bookmarks still land.
+  { path: '/market/signals', name: 'market-signals', component: () => import('../views/MarketSignals.vue'), meta: { requiresAuth: true, title: 'Signals' } },
+  { path: '/signals/buy', redirect: { path: '/market/signals', query: { signal: 'buy' } } },
+  { path: '/signals/sell', redirect: { path: '/market/signals', query: { signal: 'sell' } } },
+  { path: '/signals/history', redirect: '/backtesting/signals' },
+
+  { path: '/backtesting', redirect: '/backtesting/signals' },
+  { path: '/backtesting/signals', name: 'backtesting-signals', component: () => import('../views/BacktestSignals.vue'), meta: { requiresAuth: true, title: 'Signal Accuracy' } },
+  { path: '/backtesting/next-close', name: 'backtesting-next-close', component: () => import('../views/BacktestNextClose.vue'), meta: { requiresAuth: true, title: 'Next-Close Accuracy' } },
+  { path: '/backtesting/ml-model', name: 'backtesting-ml-model', component: () => import('../views/BacktestMlModel.vue'), meta: { requiresAuth: true, title: 'ML Direction Model' } },
 
   { path: '/screener/presets', name: 'screener-presets', component: () => import('../views/ScreenerPresets.vue'), meta: { requiresAuth: true, title: 'Preset Screens' } },
   { path: '/screener/saved', name: 'screener-saved', component: () => import('../views/ScreenerSaved.vue'), meta: { requiresAuth: true, title: 'Saved Screens' } },
@@ -53,7 +63,8 @@ const routes = [
 
   { path: '/settings', name: 'settings', component: () => import('../views/SettingsOverview.vue'), meta: { requiresAuth: true, title: 'Settings' } },
   { path: '/settings/profile', name: 'settings-profile', component: () => import('../views/Profile.vue'), meta: { requiresAuth: true, title: 'Profile' } },
-  { path: '/settings/notifications', name: 'settings-notifications', component: () => import('../views/NotificationPreferences.vue'), meta: { requiresAuth: true, title: 'Notification Preferences' } },
+  // Alert preferences now live on the Profile page (Preferences tab); the old address still works.
+  { path: '/settings/notifications', redirect: { path: '/settings/profile', query: { tab: 'preferences' } } },
   { path: '/settings/data-source', name: 'settings-data-source', component: () => import('../views/DataSourceSettings.vue'), meta: { requiresAuth: true, title: 'Data Source / Scrape Settings' } },
   { path: '/settings/data-quality', name: 'settings-data-quality', component: () => import('../views/DataQualityFlags.vue'), meta: { requiresAuth: true, title: 'Data Quality' } },
   { path: '/settings/login-history', name: 'settings-login-history', component: () => import('../views/LoginHistory.vue'), meta: { requiresAuth: true, title: 'Login History' } },

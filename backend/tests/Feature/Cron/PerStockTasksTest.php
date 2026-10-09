@@ -120,40 +120,6 @@ class PerStockTasksTest extends TestCase
             ->assertSeeText('AI opinion is not configured on this instance');
     }
 
-    public function test_ai_opinions_wait_out_a_rate_limit_instead_of_skipping_the_stock(): void
-    {
-        $provider = new class implements AiOpinionProvider
-        {
-            public int $calls = 0;
-
-            public function isConfigured(): bool
-            {
-                return true;
-            }
-
-            public function requestOpinion(string $prompt): array
-            {
-                if (++$this->calls === 1) {
-                    throw new RequestException(new Response(new PsrResponse(429, ['Retry-After' => '1'])));
-                }
-
-                return ['verdict' => 'hold', 'confidence' => 'low', 'reasoning' => 'test'];
-            }
-        };
-        $this->app->instance(AiOpinionProvider::class, $provider);
-
-        $stock = Stock::create(['symbol' => 'AAA', 'company_name' => 'A', 'is_active' => true]);
-        Signal::create(['stock_id' => $stock->id, 'trade_date' => '2024-01-01', 'signal' => 'hold', 'score' => 0, 'reasons' => [], 'rule_keys' => []]);
-
-        $this->get('/cron/generate/ai-opinions?key=test-secret')
-            ->assertOk()
-            ->assertSeeText('AAA: hold (low confidence)')
-            ->assertSeeText('Done — 1 stock(s) processed, 0 failed.');
-
-        $this->assertSame(2, $provider->calls);
-        $this->assertSame('hold', $stock->aiOpinion()->first()->verdict);
-    }
-
     public function test_ai_opinions_do_one_stock_per_run_and_report_how_many_are_left(): void
     {
         $this->app->instance(AiOpinionProvider::class, new class implements AiOpinionProvider
@@ -183,11 +149,22 @@ class PerStockTasksTest extends TestCase
         $this->assertSame(1, \App\Models\AiStockOpinion::count());
     }
 
-    public function test_a_rate_limit_that_does_not_clear_leaves_the_stock_pending_without_a_failure(): void
+    private function aiStock(): Stock
     {
-        $this->app->instance(AiOpinionProvider::class, new class implements AiOpinionProvider
+        $stock = Stock::create(['symbol' => 'AAA', 'company_name' => 'A', 'is_active' => true]);
+        Signal::create(['stock_id' => $stock->id, 'trade_date' => '2024-01-01', 'signal' => 'hold', 'score' => 0, 'reasons' => [], 'rule_keys' => []]);
+
+        return $stock;
+    }
+
+    /** A provider that does whatever the test says on each call. */
+    private function aiProvider(callable $behaviour): object
+    {
+        $provider = new class($behaviour) implements AiOpinionProvider
         {
             public int $calls = 0;
+
+            public function __construct(private $behaviour) {}
 
             public function isConfigured(): bool
             {
@@ -198,18 +175,77 @@ class PerStockTasksTest extends TestCase
             {
                 $this->calls++;
 
-                throw new RequestException(new Response(new PsrResponse(429, ['Retry-After' => '1'])));
+                return ($this->behaviour)($this->calls);
             }
-        });
+        };
+        $this->app->instance(AiOpinionProvider::class, $provider);
 
-        $stock = Stock::create(['symbol' => 'AAA', 'company_name' => 'A', 'is_active' => true]);
-        Signal::create(['stock_id' => $stock->id, 'trade_date' => '2024-01-01', 'signal' => 'hold', 'score' => 0, 'reasons' => [], 'rule_keys' => []]);
+        return $provider;
+    }
+
+    public function test_a_rate_limit_leaves_the_stock_pending_at_once_without_waiting_or_a_failure(): void
+    {
+        $provider = $this->aiProvider(fn () => throw new RequestException(new Response(new PsrResponse(429, ['Retry-After' => '30']))));
+        $stock = $this->aiStock();
+
+        $started = microtime(true);
+        $this->get('/cron/generate/ai-opinions?key=test-secret')
+            ->assertOk()
+            ->assertSeeText("AAA: Groq's rate limit is in effect")
+            ->assertSeeText('left pending')
+            ->assertSeeText('[ok]'); // not a failed run, so nobody is alerted
+
+        $this->assertLessThan(5, microtime(true) - $started);      // it did not sleep through Retry-After
+        $this->assertSame(1, $provider->calls);                      // and did not retry inside the request
+        $this->assertSame(0, \App\Models\AiStockOpinion::count()); // no opinion and no error: still pending, no 6-hour cooldown
+        $this->assertTrue(app(\App\Tasks\Ai\GenerateAiOpinionsTask::class)->hasPendingStock());
+    }
+
+    public function test_a_groq_that_does_not_answer_in_time_leaves_the_stock_pending_too(): void
+    {
+        $provider = $this->aiProvider(fn () => throw new \Illuminate\Http\Client\ConnectionException('cURL error 28: Operation timed out'));
+        $this->aiStock();
 
         $this->get('/cron/generate/ai-opinions?key=test-secret')
             ->assertOk()
-            ->assertSeeText("AAA: Groq's rate limit is still in effect — left pending")
-            ->assertSeeText('[ok]'); // not a failed run, so nobody is alerted
+            ->assertSeeText('Groq did not answer in time')
+            ->assertSeeText('[ok]');
 
-        $this->assertSame(0, \App\Models\AiStockOpinion::count()); // no opinion and no error recorded: still pending, no 6-hour cooldown
+        $this->assertSame(1, $provider->calls);
+        $this->assertSame(0, \App\Models\AiStockOpinion::count());
+    }
+
+    public function test_a_real_groq_error_is_recorded_and_the_stock_rests_for_six_hours(): void
+    {
+        $this->aiProvider(fn () => throw new RequestException(new Response(new PsrResponse(401, [], '{"error":"invalid api key"}'))));
+        $stock = $this->aiStock();
+
+        $this->get('/cron/generate/ai-opinions?key=test-secret')->assertOk()->assertSeeText('AAA: failed');
+
+        $this->assertNotNull($stock->aiOpinion()->first()->error);
+        $this->assertFalse(app(\App\Tasks\Ai\GenerateAiOpinionsTask::class)->hasPendingStock()); // on cooldown, not retried every minute
+    }
+
+    public function test_a_good_answer_reports_how_long_it_took(): void
+    {
+        $this->aiProvider(fn () => ['verdict' => 'buy', 'confidence' => 'high', 'reasoning' => 'test']);
+        $this->aiStock();
+
+        $this->get('/cron/generate/ai-opinions?key=test-secret')->assertOk()->assertSeeText('AAA: buy (high confidence) in ');
+    }
+
+    public function test_the_groq_provider_never_retries_inside_the_request(): void
+    {
+        config(['services.groq.api_key' => 'k', 'services.groq.model' => 'm']);
+        \Illuminate\Support\Facades\Http::fake(['api.groq.com/*' => \Illuminate\Support\Facades\Http::sequence()->push('rate limited', 429)->push(['choices' => []], 200)]);
+
+        try {
+            app(\App\Services\Ai\GroqOpinionProvider::class)->requestOpinion('prompt');
+            $this->fail('Expected the 429 to throw.');
+        } catch (RequestException $e) {
+            $this->assertSame(429, $e->response->status());
+        }
+
+        \Illuminate\Support\Facades\Http::assertSentCount(1);
     }
 }

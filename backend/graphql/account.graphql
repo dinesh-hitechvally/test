@@ -1,10 +1,37 @@
 type User {
     id: Int!
+    "The display name: first and last name together."
     name: String!
     email: String!
+    username: String
+    "A readable account number, e.g. USR-1001."
+    user_code: String
     email_verified_at: String
+    password_changed_at: String
+    last_login_at: String
     created_at: String
     updated_at: String
+    profile: UserProfile
+}
+
+"The personal details on the Profile page."
+type UserProfile {
+    first_name: String
+    last_name: String
+    phone: String
+    "male | female (null = not set)"
+    gender: String
+    date_of_birth: String
+    occupation: String
+    bio: String
+    "IANA time zone name, e.g. Asia/Kathmandu."
+    timezone: String
+    avatar_url: String
+    country: String
+    province: String
+    city: String
+    street_address: String
+    postal_code: String
 }
 
 """
@@ -28,6 +55,20 @@ type LoginHistory {
     region: String
     country: String
     logged_in_at: String
+}
+
+"What the account holds and where it has signed in — the Profile page."
+type AccountSummary {
+    portfolios: Int!
+    transactions: Int!
+    watchlists: Int!
+    watchlist_stocks: Int!
+    saved_screens: Int!
+    "Signed-in devices: one per live login token."
+    active_sessions: Int!
+    total_logins: Int!
+    "The last five logins, newest first."
+    recent_logins: [LoginHistory!]!
 }
 
 type EmailLog {
@@ -60,6 +101,8 @@ type EmailLogPage {
 
 extend type Query @guard {
     loginHistory: [LoginHistory!]! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@loginHistory")
+    "Counts for the Profile page: portfolios, transactions, watchlists, saved screens, sessions and recent logins."
+    accountSummary: AccountSummary! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@accountSummary")
     users: [User!]! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@users")
     "Every email the app tried to send, newest first."
     emailLogs(status: String, per_page: Int = 50): EmailLogPage! @field(resolver: "App\\GraphQL\\Resolvers\\WatchlistResolver@emailLogs")
@@ -67,7 +110,13 @@ extend type Query @guard {
 
 extend type Mutation @guard {
     logout: String! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@logout")
-    updateProfile(name: String, email: String): User! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@updateProfile")
+    updateProfile(
+        first_name: String, last_name: String, email: String, username: String, phone: String, gender: String,
+        date_of_birth: String, occupation: String, bio: String, timezone: String,
+        country: String, province: String, city: String, street_address: String, postal_code: String
+    ): User! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@updateProfile")
+    "Signs out every other device (revokes their login tokens); the current one stays. Returns how many were signed out."
+    logoutOtherSessions: Int! @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@logoutOtherSessions")
     updatePassword(current_password: String, password: String, password_confirmation: String): String!
         @field(resolver: "App\\GraphQL\\Resolvers\\AuthResolver@updatePassword")
 }
