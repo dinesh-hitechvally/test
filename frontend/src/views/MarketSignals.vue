@@ -5,6 +5,7 @@ import * as marketApi from '../api/market'
 import TradePlanPanel from '../components/stock/TradePlanPanel.vue'
 import { usePortfolioStore } from '../stores/portfolio'
 import { formatPrice } from '../utils/format'
+import { useColumnOptions } from '../composables/useColumnOptions'
 import { useSortableTable } from '../composables/useSortableTable'
 
 // The Signals page: every stock's latest Buy / Sell / Hold with the percentages behind it. The filters work on the
@@ -12,6 +13,24 @@ import { useSortableTable } from '../composables/useSortableTable'
 const route = useRoute()
 const router = useRouter()
 const portfolio = usePortfolioStore()
+
+// Screen Options: which columns this page shows, saved in this browser. A filter whose column is switched off is
+// hidden and ignored, and the Target / Stop / R:R columns (a heavier calculation) are only requested while on.
+const columns = useColumnOptions('signals', [
+  { key: 'symbol', label: 'Symbol', locked: true },
+  { key: 'company_name', label: 'Company' },
+  { key: 'sector', label: 'Sector' },
+  { key: 'price', label: 'Price' },
+  { key: 'signal', label: 'Signal', locked: true },
+  { key: 'buy_pct', label: 'Buy %' },
+  { key: 'sell_pct', label: 'Sell %' },
+  { key: 'hold_pct', label: 'Hold %' },
+  { key: 'hold_reason', label: 'Hold reason' },
+  { key: 'setup', label: 'Target / Stop / R:R' },
+  { key: 'reasons', label: 'Reasons' },
+  { key: 'trade_plan', label: 'Trade plan button' },
+])
+const show = (key) => columns.isVisible(key)
 
 const SIGNALS = [
   { value: '', label: 'All' },
@@ -77,15 +96,21 @@ async function loadSetups(side) {
   }
 }
 
+// Fetch the targets when a Buy / Sell list is shown AND its column is on (or is switched on later).
+function ensureSetups() {
+  if (show('setup') && (signal.value === 'buy' || signal.value === 'sell')) loadSetups(signal.value)
+}
+
 watch(signal, (value) => {
   router.replace({ query: value ? { signal: value } : {} })
-  if (value === 'buy' || value === 'sell') loadSetups(value)
+  ensureSetups()
   if (value !== 'hold' && value !== '') holdType.value = ''
 })
+watch(() => show('setup'), ensureSetups)
 
 onMounted(async () => {
   await Promise.all([load(), portfolio.fetchPortfolios()])
-  if (signal.value === 'buy' || signal.value === 'sell') loadSetups(signal.value)
+  ensureSetups()
 })
 
 const confidenceOf = (row) => row[`${row.signal}_pct`] ?? null
@@ -104,6 +129,11 @@ const sectorOptions = computed(() => [
   ...Array.from(new Set(board.value.map(sectorOf))).sort().map((s) => ({ value: s, label: s })),
 ])
 
+// A filter belongs to a column: switch the column off and the filter goes with it.
+const sectorFilterOn = computed(() => show('sector'))
+const confidenceFilterOn = computed(() => show('buy_pct') || show('sell_pct') || show('hold_pct'))
+const holdFilterOn = computed(() => showHoldReason.value)
+
 const filtered = computed(() => {
   const term = search.value.trim().toLowerCase()
   const min = confidence.value === '' ? null : Number(confidence.value)
@@ -111,14 +141,16 @@ const filtered = computed(() => {
   return board.value.filter((r) => {
     if (signal.value && r.signal !== signal.value) return false
     if (term && !(r.symbol.toLowerCase().includes(term) || (r.company_name || '').toLowerCase().includes(term))) return false
-    if (sector.value && sectorOf(r) !== sector.value) return false
-    if (min !== null && !((confidenceOf(r) ?? -1) >= min)) return false
-    if (holdType.value && r.hold_type !== holdType.value) return false
+    if (sectorFilterOn.value && sector.value && sectorOf(r) !== sector.value) return false
+    if (confidenceFilterOn.value && min !== null && !((confidenceOf(r) ?? -1) >= min)) return false
+    if (holdFilterOn.value && holdType.value && r.hold_type !== holdType.value) return false
     return true
   })
 })
 
-const activeFilters = computed(() => [search.value.trim(), sector.value, confidence.value, holdType.value].filter(Boolean).length)
+const activeFilters = computed(
+  () => [search.value.trim(), sectorFilterOn.value && sector.value, confidenceFilterOn.value && confidence.value, holdFilterOn.value && holdType.value].filter(Boolean).length
+)
 
 function clearFilters() {
   search.value = ''
@@ -127,8 +159,8 @@ function clearFilters() {
   holdType.value = ''
 }
 
-const showSetup = computed(() => signal.value === 'buy' || signal.value === 'sell')
-const showHoldReason = computed(() => signal.value === 'hold' || signal.value === '')
+const showSetup = computed(() => (signal.value === 'buy' || signal.value === 'sell') && show('setup'))
+const showHoldReason = computed(() => (signal.value === 'hold' || signal.value === '') && show('hold_reason'))
 
 const table = useSortableTable(filtered, {
   defaultKey: 'confidence',
@@ -148,11 +180,23 @@ const { sorted } = table
 const readableReasons = (row) => (row.reasons || []).filter((x) => !/^(BUY|SELL|HOLD): BUY /.test(x)).slice(0, 3)
 
 const pct = (v) => (v === null || v === undefined ? '—' : `${Number(v).toFixed(1)}%`)
-const COLS = computed(() => 9 + (showHoldReason.value ? 1 : 0) + (showSetup.value ? 3 : 0))
+// Visible columns, for the "no match" row to span.
+const colCount = computed(
+  () => 2 + ['company_name', 'sector', 'price', 'buy_pct', 'sell_pct', 'hold_pct', 'reasons', 'trade_plan'].filter(show).length + (showHoldReason.value ? 1 : 0) + (showSetup.value ? 3 : 0)
+)
 </script>
 
 <template>
   <div>
+    <ScreenOptions
+      title="Columns"
+      :options="columns.options"
+      :visible="columns.visibleKeys.value"
+      note="Your choice is saved in this browser. A filter disappears with its column, and the Target / Stop / R:R figures are only worked out while that column is on."
+      @toggle="columns.toggle"
+      @reset="columns.reset"
+    />
+
     <TradePlanPanel v-if="planFor && portfolio.activePortfolioId" :key="planFor" :portfolio-id="portfolio.activePortfolioId" :symbol="planFor" @close="planFor = null" />
     <p v-else-if="planFor" class="muted">Create a portfolio first (Portfolio page) to see a trade plan.</p>
 
@@ -183,15 +227,15 @@ const COLS = computed(() => 9 + (showHoldReason.value ? 1 : 0) + (showSetup.valu
             <label>Search</label>
             <input v-model="search" class="input search" placeholder="Symbol or company…" />
           </div>
-          <div class="field">
+          <div v-if="sectorFilterOn" class="field">
             <label>Sector</label>
             <SearchableSelect v-model="sector" :options="sectorOptions" style="min-width: 190px" />
           </div>
-          <div class="field">
+          <div v-if="confidenceFilterOn" class="field">
             <label>Confidence</label>
             <SearchableSelect v-model="confidence" :options="CONFIDENCE" style="min-width: 160px" />
           </div>
-          <div v-if="showHoldReason" class="field">
+          <div v-if="holdFilterOn" class="field">
             <label>Hold reason</label>
             <SearchableSelect v-model="holdType" :options="HOLD_TYPES" style="min-width: 200px" />
           </div>
@@ -209,33 +253,33 @@ const COLS = computed(() => 9 + (showHoldReason.value ? 1 : 0) + (showSetup.valu
           <thead>
             <tr>
               <SortableTh :table="table" column="symbol">Symbol</SortableTh>
-              <SortableTh :table="table" column="company_name">Company</SortableTh>
-              <SortableTh :table="table" column="sector">Sector</SortableTh>
-              <SortableTh :table="table" column="close">Price</SortableTh>
+              <SortableTh v-if="show('company_name')" :table="table" column="company_name">Company</SortableTh>
+              <SortableTh v-if="show('sector')" :table="table" column="sector">Sector</SortableTh>
+              <SortableTh v-if="show('price')" :table="table" column="close">Price</SortableTh>
               <SortableTh :table="table" column="signal">Signal</SortableTh>
-              <SortableTh :table="table" column="buy_pct">Buy %</SortableTh>
-              <SortableTh :table="table" column="sell_pct">Sell %</SortableTh>
-              <SortableTh :table="table" column="hold_pct">Hold %</SortableTh>
+              <SortableTh v-if="show('buy_pct')" :table="table" column="buy_pct">Buy %</SortableTh>
+              <SortableTh v-if="show('sell_pct')" :table="table" column="sell_pct">Sell %</SortableTh>
+              <SortableTh v-if="show('hold_pct')" :table="table" column="hold_pct">Hold %</SortableTh>
               <th v-if="showHoldReason">Hold reason</th>
               <template v-if="showSetup">
                 <SortableTh :table="table" column="target">Indicative Target</SortableTh>
                 <SortableTh :table="table" column="stop_loss">Indicative Stop</SortableTh>
                 <SortableTh :table="table" column="risk_reward_ratio">R:R</SortableTh>
               </template>
-              <th>Reasons</th>
-              <th></th>
+              <th v-if="show('reasons')">Reasons</th>
+              <th v-if="show('trade_plan')"></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="r in sorted" :key="r.stock_id">
               <td><StockLink :symbol="r.symbol" /></td>
-              <td class="muted">{{ r.company_name }}</td>
-              <td class="muted">{{ sectorOf(r) }}</td>
-              <td>Rs. {{ formatPrice(r.close) }}</td>
+              <td v-if="show('company_name')" class="muted">{{ r.company_name }}</td>
+              <td v-if="show('sector')" class="muted">{{ sectorOf(r) }}</td>
+              <td v-if="show('price')">Rs. {{ formatPrice(r.close) }}</td>
               <td><SignalBadge :signal="r.signal" /></td>
-              <td :class="{ positive: r.signal === 'buy' }">{{ pct(r.buy_pct) }}</td>
-              <td :class="{ negative: r.signal === 'sell' }">{{ pct(r.sell_pct) }}</td>
-              <td :class="{ muted: r.signal !== 'hold' }">{{ pct(r.hold_pct) }}</td>
+              <td v-if="show('buy_pct')" :class="{ positive: r.signal === 'buy' }">{{ pct(r.buy_pct) }}</td>
+              <td v-if="show('sell_pct')" :class="{ negative: r.signal === 'sell' }">{{ pct(r.sell_pct) }}</td>
+              <td v-if="show('hold_pct')" :class="{ muted: r.signal !== 'hold' }">{{ pct(r.hold_pct) }}</td>
               <td v-if="showHoldReason" class="muted">{{ r.signal === 'hold' ? HOLD_TYPE_LABELS[r.hold_type] || '—' : '' }}</td>
               <template v-if="showSetup">
                 <template v-if="setups[r.symbol]">
@@ -247,15 +291,15 @@ const COLS = computed(() => 9 + (showHoldReason.value ? 1 : 0) + (showSetup.valu
                 </template>
                 <td v-else class="muted" colspan="3">{{ fetchedSides.has(r.signal) ? 'Not enough history for a target / stop yet' : 'Loading…' }}</td>
               </template>
-              <td>
+              <td v-if="show('reasons')">
                 <ul class="reasons">
                   <li v-for="(reason, i) in readableReasons(r)" :key="i">{{ reason }}</li>
                 </ul>
               </td>
-              <td><button v-if="r.signal === 'buy'" class="btn-secondary btn" @click="planFor = r.symbol">Trade plan</button></td>
+              <td v-if="show('trade_plan')"><button v-if="r.signal === 'buy'" class="btn-secondary btn" @click="planFor = r.symbol">Trade plan</button></td>
             </tr>
             <tr v-if="!sorted.length">
-              <td :colspan="COLS + 2" class="muted" style="text-align: center; padding: 24px">No stocks match these filters.</td>
+              <td :colspan="colCount" class="muted" style="text-align: center; padding: 24px">No stocks match these filters.</td>
             </tr>
           </tbody>
         </table>
