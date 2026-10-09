@@ -198,7 +198,10 @@ class PerStockTasksTest extends TestCase
         $this->assertLessThan(5, microtime(true) - $started);      // it did not sleep through Retry-After
         $this->assertSame(1, $provider->calls);                      // and did not retry inside the request
         $this->assertSame(0, \App\Models\AiStockOpinion::count()); // no opinion and no error: still pending, no 6-hour cooldown
-        $this->assertTrue(app(\App\Tasks\Ai\GenerateAiOpinionsTask::class)->hasPendingStock());
+
+        // Still pending: the next ping tries it again.
+        $this->get('/cron/generate/ai-opinions?key=test-secret')->assertSeeText("AAA: Groq's rate limit is in effect");
+        $this->assertSame(2, $provider->calls);
     }
 
     public function test_a_groq_that_does_not_answer_in_time_leaves_the_stock_pending_too(): void
@@ -223,7 +226,9 @@ class PerStockTasksTest extends TestCase
         $this->get('/cron/generate/ai-opinions?key=test-secret')->assertOk()->assertSeeText('AAA: failed');
 
         $this->assertNotNull($stock->aiOpinion()->first()->error);
-        $this->assertFalse(app(\App\Tasks\Ai\GenerateAiOpinionsTask::class)->hasPendingStock()); // on cooldown, not retried every minute
+
+        // On cooldown: the next ping does not hit Groq again for this stock.
+        $this->get('/cron/generate/ai-opinions?key=test-secret')->assertSeeText('No stocks are due for an AI opinion refresh.');
     }
 
     public function test_a_good_answer_reports_how_long_it_took(): void
