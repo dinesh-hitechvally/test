@@ -1,9 +1,7 @@
 type SignalCounts {
-    strong_buy: Int!
     buy: Int!
     hold: Int!
     sell: Int!
-    strong_sell: Int!
 }
 
 type Breadth {

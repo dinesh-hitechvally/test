@@ -151,7 +151,7 @@ class DividendReportService
     private function rankDividendPicks(Collection $rows): Collection
     {
         $candidates = $rows->filter(fn ($r) => ($r['dividend_yield_pct'] ?? 0) > 0
-            && ! in_array($r['latest_signal'], ['sell', 'strong_sell'], true));
+            && $r['latest_signal'] !== 'sell');
 
         if ($candidates->isEmpty()) {
             return collect();

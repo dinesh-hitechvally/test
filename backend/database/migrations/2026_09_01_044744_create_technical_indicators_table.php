@@ -16,18 +16,12 @@ return new class extends Migration
             $table->decimal('sma_50', 18, 4)->nullable()->comment('50-day simple moving average of the close price.');
             $table->decimal('sma_100', 18, 4)->nullable()->comment('100-day simple moving average of the close price.');
             $table->decimal('sma_200', 18, 4)->nullable()->comment('200-day simple moving average of the close price.');
-            $table->decimal('ema_12', 18, 4)->nullable()->comment('12-day exponential moving average of the close price — the MACD line\'s fast EMA.');
-            $table->decimal('ema_26', 18, 4)->nullable()->comment('26-day exponential moving average of the close price — the MACD line\'s slow EMA.');
             $table->decimal('rsi_14', 8, 4)->nullable()->comment('14-day Relative Strength Index, 0-100. >=70 overbought, <=30 oversold.');
             $table->decimal('macd', 12, 4)->nullable()->comment('MACD line: ema_12 minus ema_26.');
             $table->decimal('macd_signal', 12, 4)->nullable()->comment('MACD signal line: a 9-day EMA of the MACD line.');
             $table->decimal('macd_histogram', 12, 4)->nullable()->comment('MACD line minus its signal line — momentum behind a MACD crossover.');
             $table->decimal('bb_upper', 18, 4)->nullable()->comment('Bollinger upper band: 20-day SMA of close + 2 standard deviations.');
-            $table->decimal('bb_middle', 18, 4)->nullable()->comment('Bollinger middle band: the 20-day SMA of close (same value as sma_20).');
             $table->decimal('bb_lower', 18, 4)->nullable()->comment('Bollinger lower band: 20-day SMA of close - 2 standard deviations.');
-            // Wider than rsi_14 on purpose: %B is unbounded outside the
-            // bands, and a very narrow band can push it well past ±1.
-            $table->decimal('bb_percent_b', 12, 4)->nullable()->comment('Where the close sits within the Bollinger bands: 0 = on the lower band, 1 = on the upper band, outside 0-1 = outside the bands.');
             $table->decimal('stoch_k', 8, 4)->nullable()->comment('Slow stochastic %K (14,3,3) — where the close sits in its trailing 14-day high/low range, 0-100, smoothed.');
             $table->decimal('stoch_d', 8, 4)->nullable()->comment('Slow stochastic %D: a 3-day SMA of %K.');
             $table->decimal('atr_14', 12, 4)->nullable()->comment('14-day Average True Range — volatility in the stock\'s own price units, used for stop-loss sizing.');
@@ -47,7 +41,8 @@ return new class extends Migration
             $table->decimal('low_52w', 18, 4)->nullable()->comment('Lowest low in the trailing 365 calendar days ending this day.');
             // Today's volume over its trailing 20-day average — "volume change".
             $table->decimal('volume_ratio', 12, 4)->nullable()->comment('Today\'s volume over its trailing 20-day average volume — "volume change". >1 = above-average participation.');
-            $table->timestamps();
+            // Only updated_at: the signal job compares it with the signals' to know which stocks need new signals.
+            $table->timestamp('updated_at')->nullable()->comment('When this row was last (re)calculated.');
 
             $table->unique(['stock_id', 'trade_date']);
         });

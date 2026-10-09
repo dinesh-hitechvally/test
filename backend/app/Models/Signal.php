@@ -7,9 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 
-#[Fillable(['stock_id', 'trade_date', 'signal', 'score', 'reasons', 'rule_keys', 'price_at_signal'])]
+#[Fillable(['stock_id', 'trade_date', 'signal', 'score', 'reasons', 'rule_keys'])]
 class Signal extends Model
 {
+    /** Only updated_at is kept (see the migration). */
+    public const CREATED_AT = null;
+
     protected function casts(): array
     {
         return [
@@ -17,7 +20,6 @@ class Signal extends Model
             'score' => 'decimal:4',
             'reasons' => 'array',
             'rule_keys' => 'array',
-            'price_at_signal' => 'decimal:4',
         ];
     }
 

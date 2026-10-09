@@ -9,14 +9,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('signal_breakdowns', function (Blueprint $table) {
-            $table->id();
             $table->foreignId('stock_id')->constrained()->cascadeOnDelete()->comment('The stock this breakdown is for.');
             $table->date('trade_date')->comment('The trading day the breakdown explains (the same day as that stock\'s signal).');
             // One row per stock per day, so any past date can be opened and explained.
             $table->decimal('buy_pct', 5, 2)->comment('Final BUY %: the weighted average of every category\'s BUY %. Buy + sell + hold = 100.');
             $table->decimal('sell_pct', 5, 2)->comment('Final SELL %: the weighted average of every category\'s SELL %.');
             $table->decimal('hold_pct', 5, 2)->comment('Final HOLD %: the weighted average of every category\'s HOLD %.');
-            $table->string('hold_type', 30)->nullable()->comment('Why to hold, when the decision is hold: long_term, consolidation, wait_confirmation, profit_protection, temporary_weakness or overbought.');
+            $table->enum('hold_type', ['long_term', 'consolidation', 'wait_confirmation', 'profit_protection', 'temporary_weakness', 'overbought'])->nullable()->comment('Why to hold, when the decision is hold: long_term, consolidation, wait_confirmation, profit_protection, temporary_weakness or overbought.');
             // Each category's own BUY / SELL / HOLD %: technical_buy, technical_sell, technical_hold, fundamental_buy, ...
             // All three are null when the category had no data that day (e.g. fundamental / valuation on a past day).
             foreach (['technical', 'fundamental', 'trend', 'momentum', 'volume', 'risk', 'valuation'] as $category) {
@@ -32,8 +31,9 @@ return new class extends Migration
             $table->decimal('hold_score_temporary_weakness', 5, 2)->comment('Hold score: temporary weakness (below the short averages while the longer trend is intact).');
             $table->decimal('hold_score_overbought', 5, 2)->comment('Hold score: overbought (RSI well above 50).');
             $table->json('conditions')->comment('Every individual condition that day with its result and {buy, sell, hold} %.');
-            $table->timestamps();
-            $table->unique(['stock_id', 'trade_date']);
+            // The (stock, day) pair IS the key — no surrogate id, no extra unique index, no timestamps: this table is
+            // rewritten with the signals and nothing reads when a row was written.
+            $table->primary(['stock_id', 'trade_date']);
         });
     }
 

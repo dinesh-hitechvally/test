@@ -61,7 +61,7 @@ class SectorReportService
         $this->prices->withChangePct($stocks);
         $withPct = $stocks->filter(fn ($s) => $s->change_pct !== null);
 
-        $signalCounts = ['strong_buy' => 0, 'buy' => 0, 'hold' => 0, 'sell' => 0, 'strong_sell' => 0];
+        $signalCounts = ['buy' => 0, 'hold' => 0, 'sell' => 0];
         foreach ($stocks as $stock) {
             if ($stock->latestSignal) {
                 $signalCounts[$stock->latestSignal->signal]++;

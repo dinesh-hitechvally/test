@@ -342,10 +342,10 @@ class NextCloseEstimatorService
         // docblock. Price above the middle band fits as weak continuation
         // further away from it out-of-sample, not the reversion back
         // toward it the sign used to assume.
-        if ($indicator->bb_upper !== null && $indicator->bb_lower !== null && $indicator->bb_middle !== null) {
+        if ($indicator->bb_upper !== null && $indicator->bb_lower !== null && $indicator->sma_20 !== null) {
             $bandWidth = (float) $indicator->bb_upper - (float) $indicator->bb_lower;
             if ($bandWidth > 0) {
-                $bbPosition = ($close - (float) $indicator->bb_middle) / $bandWidth;
+                $bbPosition = ($close - (float) $indicator->sma_20) / $bandWidth; // the middle band is the 20-day average
                 $delta += $bbPosition * $bandWidth * self::WEIGHT_BOLLINGER;
                 $reasons[] = sprintf('Price sits %s%.0f%% of band width from the middle band (weak fitted continuation)', $bbPosition >= 0 ? '+' : '', $bbPosition * 100);
             }

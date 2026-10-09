@@ -132,7 +132,7 @@ class InvestmentHorizonService
         // recommend a stock currently flagged Sell/Strong Sell no matter how
         // good its history looks. Volatility/3-year-return data being
         // missing is NOT gated on here — see the neutral-scoring note below.
-        $candidates = $rows->filter(fn ($r) => ! in_array($r['latest_signal'], ['sell', 'strong_sell'], true)
+        $candidates = $rows->filter(fn ($r) => $r['latest_signal'] !== 'sell'
             && $r['avg_turnover'] !== null && $r['avg_turnover'] > 0);
 
         if ($candidates->isEmpty()) {

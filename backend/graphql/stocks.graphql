@@ -72,8 +72,8 @@ type Signal {
     rule_keys: [String!]
     "How the decision was reached: final BUY / SELL / HOLD %, each category's %, and every condition."
     breakdown: SignalBreakdown @field(resolver: "App\\GraphQL\\Resolvers\\SignalResolver@breakdown")
+    "The day's close, from daily_prices. Filled on signal history only (stockSignals); null elsewhere."
     price_at_signal: String
-    created_at: String
     updated_at: String
     "On signal history: what the next-close estimator projected that day."
     forecast_price: Float
@@ -87,16 +87,12 @@ type TechnicalIndicator {
     sma_50: String
     sma_100: String
     sma_200: String
-    ema_12: String
-    ema_26: String
     rsi_14: String
     macd: String
     macd_signal: String
     macd_histogram: String
     bb_upper: String
-    bb_middle: String
     bb_lower: String
-    bb_percent_b: String
     stoch_k: String
     stoch_d: String
     atr_14: String
@@ -114,7 +110,6 @@ type TechnicalIndicator {
     low_52w: String
     "Today's volume over its trailing 20-day average — \"volume change\"."
     volume_ratio: String
-    created_at: String
     updated_at: String
 }
 

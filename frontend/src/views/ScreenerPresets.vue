@@ -33,7 +33,7 @@ const results = computed(() => {
     return stocks.value.filter((s) => {
       const rsi = rsiByStock.value.get(s.id)
       const signal = s.latest_signal?.signal
-      return rsi !== null && rsi >= 50 && rsi <= 70 && ['buy', 'strong_buy'].includes(signal) && (s.change_pct ?? 0) >= 2
+      return rsi !== null && rsi >= 50 && rsi <= 70 && signal === 'buy' && (s.change_pct ?? 0) >= 2
     })
   }
   if (activePreset.value === 'oversold') {

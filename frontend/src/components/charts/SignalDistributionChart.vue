@@ -7,7 +7,7 @@ import './chartSetup'
 ChartJS.register(ArcElement, Tooltip, Legend)
 
 const props = defineProps({
-  counts: { type: Object, required: true }, // { buy, hold, sell } (older rows may still carry strong_buy / strong_sell; folded in)
+  counts: { type: Object, required: true }, // { buy, hold, sell }
 })
 
 const LABELS = {
@@ -23,9 +23,9 @@ const COLORS = {
 }
 
 const totals = computed(() => ({
-  buy: (props.counts.buy ?? 0) + (props.counts.strong_buy ?? 0),
+  buy: props.counts.buy ?? 0,
   hold: props.counts.hold ?? 0,
-  sell: (props.counts.sell ?? 0) + (props.counts.strong_sell ?? 0),
+  sell: props.counts.sell ?? 0,
 }))
 
 const chartData = computed(() => {

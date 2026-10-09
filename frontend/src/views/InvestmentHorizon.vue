@@ -57,7 +57,7 @@ function bySide(all, signalKey) {
 
   return all.filter((r) => {
     const signal = r[signalKey]
-    return activeSide.value === 'buy' ? ['buy', 'strong_buy'].includes(signal) : ['sell', 'strong_sell'].includes(signal)
+    return signal === activeSide.value
   })
 }
 

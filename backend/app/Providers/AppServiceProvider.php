@@ -18,6 +18,8 @@ use App\Listeners\RecordScrapeLog;
 use App\Services\Ai\GroqOpinionProvider;
 use App\Services\DataSources\ShareSansar\SharesansarHistoryService;
 use App\Services\DataSources\SourceBlockRegistry;
+use App\Services\MachineLearning\BackgroundArtisanLauncher;
+use App\Services\MachineLearning\MlTrainingLauncher;
 use App\Services\Mail\EmailLogService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Mail\Events\MessageSending;
@@ -75,6 +77,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(SourceBlockRegistry::class);
+        $this->app->bind(MlTrainingLauncher::class, BackgroundArtisanLauncher::class);
     }
 
     /**

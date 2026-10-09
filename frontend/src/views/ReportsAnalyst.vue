@@ -20,8 +20,8 @@ const aiOpinion = ref(null)
 const aiOpinionMessage = ref('')
 
 function toneOf(word) {
-  if (['bullish', 'buy', 'strong_buy', 'up'].includes(word)) return 'positive'
-  if (['bearish', 'sell', 'strong_sell', 'down'].includes(word)) return 'negative'
+  if (['bullish', 'buy', 'up'].includes(word)) return 'positive'
+  if (['bearish', 'sell', 'down'].includes(word)) return 'negative'
   return ''
 }
 
@@ -88,7 +88,7 @@ const consensus = computed(() => {
 
   const sig = data.value.signal?.signal
   if (sig) {
-    const lean = ['buy', 'strong_buy'].includes(sig) ? 'up' : ['sell', 'strong_sell'].includes(sig) ? 'down' : 'neutral'
+    const lean = sig === 'buy' ? 'up' : sig === 'sell' ? 'down' : 'neutral'
     votes.push({ label: 'Signal engine', lean })
   }
 

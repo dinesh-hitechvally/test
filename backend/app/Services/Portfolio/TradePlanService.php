@@ -12,7 +12,7 @@ use App\Models\Stock;
  * would a sensible plan look like, and is it worth it?" — and says why not when it isn't. A signal alone is
  * not a plan; it has to get through, in order:
  *
- *   1. Signal     — a fresh buy / strong_buy at or above the minimum score
+ *   1. Signal     — a fresh buy at or above the minimum score
  *   2. Risk       — entry, stop (just under support) and target (nearest resistance) exist, the stop isn't
  *                   too far, and the risk/reward meets the minimum
  *   3. Portfolio  — not already held, room for another position
@@ -53,7 +53,7 @@ class TradePlanService
         $indicator = $signal ? $stock->technicalIndicators()->whereDate('trade_date', $signal->trade_date)->first() : null;
         $minScore = (float) config('trading.min_score');
 
-        if (! $signal || ! in_array($signal->signal, ['buy', 'strong_buy'], true)) {
+        if (! $signal || ! $signal->signal === 'buy') {
             return $fail('signal', 'Latest signal is '.($signal->signal ?? 'missing').', not a buy.');
         }
         if ((float) $signal->score < $minScore) {

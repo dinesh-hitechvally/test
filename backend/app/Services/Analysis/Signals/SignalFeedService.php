@@ -36,7 +36,7 @@ class SignalFeedService
      */
     public function actionable(string $bias): Collection
     {
-        $signals = $bias === 'sell' ? ['sell', 'strong_sell'] : ['buy', 'strong_buy'];
+        $signals = $bias === 'sell' ? ['sell'] : ['buy'];
 
         $rows = Stock::query()
             ->with(['sector', 'latestSignal', 'latestPrice'])

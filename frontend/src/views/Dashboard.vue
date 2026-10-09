@@ -79,12 +79,12 @@ onMounted(async () => {
         <StatCard label="Stocks Tracked" :value="report.totals.stocks" :sub="`${report.totals.with_signals} have a signal`" />
         <StatCard
           label="Buy Signals"
-          :value="report.signal_counts.strong_buy + report.signal_counts.buy"
+          :value="report.signal_counts.buy"
           tone="positive"
         />
         <StatCard
           label="Sell Signals"
-          :value="report.signal_counts.strong_sell + report.signal_counts.sell"
+          :value="report.signal_counts.sell"
           tone="negative"
         />
         <StatCard

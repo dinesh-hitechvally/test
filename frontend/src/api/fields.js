@@ -6,10 +6,10 @@ export const USER = 'id name email email_verified_at created_at updated_at'
 
 export const PRICE = 'id stock_id trade_date open_price high_price low_price close_price volume turnover created_at updated_at'
 
-export const SIGNAL = 'id stock_id trade_date signal score reasons rule_keys price_at_signal created_at updated_at'
+export const SIGNAL = 'id stock_id trade_date signal score reasons rule_keys updated_at'
 
-export const INDICATOR = `id stock_id trade_date sma_20 sma_50 sma_100 sma_200 ema_12 ema_26 rsi_14 macd macd_signal
-  macd_histogram bb_upper bb_middle bb_lower bb_percent_b stoch_k stoch_d atr_14 created_at updated_at`
+export const INDICATOR = `id stock_id trade_date sma_20 sma_50 sma_100 sma_200 rsi_14 macd macd_signal
+  macd_histogram bb_upper bb_lower stoch_k stoch_d atr_14 updated_at`
 
 export const FUNDAMENTAL = `id stock_id eps eps_fiscal_year pe_ratio book_value pbv market_cap shares_outstanding
   one_year_yield_pct fetched_at created_at updated_at`
@@ -32,7 +32,7 @@ export const TRADE_SETUP = 'bias entry_reference target stop_loss risk_per_share
 
 export const SCRAPE_LOG = 'id source status records_processed message created_at'
 
-export const SIGNAL_COUNTS = 'strong_buy buy hold sell strong_sell'
+export const SIGNAL_COUNTS = 'buy hold sell'
 
 export const MOVER = 'stock_id close previous_close change_pct turnover symbol company_name'
 

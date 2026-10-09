@@ -5,7 +5,7 @@ export function formatPrice(value) {
   return formatNumber(value, { decimals: 2 })
 }
 
-/** "strong_buy" → "strong buy". */
+/** "wait_confirmation" → "wait confirmation". */
 export function formatSignal(signal) {
   return signal.replace('_', ' ')
 }

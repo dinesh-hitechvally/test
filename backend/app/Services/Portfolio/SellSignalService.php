@@ -17,7 +17,7 @@ use Illuminate\Support\Collection;
  *   trailing_stop    price <= highest close since entry minus a fixed distance
  *   target           price >= the target set on the position
  *   breakdown        close under SMA50, on rising volume, through support
- *   signal_reversal  the latest signal is sell / strong_sell
+ *   signal_reversal  the latest signal is sell
  *
  * Trailing stop: the distance is trading.trailing_stop_pct of the average
  * cost (6% of 820 ≈ 49). It switches on once the stock has risen far enough
@@ -133,7 +133,7 @@ class SellSignalService
     {
         [$current, $previous] = Signal::where('stock_id', $stockId)->orderByDesc('trade_date')->limit(2)->get()->all() + [null, null];
 
-        if (! $current || ! in_array($current->signal, ['sell', 'strong_sell'], true)) {
+        if (! $current || ! $current->signal === 'sell') {
             return null;
         }
 

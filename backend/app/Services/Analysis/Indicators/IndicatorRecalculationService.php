@@ -32,12 +32,9 @@ class IndicatorRecalculationService
         $sma50 = $this->ta->sma($closes, 50);
         $sma100 = $this->ta->sma($closes, 100);
         $sma200 = $this->ta->sma($closes, 200);
-        $ema12 = $this->ta->ema($closes, 12);
-        $ema26 = $this->ta->ema($closes, 26);
         $rsi14 = $this->ta->rsi($closes, 14);
         $macd = $this->ta->macd($closes);
         $bb = $this->ta->bollingerBands($closes, 20, 2.0);
-        $percentB = $this->ta->percentB($closes, $bb);
         $stoch = $this->ta->stochastic($highs, $lows, $closes, 14, 3, 3);
         $atr14 = $this->ta->atr($highs, $lows, $closes, 14);
         $atrPercent = $this->ta->atrPercent($atr14, $closes);
@@ -55,16 +52,12 @@ class IndicatorRecalculationService
                 'sma_50' => $sma50[$i],
                 'sma_100' => $sma100[$i],
                 'sma_200' => $sma200[$i],
-                'ema_12' => $ema12[$i],
-                'ema_26' => $ema26[$i],
                 'rsi_14' => $rsi14[$i],
                 'macd' => $macd['macd'][$i],
                 'macd_signal' => $macd['signal'][$i],
                 'macd_histogram' => $macd['histogram'][$i],
                 'bb_upper' => $bb['upper'][$i],
-                'bb_middle' => $bb['middle'][$i],
                 'bb_lower' => $bb['lower'][$i],
-                'bb_percent_b' => $percentB[$i],
                 'stoch_k' => $stoch['k'][$i],
                 'stoch_d' => $stoch['d'][$i],
                 'atr_14' => $atr14[$i],
@@ -77,7 +70,6 @@ class IndicatorRecalculationService
                 'high_52w' => $fiftyTwoWeek['high'][$i],
                 'low_52w' => $fiftyTwoWeek['low'][$i],
                 'volume_ratio' => $volumeRatio[$i],
-                'created_at' => now(),
                 'updated_at' => now(),
             ];
         }
@@ -90,9 +82,9 @@ class IndicatorRecalculationService
                 $chunk,
                 uniqueBy: ['stock_id', 'trade_date'],
                 update: [
-                    'sma_20', 'sma_50', 'sma_100', 'sma_200', 'ema_12', 'ema_26', 'rsi_14',
+                    'sma_20', 'sma_50', 'sma_100', 'sma_200', 'rsi_14',
                     'macd', 'macd_signal', 'macd_histogram',
-                    'bb_upper', 'bb_middle', 'bb_lower', 'bb_percent_b', 'stoch_k', 'stoch_d',
+                    'bb_upper', 'bb_lower', 'stoch_k', 'stoch_d',
                     'atr_14', 'atr_percent', 'adx_14', 'plus_di_14', 'minus_di_14',
                     'support_price', 'resistance_price', 'high_52w',
                     'low_52w', 'volume_ratio', 'updated_at',

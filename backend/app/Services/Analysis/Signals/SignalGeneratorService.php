@@ -71,14 +71,14 @@ class SignalGeneratorService
         $links = [];
 
         foreach ($rows as $i => $row) {
-            $links[] = ['stock_id' => $stock->id, 'trade_date' => $row['trade_date'], ...$breakdowns[$i], 'created_at' => now(), 'updated_at' => now()];
+            $links[] = ['stock_id' => $stock->id, 'trade_date' => $row['trade_date'], ...$breakdowns[$i]];
         }
 
         foreach (array_chunk($links, 500) as $chunk) {
             SignalBreakdown::upsert(
                 $chunk,
                 uniqueBy: ['stock_id', 'trade_date'],
-                update: array_values(array_diff(array_keys($links[0] ?? []), ['stock_id', 'trade_date', 'created_at']))
+                update: array_values(array_diff(array_keys($links[0] ?? []), ['stock_id', 'trade_date']))
             );
         }
 
@@ -175,8 +175,6 @@ class SignalGeneratorService
                 'score' => round(($result['final']['buy'] - $result['final']['sell']) / 100, 4),
                 'reasons' => json_encode($reasons ?: ['No strong signals — indicators are neutral']),
                 'rule_keys' => json_encode($ruleKeys),
-                'price_at_signal' => $price?->close_price,
-                'created_at' => now(),
                 'updated_at' => now(),
                 'breakdown' => $this->breakdownRow($result),
             ];

@@ -12,7 +12,7 @@ class StockSignalsRequest extends FormRequest
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
             'signal' => ['nullable', 'array'],
-            'signal.*' => ['string', 'in:strong_buy,buy,hold,sell,strong_sell'],
+            'signal.*' => ['string', 'in:buy,hold,sell'],
         ];
     }
 }

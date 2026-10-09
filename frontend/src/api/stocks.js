@@ -67,7 +67,7 @@ export async function forecasts(symbol, days = 365) {
 export async function signals(symbol, { from = null, to = null, signal = null, page = 1, per_page = 30 } = {}) {
   return (await gql(`query ($symbol: String!, $from: String, $to: String, $signal: [String!], $page: Int, $per_page: Int) {
     stockSignals(symbol: $symbol, from: $from, to: $to, signal: $signal, page: $page, per_page: $per_page) {
-      data { ${SIGNAL} forecast_price breakdown { buy_pct sell_pct hold_pct hold_type } } page per_page total total_pages
+      data { ${SIGNAL} price_at_signal forecast_price breakdown { buy_pct sell_pct hold_pct hold_type } } page per_page total total_pages
     }
   }`, { symbol, from, to, signal, page, per_page })).stockSignals
 }

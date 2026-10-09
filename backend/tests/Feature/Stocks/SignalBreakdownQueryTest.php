@@ -67,4 +67,19 @@ class SignalBreakdownQueryTest extends TestCase
 
         $this->assertSame(0, SignalBreakdown::count());
     }
+
+    public function test_signal_history_shows_each_days_close_taken_from_daily_prices(): void
+    {
+        Sanctum::actingAs(User::create(['name' => 'T', 'email' => 't@example.com', 'password' => 'password']));
+        $stock = Stock::create(['symbol' => 'NABIL', 'company_name' => 'Nabil', 'is_active' => true]);
+        $this->seedDay($stock, '2024-01-02', 62, 10);
+        foreach (['2024-01-02' => 567.5, '2024-01-03' => 999] as $date => $close) {
+            \App\Models\DailyPrice::create(['stock_id' => $stock->id, 'trade_date' => $date, 'open_price' => $close, 'high_price' => $close, 'low_price' => $close, 'close_price' => $close, 'volume' => 1]);
+        }
+
+        $row = $this->graphQL('{ stockSignals(symbol: "NABIL") { data { trade_date price_at_signal } } }')->json('data.stockSignals.data.0');
+
+        $this->assertSame('2024-01-02', $row['trade_date']);
+        $this->assertEquals(567.5, $row['price_at_signal']); // that day's close, not the other day's
+    }
 }

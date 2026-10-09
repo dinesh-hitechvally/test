@@ -21,6 +21,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class SignalBreakdown extends Model
 {
+    // Keyed by (stock_id, trade_date): no id column, no timestamps.
+    protected $primaryKey = null;
+
+    public $incrementing = false;
+
+    public $timestamps = false;
+
     /** The categories that each have a {category}_buy / _sell / _hold column. */
     public const CATEGORIES = ['technical', 'fundamental', 'trend', 'momentum', 'volume', 'risk', 'valuation'];
 

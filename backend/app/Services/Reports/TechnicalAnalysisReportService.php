@@ -60,7 +60,7 @@ class TechnicalAnalysisReportService
             'macd_signal' => $field('macd_signal'),
             'macd_histogram' => $field('macd_histogram'),
             'bb_upper' => $field('bb_upper'),
-            'bb_middle' => $field('bb_middle'),
+            'bb_middle' => $field('sma_20'), // the middle Bollinger band is the 20-day average
             'bb_lower' => $field('bb_lower'),
             'atr_14' => $field('atr_14'),
         ];

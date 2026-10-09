@@ -35,7 +35,7 @@ class MarketReportService
         $stocks = Stock::with('latestSignal')->get();
 
         $signalCounts = [
-            'strong_buy' => 0, 'buy' => 0, 'hold' => 0, 'sell' => 0, 'strong_sell' => 0,
+            'buy' => 0, 'hold' => 0, 'sell' => 0,
         ];
         $stocksWithSignals = 0;
 

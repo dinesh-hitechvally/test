@@ -129,9 +129,16 @@ class StockService
             ->get()
             ->keyBy(fn ($f) => $f->trade_date->toDateString());
 
-        $signals->each(function ($signal) use ($forecasts) {
+        // The close of each signal's day comes from daily_prices — it is not copied into signals.
+        $closes = $stock->dailyPrices()
+            ->whereIn('trade_date', $signals->pluck('trade_date')->map(fn ($d) => $d->toDateString()))
+            ->pluck('close_price', 'trade_date')
+            ->mapWithKeys(fn ($close, $date) => [substr((string) $date, 0, 10) => $close]);
+
+        $signals->each(function ($signal) use ($forecasts, $closes) {
             $forecast = $forecasts->get($signal->trade_date->toDateString());
             $signal->forecast_price = $forecast ? (float) $forecast->next_close : null;
+            $signal->price_at_signal = $closes->get($signal->trade_date->toDateString());
         });
 
         return [

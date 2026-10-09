@@ -153,4 +153,63 @@ class PerStockTasksTest extends TestCase
         $this->assertSame(2, $provider->calls);
         $this->assertSame('hold', $stock->aiOpinion()->first()->verdict);
     }
+
+    public function test_ai_opinions_do_one_stock_per_run_and_report_how_many_are_left(): void
+    {
+        $this->app->instance(AiOpinionProvider::class, new class implements AiOpinionProvider
+        {
+            public function isConfigured(): bool
+            {
+                return true;
+            }
+
+            public function requestOpinion(string $prompt): array
+            {
+                return ['verdict' => 'buy', 'confidence' => 'high', 'reasoning' => 'test'];
+            }
+        });
+
+        foreach (['AAA', 'BBB', 'CCC'] as $symbol) {
+            $stock = Stock::create(['symbol' => $symbol, 'company_name' => $symbol, 'is_active' => true]);
+            Signal::create(['stock_id' => $stock->id, 'trade_date' => '2024-01-01', 'signal' => 'hold', 'score' => 0, 'reasons' => [], 'rule_keys' => []]);
+        }
+
+        $this->get('/cron/generate/ai-opinions?key=test-secret')
+            ->assertOk()
+            ->assertSeeText('AAA: buy (high confidence)')
+            ->assertDontSeeText('BBB')
+            ->assertSeeText('2 stock(s) still pending');
+
+        $this->assertSame(1, \App\Models\AiStockOpinion::count());
+    }
+
+    public function test_a_rate_limit_that_does_not_clear_leaves_the_stock_pending_without_a_failure(): void
+    {
+        $this->app->instance(AiOpinionProvider::class, new class implements AiOpinionProvider
+        {
+            public int $calls = 0;
+
+            public function isConfigured(): bool
+            {
+                return true;
+            }
+
+            public function requestOpinion(string $prompt): array
+            {
+                $this->calls++;
+
+                throw new RequestException(new Response(new PsrResponse(429, ['Retry-After' => '1'])));
+            }
+        });
+
+        $stock = Stock::create(['symbol' => 'AAA', 'company_name' => 'A', 'is_active' => true]);
+        Signal::create(['stock_id' => $stock->id, 'trade_date' => '2024-01-01', 'signal' => 'hold', 'score' => 0, 'reasons' => [], 'rule_keys' => []]);
+
+        $this->get('/cron/generate/ai-opinions?key=test-secret')
+            ->assertOk()
+            ->assertSeeText("AAA: Groq's rate limit is still in effect — left pending")
+            ->assertSeeText('[ok]'); // not a failed run, so nobody is alerted
+
+        $this->assertSame(0, \App\Models\AiStockOpinion::count()); // no opinion and no error recorded: still pending, no 6-hour cooldown
+    }
 }

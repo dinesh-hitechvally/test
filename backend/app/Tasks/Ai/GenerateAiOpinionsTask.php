@@ -21,20 +21,21 @@ use Throwable;
  * predictor), or whose last attempt failed more than 6h ago — a fresh
  * failure is left alone rather than retried immediately.
  *
- * Runs every pending stock in one go, so it has to live within Groq's
- * free-tier rate limit rather than skip past it: a real prompt is ~3,000
- * tokens against an 8,000-tokens/minute cap, so only ~2 stocks fit per
- * minute. A 429 means "wait", not "this stock is broken" — see
- * generateWithinRateLimit(). Expect a full run to take roughly
- * (pending stocks ÷ 2) minutes.
+ * Handles ONE stock per run. Groq's free tier allows about 2 stocks a minute (a real prompt is ~3,000 tokens
+ * against an 8,000-tokens/minute cap), so working through every pending stock in one request took far longer than
+ * a web request may last and the cron URL timed out. Ping it every minute until it says nothing is pending.
+ *
+ * A 429 means "wait", not "this stock is broken": the run waits a short, capped time and retries once; if Groq is
+ * still limiting, the stock is simply left pending for the next ping (no failure recorded) — see
+ * generateWithinRateLimit().
  */
 class GenerateAiOpinionsTask extends PerStockTask
 {
-    /** How many times one stock waits out a 429 before it's recorded as failed. */
-    private const RATE_LIMIT_RETRIES = 5;
+    /** Longest one run waits for Groq's rate limit to clear (a web request must stay short); Groq's Retry-After is capped to this. */
+    private const RATE_LIMIT_MAX_WAIT_SECONDS = 20;
 
     /** Fallback wait when Groq doesn't send a Retry-After header. */
-    private const RATE_LIMIT_WAIT_SECONDS = 30;
+    private const RATE_LIMIT_WAIT_SECONDS = 15;
 
     public function __construct(private readonly AiStockOpinionService $ai) {}
 
@@ -56,14 +57,20 @@ class GenerateAiOpinionsTask extends PerStockTask
         });
     }
 
-    protected function pauseMicroseconds(): int
+    /** One stock per ping: each takes seconds and Groq's free tier allows ~2 a minute, so a long run would time out. */
+    protected function perRunLimit(): ?int
     {
-        return 500_000;
+        return 1;
     }
 
     protected function process(Stock $stock): string
     {
         $opinion = $this->generateWithinRateLimit($stock);
+
+        if ($opinion === null) {
+            // Still rate limited after the short wait: not a failure — the stock stays pending for the next ping.
+            return "{$stock->symbol}: Groq's rate limit is still in effect — left pending, the next run tries it again.";
+        }
 
         AiStockOpinion::updateOrCreate(
             ['stock_id' => $stock->id],
@@ -91,19 +98,27 @@ class GenerateAiOpinionsTask extends PerStockTask
         return 'No stocks are due for an AI opinion refresh.';
     }
 
-    /** @return array{verdict: string, confidence: string, reasoning: string} */
-    private function generateWithinRateLimit(Stock $stock): array
+    /**
+     * Null when Groq is still rate limiting after one short wait.
+     *
+     * @return array{verdict: string, confidence: string, reasoning: string}|null
+     */
+    private function generateWithinRateLimit(Stock $stock): ?array
     {
-        for ($attempt = 0; ; $attempt++) {
+        for ($attempt = 0; $attempt < 2; $attempt++) {
             try {
                 return $this->ai->generate($stock);
             } catch (RequestException $e) {
-                if ($e->response->status() !== 429 || $attempt >= self::RATE_LIMIT_RETRIES) {
+                if ($e->response->status() !== 429) {
                     throw $e;
                 }
 
-                sleep(max(1, (int) ($e->response->header('Retry-After') ?: self::RATE_LIMIT_WAIT_SECONDS)));
+                if ($attempt === 0) {
+                    sleep(min(self::RATE_LIMIT_MAX_WAIT_SECONDS, max(1, (int) ($e->response->header('Retry-After') ?: self::RATE_LIMIT_WAIT_SECONDS))));
+                }
             }
         }
+
+        return null;
     }
 }

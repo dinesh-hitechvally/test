@@ -27,6 +27,12 @@ return [
         'transient_failures' => 3, // failures in a row (outage, not refusal) that also block a website
     ],
 
+    // Where the PHP command-line binary is, for the background ML training (see BackgroundArtisanLauncher). Leave unset
+    // to detect it; set it when the web server's PHP is FPM/CGI and detection picks the wrong one.
+    'ml' => [
+        'php_binary' => env('ML_PHP_BINARY'),
+    ],
+
     'nepse' => [
         // nepalstock.com does not send its intermediate certificate, so PHP builds without a full CA chain (e.g. local
         // Laragon) fail with "cURL error 60". Set NEPSE_VERIFY_SSL=false to skip the check for NEPSE calls only.
