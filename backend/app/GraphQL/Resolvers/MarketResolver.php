@@ -9,6 +9,7 @@ use App\Services\Analysis\Patterns\CandlestickPatternScanner;
 use App\Services\Analysis\Signals\SignalAccuracyService;
 use App\Services\Analysis\Signals\SignalFeedService;
 use App\Services\DataSources\ScrapeHealthService;
+use App\Services\MachineLearning\MlDirectionPredictorService;
 use App\Services\Portfolio\PriceAlertService;
 use App\Services\Reports\IndexReportService;
 use App\Services\Reports\ScreenerService;
@@ -19,6 +20,31 @@ class MarketResolver extends Resolver
     public function todaySignals($root, array $args): array
     {
         return $this->plain(app(SignalFeedService::class)->today($args['signal'] ?? null));
+    }
+
+    public function signalBoard(): array
+    {
+        return $this->plain(app(SignalFeedService::class)->board());
+    }
+
+    /** The latest trained direction model's out-of-sample record, or null before the first training. */
+    public function mlModel(): ?array
+    {
+        $model = app(MlDirectionPredictorService::class)->latestMetrics();
+
+        return $model === null ? null : [
+            'trained_at' => $model->trained_at,
+            'horizon_days' => $model->horizon_days,
+            'train_samples' => $model->train_samples,
+            'test_samples' => $model->test_samples,
+            'accuracy' => (float) $model->accuracy,
+            'baseline_accuracy' => (float) $model->baseline_accuracy,
+            'beats_baseline' => $model->beatsBaseline(),
+            'precision' => (float) $model->precision,
+            'recall' => (float) $model->recall,
+            'f1' => (float) $model->f1,
+            'stocks_used' => $model->stocks_used,
+        ];
     }
 
     public function actionableSignals($root, array $args): array

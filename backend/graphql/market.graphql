@@ -10,6 +10,40 @@ type TradeSetup {
 }
 
 "A buy/sell signal with a price target/stop-loss attached."
+"One row of the Signals page: a stock's latest signal and the percentages behind it."
+type SignalBoardRow {
+    stock_id: Int!
+    symbol: String!
+    company_name: String
+    sector: String
+    close: String
+    trade_date: String!
+    signal: String!
+    "Final BUY % minus SELL %, as -1..1."
+    score: Float
+    buy_pct: Float
+    sell_pct: Float
+    hold_pct: Float
+    "Why to hold, on a hold day: long_term, consolidation, wait_confirmation, profit_protection, temporary_weakness or overbought."
+    hold_type: String
+    reasons: [String!]
+}
+
+"The trained price-direction model's out-of-sample record against the naive baseline."
+type MlModelSummary {
+    trained_at: String
+    horizon_days: Int
+    train_samples: Int
+    test_samples: Int
+    accuracy: Float
+    baseline_accuracy: Float
+    beats_baseline: Boolean
+    precision: Float
+    recall: Float
+    f1: Float
+    stocks_used: Int
+}
+
 type ActionableSignal {
     stock_id: Int!
     symbol: String!
@@ -152,6 +186,10 @@ type DataQualityFlag {
 extend type Query @guard {
     "Every stock's most recent signal (optionally one signal type), highest score first."
     todaySignals(signal: String): [Stock!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@todaySignals")
+    "Every stock's latest signal with its Buy / Sell / Hold % — the Signals page."
+    signalBoard: [SignalBoardRow!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@signalBoard")
+    "The latest trained direction model's record; null before the first training."
+    mlModel: MlModelSummary @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@mlModel")
     "Buy (or sell) signals with a trade setup. bias: buy | sell."
     actionableSignals(bias: String = "buy"): [ActionableSignal!]! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@actionableSignals")
     signalAccuracy: SignalAccuracyReport! @field(resolver: "App\\GraphQL\\Resolvers\\MarketResolver@signalAccuracy")
